@@ -17,9 +17,9 @@
 
 ## Features
 - `show(content)` or `standard.output(content)`: Show Content.
-- `import.pylo(<str>)`: Import Other Pylo Script.
-- `import.py(<str>)`: Import Python Script.
-- `exec.pylo(<str>)`: Execute Other Pylo Script.
+- `import.pylo(<str>)`: Import Other Pylo Script. (from File)
+- `import.py(<str>)`: Import Python Script. (from File)
+- `exec.pylo(<str>)`: Execute Pylo Script.
 - `exec.py(<str>)`: Execute Python Script.
 - `var example1: type = content`: Define Variable.
 - `func example2(arg1: type) {}`: Define Function.
