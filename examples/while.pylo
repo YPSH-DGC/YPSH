@@ -1,0 +1,9 @@
+var limit: int = 5
+var current: int = 0
+
+while (current < limit) {
+
+    var current: int = current + 1
+    show(current)
+
+}
