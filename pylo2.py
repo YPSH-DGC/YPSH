@@ -413,7 +413,7 @@ class Function:
         return result
 
 class Interpreter:
-    VERSION = "Pylo 2.0"
+    VERSION = "Pylo 2.1"
     def __init__(self):
         self.global_env = Environment()
         self.setup_builtins()
@@ -477,6 +477,18 @@ class Interpreter:
                 if callable(value) and not key.startswith('__'):
                     self.global_env.set(key, value)
         self.global_env.set("exec.py", exec_py)
+        
+        def https_get_save(url, path):
+            r = requests.get(url)
+            with open(path, 'wb') as saveFile:
+                saveFile.write(r.content)
+        self.global_env.set("https.get.save", https_get_save)
+        
+        def https_post_save(url, path):
+            r = requests.post(url)
+            with open(path, 'wb') as saveFile:
+                saveFile.write(r.content)
+        self.global_env.set("https.post.save", https_post_save)
         
         def https_get_text(url):
             r = requests.get(url)
