@@ -3,6 +3,11 @@
 ## Links
 [Docs](https://diamondgotcat.gitbook.io/pylo/)
 
+## Requirements
+- Python
+    - `requests` Library
+    - `rich` Library
+
 ## Example
 ```
 # Save Result of 10 + 20 to "a" variable
