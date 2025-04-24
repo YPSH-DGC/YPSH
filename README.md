@@ -4,7 +4,7 @@
 [Docs](https://diamondgotcat.gitbook.io/pylo/)
 
 ## Requirements
-- Python
+- Python 3.6+
     - `requests` Library
     - `rich` Library
 
