@@ -10,6 +10,8 @@ import requests
 from rich.console import Console
 from rich.traceback import install
 
+VERSION = "Pylo 2.2"
+
 # rich のトレースバック表示を有効化
 install()
 console = Console()
@@ -237,8 +239,10 @@ class Parser:
     def var_decl(self):
         self.eat('ID')  # var
         name = self.eat('ID').value
-        self.eat('COLON')
-        var_type = self.eat('ID').value
+        var_type = "auto"
+        if self.current() and self.current().type == 'COLON':
+            self.eat('COLON')
+            var_type = self.eat('ID').value
         self.eat('EQUAL')
         expr = self.expr()
         return VarDecl(name, var_type, expr)
@@ -251,16 +255,20 @@ class Parser:
         if self.current().type != 'RPAREN':
             while True:
                 param_name = self.eat('ID').value
-                self.eat('COLON')
-                param_type = self.eat('ID').value
+                param_type = "auto"
+                if self.current() and self.current().type == 'COLON':
+                    self.eat('COLON')
+                    param_type = self.eat('ID').value
                 params.append((param_name, param_type))
                 if self.current().type == 'COMMA':
                     self.eat('COMMA')
                 else:
                     break
         self.eat('RPAREN')
-        self.eat('ARROW')
-        return_type = self.eat('ID').value
+        return_type = "auto"
+        if self.current() and self.current().type == 'ARROW':
+            self.eat('ARROW')
+            return_type = self.eat('ID').value
         body = self.block()
         return FuncDecl(name, params, return_type, body.statements)
 
@@ -418,7 +426,7 @@ class Function:
         return result
 
 class Interpreter:
-    VERSION = "Pylo 2.1"
+    VERSION = VERSION
     def __init__(self):
         self.global_env = Environment()
         self.setup_builtins()
