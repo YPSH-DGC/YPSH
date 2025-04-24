@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# Pylo by DiamondGotCat
+# MIT License
+# Copyright (c) 2025 DiamondGotCat
+
 import re
 import sys
 import os
