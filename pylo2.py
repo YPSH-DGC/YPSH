@@ -10,7 +10,7 @@ import requests
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 2.2"
+VERSION = "Pylo 2.3"
 
 # rich のトレースバック表示を有効化
 install()
@@ -438,6 +438,8 @@ class Interpreter:
         self.global_env.set("standard.output", lambda content, end="\n": sys.stdout.write(str(content) + end))
 
         self.global_env.set("show", lambda content, end="\n": print(str(content), end=end))
+
+        self.global_env.set("ask", input)
 
         self.global_env.set("min", min)
 
