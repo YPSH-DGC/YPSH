@@ -1,26 +1,7 @@
 # Pylo - Simple Programming Language
 
-## Points
-- Simple!
-- Easy!
-- You can Execute String as Python Script in Pylo Script!
-
-## Modes
-- Version Check Only
-- REPL Mode
-- File Mode
-
-## Types
-- `str`: Text
-- `int`: Number
-- `list`: List
-
-## Features
-- `show(content)` or `standard.output(content)`: Show Content.
-- `import.pylo(<str>)`: Import Other Pylo Script. (from File)
-- `import.py(<str>)`: Import Python Script. (from File)
-- `exec.pylo(<str>)`: Execute Pylo Script.
-- ...More
+## Links
+[Docs](https://diamondgotcat.gitbook.io/pylo/)
 
 ## Example
 ```
