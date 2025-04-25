@@ -6,11 +6,10 @@
 import re
 import sys
 import os
-import requests
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 3.0"
+VERSION = "Pylo 3.1"
 
 # rich のトレースバック表示を有効化
 install()
@@ -433,14 +432,14 @@ class Interpreter:
 
     def module_enable(self, id):
         if id == "default":
-            self.module_enable("system")
+            self.module_enable("pylo")
             self.module_enable("standard")
             self.module_enable("stdmath")
             self.module_enable("conv")
             self.module_enable("import")
             self.module_enable("exec")
 
-        elif id == "system":
+        elif id == "pylo":
             def get_pylo_version():
                 return self.VERSION
             self.global_env.set("pylo.version", get_pylo_version)
@@ -505,6 +504,8 @@ class Interpreter:
             self.global_env.set("exec.py", exec_py)
         
         elif id == "https":
+            import requests
+
             def https_get_save(url, path):
                 r = requests.get(url)
                 with open(path, 'wb') as saveFile:
@@ -536,11 +537,66 @@ class Interpreter:
                 r = requests.post(url)
                 return r.json()
             self.global_env.set("https.post.json", https_post_json)
-            
-            def https_post_json(url):
-                r = requests.post(url)
-                return r.json()
-            self.global_env.set("file.isexist", https_post_json)
+
+        elif id == "file":
+
+            def file_isexist(path):
+                if os.path.exists(path):
+                    return "true"
+                else:
+                    return "false"
+            self.global_env.set("file.isexist", file_isexist)
+
+            def file_isfile(path):
+                if os.path.isfile(path):
+                    return "true"
+                else:
+                    return "false"
+            self.global_env.set("file.isfile", file_isfile)
+
+            def file_isdir(path):
+                if os.path.isdir(path):
+                    return "true"
+                else:
+                    return "false"
+            self.global_env.set("file.isdir", file_isdir)
+
+            def file_remove(path):
+                os.remove(path)
+            self.global_env.set("file.remove", file_remove)
+
+        elif id == "datetime":
+            from datetime import datetime, timezone, timedelta
+            self.global_env.set("datetime", datetime)
+            self.global_env.set("timezone", timezone)
+            self.global_env.set("timedelta", timedelta)
+
+        elif id == "dgce":
+            self.module_enable("datetime") # DGC-Epoch Module Requires Datetime Module.
+            DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
+
+            def datetime_to_dgc_epoch48(dt: datetime) -> str:
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                delta = dt - DGC_EPOCH_BASE
+                milliseconds = int(delta.total_seconds() * 1000)
+                binary_str = format(milliseconds, '048b')
+                return binary_str
+            self.global_env.set("conv.dgce48", datetime_to_dgc_epoch48)
+
+            def datetime_to_dgc_epoch64(dt: datetime) -> str:
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                delta = dt - DGC_EPOCH_BASE
+                milliseconds = int(delta.total_seconds() * 1000)
+                binary_str = format(milliseconds, '064b')
+                return binary_str
+            self.global_env.set("conv.dgce64", datetime_to_dgc_epoch64)
+
+            def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
+                milliseconds = int(dgc_epoch_str, 2)
+                return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
+            self.global_env.set("conv.datetime", dgc_epoch64_to_datetime)
 
     def setup_builtins(self):
         self.module_enable("default")
