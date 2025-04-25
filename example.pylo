@@ -1,4 +1,3 @@
 func add(x, y) {
-    var result = x + y
-    return result
+    return x + y
 }
