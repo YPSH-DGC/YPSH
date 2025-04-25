@@ -1,12 +1,12 @@
 # Pylo - Simple Programming Language
 
 ## Links
-[Docs](https://diamondgotcat.gitbook.io/pylo/)
+- [Pylo Docs](https://diamondgotcat.gitbook.io/pylo/): All the features and functions are listed here
 
 ## Requirements
 - Python 3.6+
-    - `requests` Library
     - `rich` Library
+    - `requests` Library (for `https` module)
 
 ## Example
 ```
