@@ -9,7 +9,7 @@ import os
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 3.1"
+VERSION = "Pylo 3.1.1"
 
 # rich のトレースバック表示を有効化
 install()
@@ -566,6 +566,7 @@ class Interpreter:
             self.global_env.set("file.remove", file_remove)
 
         elif id == "datetime":
+            global datetime, timezone, timedelta
             from datetime import datetime, timezone, timedelta
             self.global_env.set("datetime", datetime)
             self.global_env.set("timezone", timezone)
