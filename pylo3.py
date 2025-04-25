@@ -9,14 +9,13 @@ import os
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 3.1.1"
+VERSION = "Pylo 3.2"
 
-# rich のトレースバック表示を有効化
 install()
 console = Console()
 
 ##############################
-# ヘルパー関数
+# Helper
 ##############################
 def unescape_string_literal(s):
     """
@@ -26,7 +25,7 @@ def unescape_string_literal(s):
     return bytes(s, "utf-8").decode("unicode_escape")
 
 ##############################
-# トークン定義
+# Tokens
 ##############################
 TOKEN_SPEC = [
     ('NEWLINE',  r'\n'),
@@ -91,7 +90,7 @@ def tokenize(code):
     return tokens
 
 ##############################
-# ASTノード定義
+# AST
 ##############################
 class ASTNode:
     pass
@@ -104,12 +103,10 @@ class Number(ASTNode):
 
 class String(ASTNode):
     def __init__(self, value):
-        # MLSTRINGの場合は3文字分の引用符を除去、通常は1文字ずつ
         if value.startswith('"""') or value.startswith("'''"):
             raw = value[3:-3]
         else:
             raw = value[1:-1]
-        # エスケープシーケンスを処理
         self.value = unescape_string_literal(raw)
     def __repr__(self):
         return f'String({self.value})'
@@ -139,9 +136,9 @@ class BinOp(ASTNode):
 class FuncDecl(ASTNode):
     def __init__(self, name, params, return_type, body):
         self.name = name
-        self.params = params  # list of (param_name, param_type)
+        self.params = params
         self.return_type = return_type
-        self.body = body      # list of ASTNode
+        self.body = body
     def __repr__(self):
         return f'FuncDecl({self.name}, {self.params}, {self.return_type}, {self.body})'
 
@@ -163,8 +160,6 @@ class Block(ASTNode):
         self.statements = statements
     def __repr__(self):
         return f'Block({self.statements})'
-
-# 制御構文のASTノード
 
 class IfStmt(ASTNode):
     def __init__(self, condition, then_block, else_block=None):
@@ -189,8 +184,14 @@ class WhileStmt(ASTNode):
     def __repr__(self):
         return f'WhileStmt({self.condition}, {self.body})'
 
+class ReturnStmt(ASTNode):
+    def __init__(self, value):
+        self.value = value
+    def __repr__(self):
+        return f'ReturnStmt({self.value})'
+
 ##############################
-# パーサ
+# Perser
 ##############################
 class Parser:
     def __init__(self, tokens):
@@ -228,6 +229,8 @@ class Parser:
                 return self.for_stmt()
             elif token.value == 'while':
                 return self.while_stmt()
+            elif token.value == 'return':
+                return self.return_stmt()
             else:
                 expr = self.expr()
                 return ExpressionStmt(expr)
@@ -309,6 +312,11 @@ class Parser:
         self.eat('RPAREN')
         body = self.block()
         return WhileStmt(condition, body)
+    
+    def return_stmt(self):
+        self.eat('ID')  # return
+        value = self.expr()
+        return ReturnStmt(value)
 
     # New: support for comparison expressions
     def expr(self):
@@ -391,9 +399,13 @@ class Parser:
                     break
         self.eat('RBRACKET')
         return ListLiteral(elements)
+    
+class ReturnException(Exception):
+    def __init__(self, value):
+        self.value = value
 
 ##############################
-# インタプリタ
+# Interpreter
 ##############################
 class Environment:
     def __init__(self, parent=None):
@@ -419,10 +431,13 @@ class Function:
             raise RuntimeError("Function argument count mismatch.")
         for (param_name, _), arg in zip(self.decl.params, args):
             local_env.set(param_name, interpreter.evaluate(arg, local_env))
-        result = None
-        for stmt in self.decl.body:
-            result = interpreter.execute(stmt, local_env)
-        return result
+        try:
+            result = None
+            for stmt in self.decl.body:
+                result = interpreter.execute(stmt, local_env)
+            return result
+        except ReturnException as e:
+            return e.value
 
 class Interpreter:
     VERSION = VERSION
@@ -635,6 +650,9 @@ class Interpreter:
         elif isinstance(node, WhileStmt):
             while self.evaluate(node.condition, env):
                 self.execute(node.body, env)
+        elif isinstance(node, ReturnStmt):
+            value = self.evaluate(node.value, env)
+            raise ReturnException(value)
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
@@ -689,7 +707,7 @@ class Interpreter:
             raise RuntimeError(f"Cannot evaluate node {node}.")
 
 ##############################
-# REPL・スクリプト実行・その他実行モード
+# REPL / Script Executing / Other
 ##############################
 def is_code_complete(code):
     try:
@@ -709,7 +727,7 @@ def repl():
     accumulated_code = ""
     while True:
         try:
-            prompt = ">>> " if accumulated_code == "" else "... "
+            prompt = f"{Interpreter.VERSION}>>> " if accumulated_code == "" else f"{Interpreter.VERSION}... "
             line = input(prompt)
         except EOFError:
             break
@@ -753,6 +771,9 @@ def run_file(path):
     except Exception:
         console.print_exception()
 
+##############################
+# Main
+##############################
 def main():
     args = sys.argv[1:]
     if args:
@@ -761,8 +782,6 @@ def main():
         else:
             run_file(args[0])
     else:
-        print(Interpreter.VERSION)
-        print("Starting with REPL Mode...")
         repl()
 
 if __name__ == '__main__':
