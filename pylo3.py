@@ -727,7 +727,7 @@ def repl():
     accumulated_code = ""
     while True:
         try:
-            prompt = f"{Interpreter.VERSION}>>> " if accumulated_code == "" else f"{Interpreter.VERSION}... "
+            prompt = f"PYLO [REPL]> " if accumulated_code == "" else f"............ "
             line = input(prompt)
         except EOFError:
             break
