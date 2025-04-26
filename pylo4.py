@@ -10,7 +10,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 4.0"
+VERSION = "Pylo 4.1"
 
 install()
 console = Console()
@@ -78,10 +78,9 @@ def tokenize(code):
             line_num += 1
             continue
         elif kind in ('SKIP', 'COMMENT'):
-            # スペース、タブ、コメントは無視する
             continue
         elif kind == 'MISMATCH':
-            raise RuntimeError(f"Unexpected character {value!r} at line {line_num}.")
+            raise RuntimeError(f"[ERROR:TKNZ002] Unexpected character {value!r} at line {line_num}.")
         else:
             tokens.append(Token(kind, value, line_num))
     return tokens
@@ -381,7 +380,7 @@ class Parser:
             self.eat('RPAREN')
             return node
         else:
-            raise RuntimeError(f"Unexpected token {token}.")
+            raise RuntimeError(f"[ERROR:PARS002] Unexpected token {token}.")
 
     def list_literal(self):
         self.eat('LBRACKET')
@@ -414,7 +413,7 @@ class Environment:
         elif self.parent:
             return self.parent.get(name)
         else:
-            raise RuntimeError(f"Undefined variable: {name}.")
+            raise RuntimeError(f"[ERROR:INTE002] Undefined variable: {name}.")
     def set(self, name, value):
         self.vars[name] = value
 
@@ -425,7 +424,7 @@ class Function:
     def call(self, args, interpreter):
         local_env = Environment(self.env)
         if len(args) != len(self.decl.params):
-            raise RuntimeError("Function argument count mismatch.")
+            raise RuntimeError("[ERROR:INTE003] Function argument count mismatch.")
         for (param_name, _), arg in zip(self.decl.params, args):
             local_env.set(param_name, interpreter.evaluate(arg, local_env))
         try:
@@ -703,7 +702,7 @@ class Interpreter:
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
-                raise RuntimeError("The expression in for loop is not iterable.")
+                raise RuntimeError("[ERROR:INTE004] The expression in for loop is not iterable.")
             for value in iterable:
                 local_env = Environment(env)
                 local_env.set(node.var_name, value)
@@ -726,7 +725,6 @@ class Interpreter:
         elif isinstance(node, BinOp):
             left = self.evaluate(node.left, env)
             right = self.evaluate(node.right, env)
-            # Handle arithmetic operators
             if node.op == '+':
                 if isinstance(left, str) or isinstance(right, str):
                     return str(left) + str(right)
@@ -738,7 +736,6 @@ class Interpreter:
                 return left * right
             elif node.op == '/':
                 return left / right
-            # Handle comparison operators
             elif node.op == '<':
                 return left < right
             elif node.op == '>':
@@ -752,7 +749,7 @@ class Interpreter:
             elif node.op == '!=':
                 return left != right
             else:
-                raise RuntimeError(f"Unknown operator {node.op}.")
+                raise RuntimeError(f"[ERROR:INTE005] Unknown operator {node.op}.")
         elif isinstance(node, FuncCall):
             func_obj = env.get(node.name)
             if callable(func_obj):
@@ -761,11 +758,11 @@ class Interpreter:
             elif isinstance(func_obj, Function):
                 return func_obj.call(node.args, self)
             else:
-                raise RuntimeError(f"Attempting to call a non-callable {node.name}.")
+                raise RuntimeError(f"[ERROR:INTE006] Attempting to call a non-callable {node.name}.")
         elif isinstance(node, str):
             return env.get(node)
         else:
-            raise RuntimeError(f"Cannot evaluate node {node}.")
+            raise RuntimeError(f"[ERROR:INTE007] Cannot evaluate node {node}.")
 
 ##############################
 # REPL / Script Executing / Other
