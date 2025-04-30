@@ -3,6 +3,8 @@
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
+#!compile!
+
 import re
 import sys
 import os
@@ -10,7 +12,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 5.0"
+VERSION = "Pylo 6.0"
 
 install()
 console = Console()
@@ -856,6 +858,8 @@ def run_file(path):
         interpreter.interpret(ast)
     except Exception:
         console.print_exception()
+
+#!compile!
 
 ##############################
 # Main
