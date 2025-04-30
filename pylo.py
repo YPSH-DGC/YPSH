@@ -10,7 +10,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 4.1"
+VERSION = "Pylo 5.0"
 
 install()
 console = Console()
@@ -441,6 +441,14 @@ class Interpreter:
         self.global_env = Environment()
         self.setup_builtins()
 
+    def append_global_env_var_list(self, id, content):
+        current_conv = self.global_env.get(id)
+        if isinstance(current_conv, list):
+            current_conv.append(content)
+            self.global_env.set(id, current_conv)
+        else:
+            raise RuntimeError(f"[ERROR:INTE008] Expected '{id}' to be a list.")
+
     def module_enable(self, id):
         if id == "default":
             self.module_enable("pylo")
@@ -451,26 +459,32 @@ class Interpreter:
             self.module_enable("exec")
 
         elif id == "pylo":
+            self.global_env.set("pylo", ["pylo.version", "pylo.version.get", "pylo.modules.enable"])
+            self.global_env.set("pylo.version", self.VERSION)
+
             def get_pylo_version():
                 return self.VERSION
-            self.global_env.set("pylo.version", get_pylo_version)
+            self.global_env.set("pylo.version.get", get_pylo_version)
 
             def enable_pylo_module(id):
                 self.module_enable(id)
             self.global_env.set("pylo.modules.enable", enable_pylo_module)
 
         elif id == "standard":
+            self.global_env.set("standard", ["show", "ask", "standard.input", "standard.output"])
             self.global_env.set("standard.input", lambda: sys.stdin.read())
             self.global_env.set("standard.output", lambda content, end="\n": sys.stdout.write(str(content) + end))
             self.global_env.set("show", lambda content, end="\n": print(str(content), end=end))
             self.global_env.set("ask", input)
 
         elif id == "stdmath":
+            self.global_env.set("stdmath", ["min", "max", "mod"])
             self.global_env.set("min", min)
             self.global_env.set("max", max)
             self.global_env.set("mod", lambda a, b: a % b)
 
         elif id == "conv":
+            self.global_env.set("conv", ["conv.str", "conv.int"])
             self.global_env.set("conv.str", str)
             self.global_env.set("conv.int", int)
 
@@ -479,6 +493,8 @@ class Interpreter:
             self.module_enable("import") # `librarys` Module Requires Import Module.
             global json, _load_library_list
             import json
+
+            self.global_env.set("librarys", ["librarys.import", "librarys.install", "librarys.remove"])
 
             def _load_library_list():
                 global installed_packages
@@ -537,6 +553,7 @@ class Interpreter:
             self.global_env.set("librarys.remove", remove_library)
 
         elif id == "import":
+            self.global_env.set("import", ["import.pylo", "import.py"])
 
             def import_pylo(file_path):
                 if not os.path.isfile(file_path):
@@ -562,6 +579,8 @@ class Interpreter:
             self.global_env.set("import.py", import_py)
         
         elif id == "exec":
+            self.global_env.set("exec", ["exec.pylo", "exec.py"])
+
             def exec_pylo(code_string):
                 tokens = tokenize(code_string)
                 parser = Parser(tokens)
@@ -581,6 +600,8 @@ class Interpreter:
             global requests
             import requests
 
+            self.global_env.set("https", ["https.get.save", "https.post.save", "https.get.text", "https.post.text", "https.get.json", "https.post.json"])
+
             def https_get_save(url, path):
                 r = requests.get(url)
                 with open(path, 'wb') as saveFile:
@@ -598,15 +619,15 @@ class Interpreter:
                 return r.text
             self.global_env.set("https.get.text", https_get_text)
             
-            def https_get_json(url):
-                r = requests.get(url)
-                return r.json()
-            self.global_env.set("https.get.json", https_get_json)
-            
             def https_post_text(url):
                 r = requests.post(url)
                 return r.text
             self.global_env.set("https.post.text", https_post_text)
+            
+            def https_get_json(url):
+                r = requests.get(url)
+                return r.json()
+            self.global_env.set("https.get.json", https_get_json)
             
             def https_post_json(url):
                 r = requests.post(url)
@@ -614,6 +635,7 @@ class Interpreter:
             self.global_env.set("https.post.json", https_post_json)
 
         elif id == "file":
+            self.global_env.set("file", ["file.isexist", "file.isfile", "file.isdir", "file.remove"])
 
             def file_isexist(path):
                 if os.path.exists(path):
@@ -643,6 +665,7 @@ class Interpreter:
         elif id == "datetime":
             global datetime, timezone, timedelta
             from datetime import datetime, timezone, timedelta
+
             self.global_env.set("datetime", datetime)
             self.global_env.set("timezone", timezone)
             self.global_env.set("timedelta", timedelta)
@@ -650,6 +673,8 @@ class Interpreter:
         elif id == "dgce":
             self.module_enable("datetime") # DGC-Epoch Module Requires Datetime Module.
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
+
+            self.global_env.set("dgce", [])
 
             def datetime_to_dgc_epoch48(dt: datetime) -> str:
                 if dt.tzinfo is None:
@@ -659,6 +684,7 @@ class Interpreter:
                 binary_str = format(milliseconds, '048b')
                 return binary_str
             self.global_env.set("conv.dgce48", datetime_to_dgc_epoch48)
+            self.append_global_env_var_list("conv", "conv.dgce48")
 
             def datetime_to_dgc_epoch64(dt: datetime) -> str:
                 if dt.tzinfo is None:
@@ -668,11 +694,13 @@ class Interpreter:
                 binary_str = format(milliseconds, '064b')
                 return binary_str
             self.global_env.set("conv.dgce64", datetime_to_dgc_epoch64)
+            self.append_global_env_var_list("conv", "conv.dgce64")
 
             def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
                 milliseconds = int(dgc_epoch_str, 2)
                 return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
             self.global_env.set("conv.datetime", dgc_epoch64_to_datetime)
+            self.append_global_env_var_list("conv", "conv.datetime")
 
     def setup_builtins(self):
         self.module_enable("default")
