@@ -12,7 +12,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 6.0"
+VERSION = "Pylo 6.1"
 
 install()
 console = Console()
@@ -479,6 +479,10 @@ class Interpreter:
             self.global_env.set("show", lambda content, end="\n": print(str(content), end=end))
             self.global_env.set("ask", input)
 
+            def exit_now(code=0):
+                exit(code)
+            self.global_env.set("exit", exit_now)
+
         elif id == "stdmath":
             self.global_env.set("stdmath", ["min", "max", "mod"])
             self.global_env.set("min", min)
@@ -491,8 +495,8 @@ class Interpreter:
             self.global_env.set("conv.int", int)
 
         elif id == "librarys":
-            self.module_enable("https") # `librarys` Module Requires HTTPS Module.
-            self.module_enable("import") # `librarys` Module Requires Import Module.
+            self.module_enable("https")
+            self.module_enable("import")
             global json, _load_library_list
             import json
 
@@ -641,23 +645,23 @@ class Interpreter:
 
             def file_isexist(path):
                 if os.path.exists(path):
-                    return "true"
+                    return True
                 else:
-                    return "false"
+                    return False
             self.global_env.set("file.isexist", file_isexist)
 
             def file_isfile(path):
                 if os.path.isfile(path):
-                    return "true"
+                    return True
                 else:
-                    return "false"
+                    return False
             self.global_env.set("file.isfile", file_isfile)
 
             def file_isdir(path):
                 if os.path.isdir(path):
-                    return "true"
+                    return True
                 else:
-                    return "false"
+                    return False
             self.global_env.set("file.isdir", file_isdir)
 
             def file_remove(path):
@@ -673,7 +677,7 @@ class Interpreter:
             self.global_env.set("timedelta", timedelta)
 
         elif id == "dgce":
-            self.module_enable("datetime") # DGC-Epoch Module Requires Datetime Module.
+            self.module_enable("datetime")
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
             self.global_env.set("dgce", [])
@@ -703,6 +707,21 @@ class Interpreter:
                 return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
             self.global_env.set("conv.datetime", dgc_epoch64_to_datetime)
             self.append_global_env_var_list("conv", "conv.datetime")
+
+        elif id == "luhn":
+            def exec_luhn_algo(card_number: str):
+                card_number = ''.join(filter(str.isdigit, card_number))
+                total = 0
+                reverse_digits = card_number[::-1]
+                for i, digit in enumerate(reverse_digits):
+                    n = int(digit)
+                    if i % 2 == 1:
+                        n *= 2
+                        if n > 9:
+                            n -= 9
+                    total += n
+                return total % 10 == 0
+            self.global_env.set("luhn", exec_luhn_algo)
 
     def setup_builtins(self):
         self.module_enable("default")
