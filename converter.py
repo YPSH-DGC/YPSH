@@ -17,7 +17,7 @@ inte_path = Prompt.ask("Pylo Interpreter", default=(script_dir + "/pylo.py"))
 with open(inte_path) as f:
     inte_script = f.read()
 
-inte_script_nomain = inte_script.split("#!compile!")[1]
+inte_script_nomain = inte_script.split("#!checkpoint!")[1]
 
 result = f"""
 #!/usr/bin/env python3

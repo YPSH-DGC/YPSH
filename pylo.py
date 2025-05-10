@@ -3,7 +3,7 @@
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
-#!compile!
+#!checkpoint!
 
 import re
 import sys
@@ -12,7 +12,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 6.1"
+VERSION = "Pylo 6.2"
 
 install()
 console = Console()
@@ -439,15 +439,16 @@ class Function:
 
 class Interpreter:
     VERSION = VERSION
+
     def __init__(self):
-        self.global_env = Environment()
+        self.pylo_globals = Environment()
         self.setup_builtins()
 
     def append_global_env_var_list(self, id, content):
-        current_conv = self.global_env.get(id)
+        current_conv = self.pylo_globals.get(id)
         if isinstance(current_conv, list):
             current_conv.append(content)
-            self.global_env.set(id, current_conv)
+            self.pylo_globals.set(id, current_conv)
         else:
             raise RuntimeError(f"[ERROR:INTE008] Expected '{id}' to be a list.")
 
@@ -461,38 +462,81 @@ class Interpreter:
             self.module_enable("exec")
 
         elif id == "pylo":
-            self.global_env.set("pylo", ["pylo.version", "pylo.version.get", "pylo.modules.enable"])
-            self.global_env.set("pylo.version", self.VERSION)
+            self.pylo_globals.set("pylo", ["pylo.version", "pylo.version.get", "pylo.modules.enable"])
+            self.pylo_globals.set("pylo.version", self.VERSION)
 
             def get_pylo_version():
                 return self.VERSION
-            self.global_env.set("pylo.version.get", get_pylo_version)
+            self.pylo_globals.set("pylo.version.get", get_pylo_version)
 
             def enable_pylo_module(id):
                 self.module_enable(id)
-            self.global_env.set("pylo.modules.enable", enable_pylo_module)
+            self.pylo_globals.set("pylo.modules.enable", enable_pylo_module)
 
         elif id == "standard":
-            self.global_env.set("standard", ["show", "ask", "standard.input", "standard.output"])
-            self.global_env.set("standard.input", lambda: sys.stdin.read())
-            self.global_env.set("standard.output", lambda content, end="\n": sys.stdout.write(str(content) + end))
-            self.global_env.set("show", lambda content, end="\n": print(str(content), end=end))
-            self.global_env.set("ask", input)
+            self.pylo_globals.set("standard", ["show", "ask", "standard.input", "standard.output"])
+            self.pylo_globals.set("standard.input", lambda: sys.stdin.read())
+            self.pylo_globals.set("standard.output", lambda content, end="\n": sys.stdout.write(str(content) + end))
+            self.pylo_globals.set("show", lambda content, end="\n": print(str(content), end=end))
+            self.pylo_globals.set("ask", input)
 
             def exit_now(code=0):
                 exit(code)
-            self.global_env.set("exit", exit_now)
+            self.pylo_globals.set("exit", exit_now)
 
         elif id == "stdmath":
-            self.global_env.set("stdmath", ["min", "max", "mod"])
-            self.global_env.set("min", min)
-            self.global_env.set("max", max)
-            self.global_env.set("mod", lambda a, b: a % b)
+            self.pylo_globals.set("stdmath", ["min", "max", "mod"])
+            self.pylo_globals.set("min", min)
+            self.pylo_globals.set("max", max)
+            self.pylo_globals.set("mod", lambda a, b: a % b)
 
         elif id == "conv":
-            self.global_env.set("conv", ["conv.str", "conv.int"])
-            self.global_env.set("conv.str", str)
-            self.global_env.set("conv.int", int)
+            self.pylo_globals.set("conv", ["conv.str", "conv.int", "conv.decimal", "conv.binary", "conv.hexadecimal"])
+            self.pylo_globals.set("conv.str", str)
+            self.pylo_globals.set("conv.int", int)
+
+            def convert_to_decimal(value) -> str:
+                if isinstance(value, str):
+                    value = int(value)
+                return str(value)
+            self.pylo_globals.set("conv.decimal", convert_to_decimal)
+
+            def convert_to_binary(value) -> str:
+                if isinstance(value, str):
+                    value = int(value)
+                return bin(value)[2:]
+            self.pylo_globals.set("conv.binary", convert_to_binary)
+
+            def convert_to_hexadecimal(value) -> str:
+                if isinstance(value, str):
+                    value = int(value)
+                return hex(value)[2:]
+            self.pylo_globals.set("conv.hexadecimal", convert_to_hexadecimal)
+
+        elif id == "base58":
+            global BASE58_ALPHABET
+
+            BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+
+            def convert_to_base58(value: str) -> str:
+                value2 = int.from_bytes(value.encode('utf-8'), 'big')
+                result = ''
+                while value2 > 0:
+                    value2, remainder = divmod(value2, 58)
+                    result = BASE58_ALPHABET[remainder] + result
+                return result or "--"
+            self.pylo_globals.set("conv.base58", convert_to_base58)
+            self.append_global_env_var_list("conv", "conv.base58")
+            
+        elif id == "base64":
+            global base64
+            import base64
+
+            def convert_to_base64(value: str) -> str:
+                input_bytes = value.encode('utf-8')
+                return base64.b64encode(input_bytes).decode('utf-8')
+            self.pylo_globals.set("conv.base64", convert_to_base64)
+            self.append_global_env_var_list("conv", "conv.base64")
 
         elif id == "librarys":
             self.module_enable("https")
@@ -500,7 +544,7 @@ class Interpreter:
             global json, _load_library_list
             import json
 
-            self.global_env.set("librarys", ["librarys.import", "librarys.install", "librarys.remove"])
+            self.pylo_globals.set("librarys", ["librarys.import", "librarys.install", "librarys.remove"])
 
             def _load_library_list():
                 global installed_packages
@@ -530,7 +574,7 @@ class Interpreter:
                     ast = parser.parse()
                     self.interpret(ast)
 
-            self.global_env.set("librarys.import", import_library)
+            self.pylo_globals.set("librarys.import", import_library)
 
             def add_library(id, library_script_url):
                 _load_library_list()
@@ -544,7 +588,7 @@ class Interpreter:
 
                 with open(installedfile, "w", encoding="utf-8") as f:
                     json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.global_env.set("librarys.install", add_library)
+            self.pylo_globals.set("librarys.install", add_library)
 
             def remove_library(id):
                 _load_library_list()
@@ -556,10 +600,10 @@ class Interpreter:
                     del installed_packages[id]
                     with open(installedfile, "w", encoding="utf-8") as f:
                         json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.global_env.set("librarys.remove", remove_library)
+            self.pylo_globals.set("librarys.remove", remove_library)
 
         elif id == "import":
-            self.global_env.set("import", ["import.pylo", "import.py"])
+            self.pylo_globals.set("import", ["import.pylo", "import.py"])
 
             def import_pylo(file_path):
                 if not os.path.isfile(file_path):
@@ -570,7 +614,7 @@ class Interpreter:
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.global_env.set("import.pylo", import_pylo)
+            self.pylo_globals.set("import.pylo", import_pylo)
 
             def import_py(file_path):
                 if not os.path.isfile(file_path):
@@ -581,106 +625,106 @@ class Interpreter:
                 exec(code, local_dict)
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
-                        self.global_env.set(key, value)
-            self.global_env.set("import.py", import_py)
+                        self.pylo_globals.set(key, value)
+            self.pylo_globals.set("import.py", import_py)
         
         elif id == "exec":
-            self.global_env.set("exec", ["exec.pylo", "exec.py"])
+            self.pylo_globals.set("exec", ["exec.pylo", "exec.py"])
 
             def exec_pylo(code_string):
                 tokens = tokenize(code_string)
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.global_env.set("exec.pylo", exec_pylo)
+            self.pylo_globals.set("exec.pylo", exec_pylo)
 
             def exec_py(code_string):
                 local_dict = {}
                 exec(code_string, local_dict)
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
-                        self.global_env.set(key, value)
-            self.global_env.set("exec.py", exec_py)
+                        self.pylo_globals.set(key, value)
+            self.pylo_globals.set("exec.py", exec_py)
         
         elif id == "https":
             global requests
             import requests
 
-            self.global_env.set("https", ["https.get.save", "https.post.save", "https.get.text", "https.post.text", "https.get.json", "https.post.json"])
+            self.pylo_globals.set("https", ["https.get.save", "https.post.save", "https.get.text", "https.post.text", "https.get.json", "https.post.json"])
 
             def https_get_save(url, path):
                 r = requests.get(url)
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
-            self.global_env.set("https.get.save", https_get_save)
+            self.pylo_globals.set("https.get.save", https_get_save)
             
             def https_post_save(url, path):
                 r = requests.post(url)
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
-            self.global_env.set("https.post.save", https_post_save)
+            self.pylo_globals.set("https.post.save", https_post_save)
             
             def https_get_text(url):
                 r = requests.get(url)
                 return r.text
-            self.global_env.set("https.get.text", https_get_text)
+            self.pylo_globals.set("https.get.text", https_get_text)
             
             def https_post_text(url):
                 r = requests.post(url)
                 return r.text
-            self.global_env.set("https.post.text", https_post_text)
+            self.pylo_globals.set("https.post.text", https_post_text)
             
             def https_get_json(url):
                 r = requests.get(url)
                 return r.json()
-            self.global_env.set("https.get.json", https_get_json)
+            self.pylo_globals.set("https.get.json", https_get_json)
             
             def https_post_json(url):
                 r = requests.post(url)
                 return r.json()
-            self.global_env.set("https.post.json", https_post_json)
+            self.pylo_globals.set("https.post.json", https_post_json)
 
         elif id == "file":
-            self.global_env.set("file", ["file.isexist", "file.isfile", "file.isdir", "file.remove"])
+            self.pylo_globals.set("file", ["file.isexist", "file.isfile", "file.isdir", "file.remove"])
 
             def file_isexist(path):
                 if os.path.exists(path):
                     return True
                 else:
                     return False
-            self.global_env.set("file.isexist", file_isexist)
+            self.pylo_globals.set("file.isexist", file_isexist)
 
             def file_isfile(path):
                 if os.path.isfile(path):
                     return True
                 else:
                     return False
-            self.global_env.set("file.isfile", file_isfile)
+            self.pylo_globals.set("file.isfile", file_isfile)
 
             def file_isdir(path):
                 if os.path.isdir(path):
                     return True
                 else:
                     return False
-            self.global_env.set("file.isdir", file_isdir)
+            self.pylo_globals.set("file.isdir", file_isdir)
 
             def file_remove(path):
                 os.remove(path)
-            self.global_env.set("file.remove", file_remove)
+            self.pylo_globals.set("file.remove", file_remove)
 
         elif id == "datetime":
             global datetime, timezone, timedelta
             from datetime import datetime, timezone, timedelta
 
-            self.global_env.set("datetime", datetime)
-            self.global_env.set("timezone", timezone)
-            self.global_env.set("timedelta", timedelta)
+            self.pylo_globals.set("datetime", datetime)
+            self.pylo_globals.set("timezone", timezone)
+            self.pylo_globals.set("timedelta", timedelta)
 
         elif id == "dgce":
             self.module_enable("datetime")
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
-            self.global_env.set("dgce", [])
+            self.pylo_globals.set("dgce", [])
 
             def datetime_to_dgc_epoch48(dt: datetime) -> str:
                 if dt.tzinfo is None:
@@ -689,7 +733,7 @@ class Interpreter:
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '048b')
                 return binary_str
-            self.global_env.set("conv.dgce48", datetime_to_dgc_epoch48)
+            self.pylo_globals.set("conv.dgce48", datetime_to_dgc_epoch48)
             self.append_global_env_var_list("conv", "conv.dgce48")
 
             def datetime_to_dgc_epoch64(dt: datetime) -> str:
@@ -699,13 +743,13 @@ class Interpreter:
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '064b')
                 return binary_str
-            self.global_env.set("conv.dgce64", datetime_to_dgc_epoch64)
+            self.pylo_globals.set("conv.dgce64", datetime_to_dgc_epoch64)
             self.append_global_env_var_list("conv", "conv.dgce64")
 
             def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
                 milliseconds = int(dgc_epoch_str, 2)
                 return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
-            self.global_env.set("conv.datetime", dgc_epoch64_to_datetime)
+            self.pylo_globals.set("conv.datetime", dgc_epoch64_to_datetime)
             self.append_global_env_var_list("conv", "conv.datetime")
 
         elif id == "luhn":
@@ -721,13 +765,13 @@ class Interpreter:
                             n -= 9
                     total += n
                 return total % 10 == 0
-            self.global_env.set("luhn", exec_luhn_algo)
+            self.pylo_globals.set("luhn", exec_luhn_algo)
 
     def setup_builtins(self):
         self.module_enable("default")
         
     def interpret(self, node):
-        return self.execute(node, self.global_env)
+        return self.execute(node, self.pylo_globals)
     def execute(self, node, env):
         if isinstance(node, Block):
             result = None
@@ -878,7 +922,7 @@ def run_file(path):
     except Exception:
         console.print_exception()
 
-#!compile!
+#!checkpoint!
 
 ##############################
 # Main
