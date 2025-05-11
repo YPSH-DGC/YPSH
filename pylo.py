@@ -8,11 +8,12 @@
 import re
 import sys
 import os
+import json
 from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 6.2"
+VERSION = "Pylo 7.0"
 
 install()
 console = Console()
@@ -310,7 +311,7 @@ class Parser:
         self.eat('RPAREN')
         body = self.block()
         return WhileStmt(condition, body)
-    
+
     def return_stmt(self):
         self.eat('ID')  # return
         value = self.expr()
@@ -397,7 +398,7 @@ class Parser:
                     break
         self.eat('RBRACKET')
         return ListLiteral(elements)
-    
+
 class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
@@ -418,6 +419,8 @@ class Environment:
             raise RuntimeError(f"[ERROR:INTE002] Undefined variable: {name}.")
     def set(self, name, value):
         self.vars[name] = value
+    def unset(self, name):
+        self.vars.pop(name, None)
 
 class Function:
     def __init__(self, decl, env):
@@ -452,6 +455,48 @@ class Interpreter:
         else:
             raise RuntimeError(f"[ERROR:INTE008] Expected '{id}' to be a list.")
 
+    def get_ids_from_action(self, action):
+        matching_keys = []
+        env = self.pylo_globals
+        while env is not None:
+            for key, value in env.vars.items():
+                if value == action:
+                    matching_keys.append(key)
+            env = env.parent
+        return matching_keys
+
+    def standard_output(self, content, end="\n"):
+        returnValue = ""
+
+        if callable(content):
+            returnValue = "" + ", ".join(self.get_ids_from_action(content)) + " (func)"
+
+        elif isinstance(content, str):
+            returnValue = content
+
+        elif isinstance(content, bool):
+            if content == True:
+                returnValue = "true (bool)"
+            elif content == False:
+                returnValue = "false (bool)"
+
+        elif isinstance(content, int):
+            returnValue = str(content)
+
+        elif isinstance(content, float):
+            returnValue = str(content)
+
+        elif isinstance(content, list):
+            returnValue = json.dumps(content) + " (list)"
+
+        elif isinstance(content, dict):
+            returnValue = json.dumps(content) + " (dict)"
+
+        else:
+            returnValue = str(content) + " (object)"
+
+        sys.stdout.write(returnValue + end)
+
     def module_enable(self, id):
         if id == "default":
             self.module_enable("pylo")
@@ -460,24 +505,37 @@ class Interpreter:
             self.module_enable("conv")
             self.module_enable("import")
             self.module_enable("exec")
+            self.module_enable("env")
 
         elif id == "pylo":
-            self.pylo_globals.set("pylo", ["pylo.version", "pylo.version.get", "pylo.modules.enable"])
+            self.pylo_globals.set("pylo", ["false", "true", "def", "undef", "pylo.version", "pylo.version.get", "pylo.module.enable", "pylo.modules.enable"])
             self.pylo_globals.set("pylo.version", self.VERSION)
+            self.pylo_globals.set("false", False)
+            self.pylo_globals.set("true", True)
 
             def get_pylo_version():
                 return self.VERSION
             self.pylo_globals.set("pylo.version.get", get_pylo_version)
 
+            def pylo_def(id, content):
+                self.pylo_globals.set(id, content)
+            self.pylo_globals.set("def", pylo_def)
+
+            def pylo_undef(id):
+                self.pylo_globals.unset(id)
+            self.pylo_globals.set("undef", pylo_undef)
+
             def enable_pylo_module(id):
                 self.module_enable(id)
+            self.pylo_globals.set("pylo.module.enable", enable_pylo_module)
             self.pylo_globals.set("pylo.modules.enable", enable_pylo_module)
 
         elif id == "standard":
-            self.pylo_globals.set("standard", ["show", "ask", "standard.input", "standard.output"])
+            self.pylo_globals.set("standard", ["show", "ask", "exit", "standard.input", "standard.output"])
             self.pylo_globals.set("standard.input", lambda: sys.stdin.read())
-            self.pylo_globals.set("standard.output", lambda content, end="\n": sys.stdout.write(str(content) + end))
-            self.pylo_globals.set("show", lambda content, end="\n": print(str(content), end=end))
+
+            self.pylo_globals.set("standard.output", self.standard_output)
+            self.pylo_globals.set("show", self.standard_output)
             self.pylo_globals.set("ask", input)
 
             def exit_now(code=0):
@@ -489,6 +547,11 @@ class Interpreter:
             self.pylo_globals.set("min", min)
             self.pylo_globals.set("max", max)
             self.pylo_globals.set("mod", lambda a, b: a % b)
+
+        elif id == "env":
+            def get_system_env(id):
+                return os.environ[id]
+            self.pylo_globals.set("env", get_system_env)
 
         elif id == "conv":
             self.pylo_globals.set("conv", ["conv.str", "conv.int", "conv.decimal", "conv.binary", "conv.hexadecimal"])
@@ -527,7 +590,7 @@ class Interpreter:
                 return result or "--"
             self.pylo_globals.set("conv.base58", convert_to_base58)
             self.append_global_env_var_list("conv", "conv.base58")
-            
+
         elif id == "base64":
             global base64
             import base64
@@ -541,8 +604,7 @@ class Interpreter:
         elif id == "librarys":
             self.module_enable("https")
             self.module_enable("import")
-            global json, _load_library_list
-            import json
+            global _load_library_list
 
             self.pylo_globals.set("librarys", ["librarys.import", "librarys.install", "librarys.remove"])
 
@@ -627,7 +689,7 @@ class Interpreter:
                     if callable(value) and not key.startswith('__'):
                         self.pylo_globals.set(key, value)
             self.pylo_globals.set("import.py", import_py)
-        
+
         elif id == "exec":
             self.pylo_globals.set("exec", ["exec.pylo", "exec.py"])
 
@@ -645,7 +707,7 @@ class Interpreter:
                     if callable(value) and not key.startswith('__'):
                         self.pylo_globals.set(key, value)
             self.pylo_globals.set("exec.py", exec_py)
-        
+
         elif id == "https":
             global requests
             import requests
@@ -657,28 +719,28 @@ class Interpreter:
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
             self.pylo_globals.set("https.get.save", https_get_save)
-            
+
             def https_post_save(url, path):
                 r = requests.post(url)
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
             self.pylo_globals.set("https.post.save", https_post_save)
-            
+
             def https_get_text(url):
                 r = requests.get(url)
                 return r.text
             self.pylo_globals.set("https.get.text", https_get_text)
-            
+
             def https_post_text(url):
                 r = requests.post(url)
                 return r.text
             self.pylo_globals.set("https.post.text", https_post_text)
-            
+
             def https_get_json(url):
                 r = requests.get(url)
                 return r.json()
             self.pylo_globals.set("https.get.json", https_get_json)
-            
+
             def https_post_json(url):
                 r = requests.post(url)
                 return r.json()
@@ -769,7 +831,7 @@ class Interpreter:
 
     def setup_builtins(self):
         self.module_enable("default")
-        
+
     def interpret(self, node):
         return self.execute(node, self.pylo_globals)
     def execute(self, node, env):
@@ -878,7 +940,7 @@ def repl():
     accumulated_code = ""
     while True:
         try:
-            prompt = f"PYLO [REPL]> " if accumulated_code == "" else f"............ "
+            prompt = f"{VERSION}> " if accumulated_code == "" else f"............ "
             line = input(prompt)
         except EOFError:
             break
@@ -931,16 +993,13 @@ def main():
     args = sys.argv[1:]
     if args:
         if args[0] == "--version":
-
-            # Version Check
-            print(Interpreter.VERSION)
+            print(VERSION)
 
         elif args[0] == "pylopm":
-
-            # Pylo Package Manager
+            print(VERSION)
             print("[PyloPM] Start PyloPM - Pylo Package Manager...")
 
-            try: 
+            try:
                 if args[1] == "install" and (args[2] != "" and args[3] != ""):
                     print(f"Install Library: {args[2]} (from {args[3]})")
                     run_text(f"""
@@ -957,16 +1016,12 @@ librarys.remove("{args[2]}")
                     print("[PyloPM] No Matched Command")
             except IndexError:
                 print("[PyloPM] No Matched Command")
-                
+
             print("[PyloPM] Finish PyloPM - Pylo Package Manager...")
 
         else:
-
-            # Run Pylo Script from File
             run_file(args[0])
     else:
-
-        # REPL Mode
         repl()
 
 if __name__ == '__main__':
