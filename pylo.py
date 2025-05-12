@@ -13,7 +13,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 7.2.1"
+VERSION = "Pylo 7.2.2"
 
 install()
 console = Console()
@@ -497,7 +497,7 @@ class Interpreter:
             returnValue = f"{json.dumps(content)} {foundKeys_Pipe}(dict)"
 
         else:
-            returnValue = f"{content} {foundKeys_Pipe}(object)"
+            returnValue = f"{content} {foundKeys_Pipe}(python)"
 
         sys.stdout.write(returnValue + end)
 
