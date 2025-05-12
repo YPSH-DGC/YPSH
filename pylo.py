@@ -13,7 +13,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 7.1"
+VERSION = "Pylo 7.2"
 
 install()
 console = Console()
@@ -552,10 +552,21 @@ class Interpreter:
             self.pylo_globals.set("exit", exit_now)
 
         elif id == "stdmath":
-            self.pylo_globals.set("stdmath", ["min", "max", "mod"])
+            self.pylo_globals.set("stdmath", ["min", "max", "mod", "count"])
             self.pylo_globals.set("min", min)
             self.pylo_globals.set("max", max)
             self.pylo_globals.set("mod", lambda a, b: a % b)
+
+            def count_func(input):
+                return len(input)
+            self.pylo_globals.set("count", count_func)
+
+            def pylo_range(start=1, end=None):
+                if end == None:
+                    raise RuntimeError("[ERROR:-------] stdmath/range (internal: pylo_range): At least one argument is required: end")
+                else:
+                    return range(start, end+1)
+            self.pylo_globals.set("range", pylo_range)
 
         elif id == "env":
             def get_system_env(id):
