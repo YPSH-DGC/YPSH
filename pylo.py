@@ -13,7 +13,7 @@ from os.path import expanduser
 from rich.console import Console
 from rich.traceback import install
 
-VERSION = "Pylo 7.0"
+VERSION = "Pylo 7.1"
 
 install()
 console = Console()
@@ -455,45 +455,49 @@ class Interpreter:
         else:
             raise RuntimeError(f"[ERROR:INTE008] Expected '{id}' to be a list.")
 
-    def get_ids_from_action(self, action):
+    def get_ids_from_content(self, content):
         matching_keys = []
         env = self.pylo_globals
         while env is not None:
             for key, value in env.vars.items():
-                if value == action:
+                if value == content:
                     matching_keys.append(key)
             env = env.parent
         return matching_keys
 
-    def standard_output(self, content, end="\n"):
-        returnValue = ""
+    def normal_print(self, content, end="\n"):
+        sys.stdout.write(str(content) + end)
 
-        if callable(content):
-            returnValue = "" + ", ".join(self.get_ids_from_action(content)) + " (func)"
+    def pylo_print(self, content, end="\n"):
+        returnValue = ""
+        foundKeys_list = self.get_ids_from_content(content)
+        foundKeys = ", ".join(foundKeys_list)
+        foundKeys_Pipe = f"| {foundKeys} " if foundKeys_list else "| "
+        foundKeys_NoPipe = f"{foundKeys} " if foundKeys_list else ""
+
+        if isinstance(content, Function) or callable(content):
+            returnValue = f"{foundKeys_NoPipe}(func)"
 
         elif isinstance(content, str):
-            returnValue = content
+            returnValue = f"{content} {foundKeys_Pipe}(str)"
 
         elif isinstance(content, bool):
-            if content == True:
-                returnValue = "true (bool)"
-            elif content == False:
-                returnValue = "false (bool)"
+            returnValue = f"{foundKeys_NoPipe}(bool)"
 
         elif isinstance(content, int):
-            returnValue = str(content)
+            returnValue = f"{content} {foundKeys_Pipe}(int)"
 
         elif isinstance(content, float):
-            returnValue = str(content)
+            returnValue = f"{content} {foundKeys_Pipe}(float)"
 
         elif isinstance(content, list):
-            returnValue = json.dumps(content) + " (list)"
+            returnValue = f"{json.dumps(content)} {foundKeys_Pipe}(list)"
 
         elif isinstance(content, dict):
-            returnValue = json.dumps(content) + " (dict)"
+            returnValue = f"{json.dumps(content)} {foundKeys_Pipe}(dict)"
 
         else:
-            returnValue = str(content) + " (object)"
+            returnValue = f"{json.dumps(content)} {foundKeys_Pipe}(object)"
 
         sys.stdout.write(returnValue + end)
 
@@ -531,11 +535,16 @@ class Interpreter:
             self.pylo_globals.set("pylo.modules.enable", enable_pylo_module)
 
         elif id == "standard":
-            self.pylo_globals.set("standard", ["show", "ask", "exit", "standard.input", "standard.output"])
-            self.pylo_globals.set("standard.input", lambda: sys.stdin.read())
+            self.pylo_globals.set("standard", ["print", "show", "ask", "exit", "standard.input", "standard.output"])
 
-            self.pylo_globals.set("standard.output", self.standard_output)
-            self.pylo_globals.set("show", self.standard_output)
+            def read_stdin():
+                return sys.stdin.read()
+            self.pylo_globals.set("standard.input", read_stdin)
+            self.pylo_globals.set("standard.output", self.normal_print)
+
+            self.pylo_globals.set("print", self.pylo_print)
+            self.pylo_globals.set("show", self.pylo_print)
+
             self.pylo_globals.set("ask", input)
 
             def exit_now(code=0):
@@ -940,7 +949,9 @@ def repl():
     accumulated_code = ""
     while True:
         try:
-            prompt = f"{VERSION}> " if accumulated_code == "" else f"............ "
+            prompt = f"{VERSION}> "
+            promptlen = len(prompt)
+            prompt = prompt if accumulated_code == "" else ("." * promptlen)
             line = input(prompt)
         except EOFError:
             break
