@@ -17,7 +17,7 @@ inte_path = Prompt.ask("Pylo Interpreter", default=(script_dir + "/pylo.py"))
 with open(inte_path) as f:
     inte_script = f.read()
 
-inte_script_nomain = inte_script.split("#!checkpoint!")[1]
+inte_script_nomain = inte_script.split("#!checkpoint!")[1].strip()
 
 result = f"""
 #!/usr/bin/env python3
@@ -37,6 +37,8 @@ def main():
 if __name__ == '__main__':
     main()
 """
+
+result = result.strip()
 
 epath = Prompt.ask("Export File", default="embedpylo.py")
 with open(epath, mode='w') as f:
