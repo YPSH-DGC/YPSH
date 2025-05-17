@@ -4,13 +4,10 @@
 # Copyright (c) 2025 DiamondGotCat
 
 import os
+from rich import print
 from rich.prompt import Prompt
 
-print("Generate EmbedPylo from Script and Interpreter")
-
-path = Prompt.ask("Pylo Script Path", default="main.pylo")
-with open(path) as f:
-    script = f.read()
+print("Generate EmbedPylo from Interpreter")
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 inte_path = Prompt.ask("Pylo Interpreter", default=(script_dir + "/pylo.py"))
@@ -21,7 +18,7 @@ inte_script_nomain = inte_script.split("#!checkpoint!")[1]
 
 result = f"""
 #!/usr/bin/env python3
-# EmbedPylo for {path}
+# EmbedPylo
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
@@ -32,7 +29,8 @@ result = f"""
 ##############################
 
 def main():
-    run_text(\"\"\"""" + script.replace("\"", "\\\"").replace("\'", "\\\'") + """\"\"\")
+    received_script = sys.stdin.read()
+    run_text(received_script)
 
 if __name__ == '__main__':
     main()
