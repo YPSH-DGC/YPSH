@@ -9,13 +9,15 @@ import re
 import sys
 import os
 import json
+import traceback
 from os.path import expanduser
+from rich import print
 from rich.console import Console
-from rich.traceback import install
 
-VERSION = "Pylo 7.2.2"
+VERSION_TYPE = "Pylo"
+VERSION_NUMBER = "8.0"
+VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
-install()
 console = Console()
 
 ##############################
@@ -416,7 +418,7 @@ class Environment:
         elif self.parent:
             return self.parent.get(name)
         else:
-            raise RuntimeError(f"[ERROR:INTE002] Undefined variable: {name}.")
+            raise RuntimeError(f"[ERROR:INTE002] Cannot find '{name}' in scope.")
     def set(self, name, value):
         self.vars[name] = value
     def unset(self, name):
@@ -441,17 +443,23 @@ class Function:
             return e.value
 
 class Interpreter:
+    VERSION_TYPE = VERSION_TYPE
+    VERSION_NUMBER = VERSION_NUMBER
     VERSION = VERSION
+    modules = []
 
     def __init__(self):
         self.pylo_globals = Environment()
         self.setup_builtins()
 
     def append_global_env_var_list(self, id, content):
+        if id not in self.modules:
+            self.modules.append(id)
         current_conv = self.pylo_globals.get(id)
         if isinstance(current_conv, list):
-            current_conv.append(content)
-            self.pylo_globals.set(id, current_conv)
+            if content not in current_conv:
+                current_conv.append(content)
+                self.pylo_globals.set(id, current_conv)
         else:
             raise RuntimeError(f"[ERROR:INTE008] Expected '{id}' to be a list.")
 
@@ -467,6 +475,9 @@ class Interpreter:
 
     def normal_print(self, content, end="\n"):
         sys.stdout.write(str(content) + end)
+
+    def color_print(self, content, end="\n"):
+        print(str(content), end=end)
 
     def pylo_print(self, content, end="\n"):
         returnValue = ""
@@ -499,102 +510,138 @@ class Interpreter:
         else:
             returnValue = f"{content} {foundKeys_Pipe}(python)"
 
-        sys.stdout.write(returnValue + end)
+        self.color_print(returnValue, end)
+
+    def pylo_def(self, module, id, content):
+        if module == "@":
+            try:
+                self.pylo_globals.get("root")
+            except RuntimeError:
+                self.pylo_globals.set("root", [])
+        
+            self.append_global_env_var_list("root", id)
+            self.pylo_globals.set(f"{id}", content)
+        else:
+            try:
+                self.pylo_globals.get(module)
+            except RuntimeError:
+                self.pylo_globals.set(module, [])
+        
+            self.append_global_env_var_list(module, id)
+            self.pylo_globals.set(f"{module}.{id}", content)
+
+    def pylo_undef(self, module, id):
+        if module == "@":
+            self.pylo_globals.unset(f"{id}")
+
+        elif module == id:
+            keys_to_remove = [
+                key for key in self.pylo_globals.vars
+                if key == module or key.startswith(f"{module}.")
+            ]
+            for key in keys_to_remove:
+                self.pylo_globals.unset(key)
+
+        else:
+            try:
+                members = list(self.pylo_globals.get(module))
+            except RuntimeError:
+                return
+
+            if id in members:
+                members.remove(id)
+                self.pylo_globals.set(module, members)
+
+            self.pylo_globals.unset(f"{module}.{id}")
 
     def module_enable(self, id):
         if id == "default":
             self.module_enable("pylo")
             self.module_enable("standard")
-            self.module_enable("stdmath")
-            self.module_enable("conv")
-            self.module_enable("import")
-            self.module_enable("exec")
-            self.module_enable("env")
 
         elif id == "pylo":
-            self.pylo_globals.set("pylo", ["false", "true", "def", "undef", "pylo.version", "pylo.version.get", "pylo.module.enable", "pylo.modules.enable"])
-            self.pylo_globals.set("pylo.version", self.VERSION)
-            self.pylo_globals.set("false", False)
-            self.pylo_globals.set("true", True)
+            self.pylo_def("@", "false", False)
+            self.pylo_def("@", "true", True)
+            self.pylo_def("@", "def", self.pylo_def)
+            self.pylo_def("@", "undef", self.pylo_undef)
+
+            self.pylo_def("pylo", "version", self.VERSION)
+            self.pylo_def("pylo", "version.type", self.VERSION_TYPE)
+            self.pylo_def("pylo", "version.number", self.VERSION_NUMBER)
+            self.pylo_def("pylo", "module", self.modules)
+            self.pylo_def("pylo", "modules", self.modules)
+            self.pylo_def("pylo", "module.enable", self.module_enable)
+            self.pylo_def("pylo", "modules.enable", self.module_enable)
+            self.pylo_def("pylo", "module.append", self.module_enable)
+            self.pylo_def("pylo", "modules.append", self.module_enable)
+
+            def pylo_reset():
+                self.pylo_globals = Environment()
+                self.module_enable("pylo")
+            self.pylo_def("pylo", "reset", pylo_reset)
 
             def get_pylo_version():
                 return self.VERSION
-            self.pylo_globals.set("pylo.version.get", get_pylo_version)
-
-            def pylo_def(id, content):
-                self.pylo_globals.set(id, content)
-            self.pylo_globals.set("def", pylo_def)
-
-            def pylo_undef(id):
-                self.pylo_globals.unset(id)
-            self.pylo_globals.set("undef", pylo_undef)
-
-            def enable_pylo_module(id):
-                self.module_enable(id)
-            self.pylo_globals.set("pylo.module.enable", enable_pylo_module)
-            self.pylo_globals.set("pylo.modules.enable", enable_pylo_module)
+            self.pylo_def("pylo", "version.get", get_pylo_version)
 
         elif id == "standard":
-            self.pylo_globals.set("standard", ["print", "show", "ask", "exit", "standard.input", "standard.output"])
+            self.pylo_def("@", "print", self.color_print)
 
-            def read_stdin():
-                return sys.stdin.read()
-            self.pylo_globals.set("standard.input", read_stdin)
-            self.pylo_globals.set("standard.output", self.normal_print)
+            self.pylo_def("@", "show", self.pylo_print)
 
-            self.pylo_globals.set("print", self.pylo_print)
-            self.pylo_globals.set("show", self.pylo_print)
-
-            self.pylo_globals.set("ask", input)
+            self.pylo_def("@", "ask", input)
 
             def exit_now(code=0):
                 exit(code)
-            self.pylo_globals.set("exit", exit_now)
+            self.pylo_def("@", "exit", exit_now)
+
+            def read_stdin():
+                return sys.stdin.read()
+            self.pylo_def("standard", "input", read_stdin)
+            self.pylo_def("standard", "output", self.normal_print)
 
         elif id == "stdmath":
-            self.pylo_globals.set("stdmath", ["min", "max", "mod", "count"])
-            self.pylo_globals.set("min", min)
-            self.pylo_globals.set("max", max)
-            self.pylo_globals.set("mod", lambda a, b: a % b)
+            self.pylo_def("@", "min", min)
+            self.pylo_def("@", "max", max)
+            self.pylo_def("@", "mod", lambda a, b: a % b)
 
             def count_func(input):
                 return len(input)
-            self.pylo_globals.set("count", count_func)
+            self.pylo_def("@", "count", count_func)
 
             def pylo_range(start=1, end=None):
                 if end == None:
                     raise RuntimeError("[ERROR:-------] stdmath/range (internal: pylo_range): At least one argument is required: end")
                 else:
                     return range(start, end+1)
-            self.pylo_globals.set("range", pylo_range)
+            self.pylo_def("@", "range", pylo_range)
 
         elif id == "env":
             def get_system_env(id):
                 return os.environ[id]
-            self.pylo_globals.set("env", get_system_env)
+            self.pylo_def("@", "env", get_system_env)
 
         elif id == "conv":
-            self.pylo_globals.set("conv", ["conv.str", "conv.int", "conv.decimal", "conv.binary", "conv.hexadecimal"])
-            self.pylo_globals.set("conv.str", str)
-            self.pylo_globals.set("conv.int", int)
+            self.pylo_def("conv", "str", str)
+            self.pylo_def("conv", "int", int)
 
             def convert_to_decimal(value) -> str:
                 if isinstance(value, str):
                     value = int(value)
                 return str(value)
-            self.pylo_globals.set("conv.decimal", convert_to_decimal)
+            self.pylo_def("conv", "decimal", convert_to_decimal)
 
             def convert_to_binary(value) -> str:
                 if isinstance(value, str):
                     value = int(value)
                 return bin(value)[2:]
-            self.pylo_globals.set("conv.binary", convert_to_binary)
+            self.pylo_def("conv", "binary", convert_to_binary)
 
             def convert_to_hexadecimal(value) -> str:
                 if isinstance(value, str):
                     value = int(value)
                 return hex(value)[2:]
-            self.pylo_globals.set("conv.hexadecimal", convert_to_hexadecimal)
+            self.pylo_def("conv", "hexadecimal", convert_to_hexadecimal)
 
         elif id == "base58":
             global BASE58_ALPHABET
@@ -608,8 +655,7 @@ class Interpreter:
                     value2, remainder = divmod(value2, 58)
                     result = BASE58_ALPHABET[remainder] + result
                 return result or "--"
-            self.pylo_globals.set("conv.base58", convert_to_base58)
-            self.append_global_env_var_list("conv", "conv.base58")
+            self.pylo_def("conv", "base58", convert_to_base58)
 
         elif id == "base64":
             global base64
@@ -618,15 +664,12 @@ class Interpreter:
             def convert_to_base64(value: str) -> str:
                 input_bytes = value.encode('utf-8')
                 return base64.b64encode(input_bytes).decode('utf-8')
-            self.pylo_globals.set("conv.base64", convert_to_base64)
-            self.append_global_env_var_list("conv", "conv.base64")
+            self.pylo_def("conv", "base64", convert_to_base64)
 
         elif id == "librarys":
             self.module_enable("https")
             self.module_enable("import")
-            global _load_library_list
-
-            self.pylo_globals.set("librarys", ["librarys.import", "librarys.install", "librarys.remove"])
+            global _load_library_list, import_library
 
             def _load_library_list():
                 global installed_packages
@@ -656,7 +699,7 @@ class Interpreter:
                     ast = parser.parse()
                     self.interpret(ast)
 
-            self.pylo_globals.set("librarys.import", import_library)
+            self.pylo_def("librarys", "import", import_library)
 
             def add_library(id, library_script_url):
                 _load_library_list()
@@ -670,7 +713,7 @@ class Interpreter:
 
                 with open(installedfile, "w", encoding="utf-8") as f:
                     json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.pylo_globals.set("librarys.install", add_library)
+            self.pylo_def("librarys", "install", add_library)
 
             def remove_library(id):
                 _load_library_list()
@@ -682,11 +725,10 @@ class Interpreter:
                     del installed_packages[id]
                     with open(installedfile, "w", encoding="utf-8") as f:
                         json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.pylo_globals.set("librarys.remove", remove_library)
+            self.pylo_def("librarys", "remove", remove_library)
 
         elif id == "import":
-            self.pylo_globals.set("import", ["import.pylo", "import.py"])
-
+            
             def import_pylo(file_path):
                 if not os.path.isfile(file_path):
                     raise RuntimeError(f"File not found: {file_path}.")
@@ -696,7 +738,7 @@ class Interpreter:
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.pylo_globals.set("import.pylo", import_pylo)
+            self.pylo_def("import", "pylo", import_pylo)
 
             def import_py(file_path):
                 if not os.path.isfile(file_path):
@@ -708,17 +750,16 @@ class Interpreter:
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
                         self.pylo_globals.set(key, value)
-            self.pylo_globals.set("import.py", import_py)
+            self.pylo_def("import", "py", import_py)
 
         elif id == "exec":
-            self.pylo_globals.set("exec", ["exec.pylo", "exec.py"])
 
             def exec_pylo(code_string):
                 tokens = tokenize(code_string)
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.pylo_globals.set("exec.pylo", exec_pylo)
+            self.pylo_def("exec", "pylo", exec_pylo)
 
             def exec_py(code_string):
                 local_dict = {}
@@ -726,87 +767,82 @@ class Interpreter:
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
                         self.pylo_globals.set(key, value)
-            self.pylo_globals.set("exec.py", exec_py)
+            self.pylo_def("exec", "py", exec_py)
 
         elif id == "https":
             global requests
             import requests
 
-            self.pylo_globals.set("https", ["https.get.save", "https.post.save", "https.get.text", "https.post.text", "https.get.json", "https.post.json"])
-
             def https_get_save(url, path):
                 r = requests.get(url)
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
-            self.pylo_globals.set("https.get.save", https_get_save)
+            self.pylo_def("https", "get.save", https_get_save)
 
             def https_post_save(url, path):
                 r = requests.post(url)
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
-            self.pylo_globals.set("https.post.save", https_post_save)
+            self.pylo_def("https", "post.save", https_post_save)
 
             def https_get_text(url):
                 r = requests.get(url)
                 return r.text
-            self.pylo_globals.set("https.get.text", https_get_text)
+            self.pylo_def("https", "get.text", https_get_text)
 
             def https_post_text(url):
                 r = requests.post(url)
                 return r.text
-            self.pylo_globals.set("https.post.text", https_post_text)
+            self.pylo_def("https", "post.text", https_post_text)
 
             def https_get_json(url):
                 r = requests.get(url)
                 return r.json()
-            self.pylo_globals.set("https.get.json", https_get_json)
+            self.pylo_def("https", "get.json", https_get_json)
 
             def https_post_json(url):
                 r = requests.post(url)
                 return r.json()
-            self.pylo_globals.set("https.post.json", https_post_json)
+            self.pylo_def("https", "post.json", https_post_json)
 
         elif id == "file":
-            self.pylo_globals.set("file", ["file.isexist", "file.isfile", "file.isdir", "file.remove"])
-
+            
             def file_isexist(path):
                 if os.path.exists(path):
                     return True
                 else:
                     return False
-            self.pylo_globals.set("file.isexist", file_isexist)
+            self.pylo_def("file", "isexist", file_isexist)
 
             def file_isfile(path):
                 if os.path.isfile(path):
                     return True
                 else:
                     return False
-            self.pylo_globals.set("file.isfile", file_isfile)
+            self.pylo_def("file", "isfile", file_isfile)
 
             def file_isdir(path):
                 if os.path.isdir(path):
                     return True
                 else:
                     return False
-            self.pylo_globals.set("file.isdir", file_isdir)
+            self.pylo_def("file", "isdir", file_isdir)
 
             def file_remove(path):
                 os.remove(path)
-            self.pylo_globals.set("file.remove", file_remove)
+            self.pylo_def("file", "remove", file_remove)
 
         elif id == "datetime":
             global datetime, timezone, timedelta
             from datetime import datetime, timezone, timedelta
 
-            self.pylo_globals.set("datetime", datetime)
-            self.pylo_globals.set("timezone", timezone)
-            self.pylo_globals.set("timedelta", timedelta)
+            self.pylo_def("@", "datetime", datetime)
+            self.pylo_def("@", "timezone", timezone)
+            self.pylo_def("@", "timedelta", timedelta)
 
         elif id == "dgce":
             self.module_enable("datetime")
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
-
-            self.pylo_globals.set("dgce", [])
 
             def datetime_to_dgc_epoch48(dt: datetime) -> str:
                 if dt.tzinfo is None:
@@ -815,8 +851,7 @@ class Interpreter:
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '048b')
                 return binary_str
-            self.pylo_globals.set("conv.dgce48", datetime_to_dgc_epoch48)
-            self.append_global_env_var_list("conv", "conv.dgce48")
+            self.pylo_def("conv", "dgce48", datetime_to_dgc_epoch48)
 
             def datetime_to_dgc_epoch64(dt: datetime) -> str:
                 if dt.tzinfo is None:
@@ -825,14 +860,12 @@ class Interpreter:
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '064b')
                 return binary_str
-            self.pylo_globals.set("conv.dgce64", datetime_to_dgc_epoch64)
-            self.append_global_env_var_list("conv", "conv.dgce64")
+            self.pylo_def("conv", "conv.dgce64", datetime_to_dgc_epoch64)
 
             def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
                 milliseconds = int(dgc_epoch_str, 2)
                 return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
-            self.pylo_globals.set("conv.datetime", dgc_epoch64_to_datetime)
-            self.append_global_env_var_list("conv", "conv.datetime")
+            self.pylo_def("conv", "datetime", dgc_epoch64_to_datetime)
 
         elif id == "luhn":
             def exec_luhn_algo(card_number: str):
@@ -847,7 +880,10 @@ class Interpreter:
                             n -= 9
                     total += n
                 return total % 10 == 0
-            self.pylo_globals.set("luhn", exec_luhn_algo)
+            self.pylo_def("@", "luhn", exec_luhn_algo)
+        else:
+            self.module_enable("librarys")
+            import_library(id)
 
     def setup_builtins(self):
         self.module_enable("default")
@@ -947,13 +983,26 @@ def is_code_complete(code):
         tokens = tokenize(code)
     except Exception:
         return False
-    count = 0
+
+    brace_count = 0   # {}
+    paren_count = 0   # ()
+    bracket_count = 0 # []
+
     for token in tokens:
         if token.type == 'LBRACE':
-            count += 1
+            brace_count += 1
         elif token.type == 'RBRACE':
-            count -= 1
-    return count == 0
+            brace_count -= 1
+        elif token.type == 'LPAREN':
+            paren_count += 1
+        elif token.type == 'RPAREN':
+            paren_count -= 1
+        elif token.type == 'LBRACKET':
+            bracket_count += 1
+        elif token.type == 'RBRACKET':
+            bracket_count -= 1
+
+    return brace_count == 0 and paren_count == 0 and bracket_count == 0
 
 def repl():
     interpreter = Interpreter()
@@ -977,8 +1026,8 @@ def repl():
             parser = Parser(tokens)
             ast = parser.parse()
             interpreter.interpret(ast)
-        except Exception:
-            console.print_exception()
+        except Exception as e:
+            print(f"[red]{str(e)} (Pylo)[/red]")
         accumulated_code = ""
 
 def run_text(code):
@@ -988,8 +1037,8 @@ def run_text(code):
         ast = parser.parse()
         interpreter = Interpreter()
         interpreter.interpret(ast)
-    except Exception:
-        console.print_exception()
+    except Exception as e:
+        print(f"[red]{str(e)} (Pylo)[/red]")
 
 def run_file(path):
     if not os.path.isfile(path):
@@ -1003,8 +1052,8 @@ def run_file(path):
         ast = parser.parse()
         interpreter = Interpreter()
         interpreter.interpret(ast)
-    except Exception:
-        console.print_exception()
+    except Exception as e:
+        print(f"[red]{str(e)} (Pylo)[/red]")
 
 #!checkpoint!
 
@@ -1014,11 +1063,11 @@ def run_file(path):
 def main():
     args = sys.argv[1:]
     if args:
-        if args[0] == "--version":
-            print(VERSION)
+        if args[0].lower() in ["-version", "--version", "-v", "--v"]:
+            print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
 
         elif args[0] == "pylopm":
-            print(VERSION)
+            print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
             print("[PyloPM] Start PyloPM - Pylo Package Manager...")
 
             try:
