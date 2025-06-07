@@ -15,7 +15,7 @@ from rich import print
 from rich.console import Console
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "8.0"
+VERSION_NUMBER = "9.0"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
