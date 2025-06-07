@@ -309,9 +309,12 @@ class Parser:
 
     def if_stmt(self):
         self.eat('ID')  # if
-        self.eat('LPAREN')
-        condition = self.expr()
-        self.eat('RPAREN')
+        if self.current() and self.current().type == 'LPAREN':
+            self.eat('LPAREN')
+            condition = self.expr()
+            self.eat('RPAREN')
+        else:
+            condition = self.expr()
         then_block = self.block()
         else_block = None
         if self.current() and self.current().type == 'ID' and self.current().value == 'else':
@@ -332,9 +335,12 @@ class Parser:
 
     def while_stmt(self):
         self.eat('ID')  # while
-        self.eat('LPAREN')
-        condition = self.expr()
-        self.eat('RPAREN')
+        if self.current() and self.current().type == 'LPAREN':
+            self.eat('LPAREN')
+            condition = self.expr()
+            self.eat('RPAREN')
+        else:
+            condition = self.expr()
         body = self.block()
         return WhileStmt(condition, body)
 
