@@ -15,7 +15,7 @@ from rich import print
 from rich.console import Console
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "8.0"
+VERSION_NUMBER = "9.0"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -85,7 +85,7 @@ def tokenize(code):
         elif kind in ('SKIP', 'COMMENT'):
             continue
         elif kind == 'MISMATCH':
-            raise RuntimeError(f"[ERROR:TKNZ002] Unexpected character {value!r} at line {line_num}.")
+            raise RuntimeError(f"[PYLO:E-TKNZ002] Unexpected character {value!r} at line {line_num}.")
         else:
             tokens.append(Token(kind, value, line_num))
     return tokens
@@ -385,7 +385,7 @@ class Parser:
             self.eat('RPAREN')
             return node
         else:
-            raise RuntimeError(f"[ERROR:PARS002] Unexpected token {token}.")
+            raise RuntimeError(f"[PYLO:E-PARS002] Unexpected token {token}.")
 
     def list_literal(self):
         self.eat('LBRACKET')
@@ -418,7 +418,7 @@ class Environment:
         elif self.parent:
             return self.parent.get(name)
         else:
-            raise RuntimeError(f"[ERROR:INTE002] Cannot find '{name}' in scope.")
+            raise RuntimeError(f"[PYLO:E-INTE002] Cannot find '{name}' in scope.")
     def set(self, name, value):
         self.vars[name] = value
     def unset(self, name):
@@ -431,7 +431,7 @@ class Function:
     def call(self, args, interpreter):
         local_env = Environment(self.env)
         if len(args) != len(self.decl.params):
-            raise RuntimeError("[ERROR:INTE003] Function argument count mismatch.")
+            raise RuntimeError("[PYLO:E-INTE003] Function argument count mismatch.")
         for (param_name, _), arg in zip(self.decl.params, args):
             local_env.set(param_name, interpreter.evaluate(arg, local_env))
         try:
@@ -447,6 +447,7 @@ class Interpreter:
     VERSION_NUMBER = VERSION_NUMBER
     VERSION = VERSION
     modules = []
+    docs = {}
 
     def __init__(self):
         self.pylo_globals = Environment()
@@ -461,7 +462,7 @@ class Interpreter:
                 current_conv.append(content)
                 self.pylo_globals.set(id, current_conv)
         else:
-            raise RuntimeError(f"[ERROR:INTE008] Expected '{id}' to be a list.")
+            raise RuntimeError(f"[PYLO:E-INTE008] Expected '{id}' to be a list.")
 
     def get_ids_from_content(self, content):
         matching_keys = []
@@ -512,8 +513,8 @@ class Interpreter:
 
         self.color_print(returnValue, end)
 
-    def pylo_def(self, module, id, content):
-        if module == "@":
+    def pylo_def(self, module, id, content, desc=None):
+        if module in ["@", "root"]:
             try:
                 self.pylo_globals.get("root")
             except RuntimeError:
@@ -521,6 +522,8 @@ class Interpreter:
         
             self.append_global_env_var_list("root", id)
             self.pylo_globals.set(f"{id}", content)
+            self.docs[f"root.{id}"] = desc
+            self.docs[f"@.{id}"] = desc
         else:
             try:
                 self.pylo_globals.get(module)
@@ -529,10 +532,13 @@ class Interpreter:
         
             self.append_global_env_var_list(module, id)
             self.pylo_globals.set(f"{module}.{id}", content)
+            self.docs[f"{module}.{id}"] = desc
 
     def pylo_undef(self, module, id):
-        if module == "@":
+        if module in ["@", "root"]:
             self.pylo_globals.unset(f"{id}")
+            self.docs.pop(f"root.{id}")
+            self.docs.pop(f"@.{id}")
 
         elif module == id:
             keys_to_remove = [
@@ -541,6 +547,7 @@ class Interpreter:
             ]
             for key in keys_to_remove:
                 self.pylo_globals.unset(key)
+                self.docs.pop(f"{module}.{key}")
 
         else:
             try:
@@ -553,52 +560,95 @@ class Interpreter:
                 self.pylo_globals.set(module, members)
 
             self.pylo_globals.unset(f"{module}.{id}")
+            self.docs.pop(f"{module}.{key}")
+
+    def get_doc(self, key):
+        try:
+            result = self.docs[key]
+        except KeyError:
+            return False
+
+        return result
+    
+    def set_doc(self, key, content):
+        self.docs[key] = content
 
     def module_enable(self, id):
-        if id == "default":
+        if id == "minimal":
+            self.module_enable("pylo")
+
+        elif id == "default":
             self.module_enable("pylo")
             self.module_enable("standard")
+            self.module_enable("docs")
 
         elif id == "pylo":
             self.pylo_def("@", "false", False)
             self.pylo_def("@", "true", True)
-            self.pylo_def("@", "def", self.pylo_def)
-            self.pylo_def("@", "undef", self.pylo_undef)
+            self.pylo_def("@", "none", None)
+            self.pylo_def("@", "def", self.pylo_def, desc="Define Anything as Variable")
+            self.pylo_def("@", "undef", self.pylo_undef, desc="Delete a Variable(or Function)")
 
-            self.pylo_def("pylo", "version", self.VERSION)
-            self.pylo_def("pylo", "version.type", self.VERSION_TYPE)
-            self.pylo_def("pylo", "version.number", self.VERSION_NUMBER)
-            self.pylo_def("pylo", "module", self.modules)
-            self.pylo_def("pylo", "modules", self.modules)
-            self.pylo_def("pylo", "module.enable", self.module_enable)
-            self.pylo_def("pylo", "modules.enable", self.module_enable)
-            self.pylo_def("pylo", "module.append", self.module_enable)
-            self.pylo_def("pylo", "modules.append", self.module_enable)
+            self.pylo_def("pylo", "version", self.VERSION, desc="Return Pylo's Full Version Name")
+            self.pylo_def("pylo", "version.type", self.VERSION_TYPE, desc="Return Pylo's Type / Distribution Type")
+            self.pylo_def("pylo", "version.number", self.VERSION_NUMBER, desc="Return Version Number as str")
+            self.pylo_def("pylo", "module", self.modules, desc="Module List / submodule 'module'")
+            self.pylo_def("pylo", "modules", self.modules, desc="Module List / submodule 'modules'")
+            self.pylo_def("pylo", "module.enable", self.module_enable, desc="Enable a Module on This Session")
+            self.pylo_def("pylo", "modules.enable", self.module_enable, desc="Enable a Module on This Session")
+            self.pylo_def("pylo", "module.append", self.module_enable, desc="Enable a Module on This Session")
+            self.pylo_def("pylo", "modules.append", self.module_enable, desc="Enable a Module on This Session")
 
             def pylo_reset():
                 self.pylo_globals = Environment()
-                self.module_enable("pylo")
-            self.pylo_def("pylo", "reset", pylo_reset)
+                self.module_enable("default")
+            self.pylo_def("pylo", "reset", pylo_reset, desc="Reset all Variables(and Functions), and Enable 'default' Module")
+
+            def pylo_minimal():
+                self.pylo_globals = Environment()
+                self.module_enable("minimal")
+            self.pylo_def("pylo", "minimalize", pylo_minimal, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
 
             def get_pylo_version():
                 return self.VERSION
-            self.pylo_def("pylo", "version.get", get_pylo_version)
+            self.pylo_def("pylo", "version.get", get_pylo_version, desc="Get Pylo's Full Version Name (func)")
+
+        elif id == "docs":
+            self.pylo_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'pylo.version'), from Pylo's Documentation")
+            self.pylo_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'pylo.version') and content, to Pylo's Documentation")
 
         elif id == "standard":
-            self.pylo_def("@", "print", self.color_print)
+            self.pylo_def("@", "print", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
 
-            self.pylo_def("@", "show", self.pylo_print)
+            self.pylo_def("@", "show", self.pylo_print, desc="Show content with Simplize(e.g. 'pylo.module pylo.modules (list)')")
 
-            self.pylo_def("@", "ask", input)
+            self.pylo_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
 
             def exit_now(code=0):
                 exit(code)
-            self.pylo_def("@", "exit", exit_now)
+            self.pylo_def("@", "exit", exit_now, desc="Exit Pylo's main Process.")
 
             def read_stdin():
                 return sys.stdin.read()
-            self.pylo_def("standard", "input", read_stdin)
-            self.pylo_def("standard", "output", self.normal_print)
+            self.pylo_def("standard", "input", read_stdin, desc="Read stdin (all lines)")
+            self.pylo_def("standard", "output", self.normal_print, desc="Normal Printing (No color, No decoration)")
+
+        elif id == "exstr":
+            def exstr_unicode_uplus(s):
+                return ''.join(f'U+{ord(c):04X}' for c in s)
+            self.pylo_def("exstr", "unicode.uplus", exstr_unicode_uplus, desc="Text to Unicode U+ (U+****)")
+
+            def exstr_unicode_uplus_whitespace(s):
+                return ' '.join(f'U+{ord(c):04X}' for c in s)
+            self.pylo_def("exstr", "unicode.uplus.whitespace", exstr_unicode_uplus_whitespace, desc="Text to Unicode U+ (U+****), split with Whitespace")
+
+            def exstr_unicode_bsu(s):
+                return ''.join(f'\\u{ord(c):04X}' for c in s)
+            self.pylo_def("exstr", "unicode.bsu", exstr_unicode_bsu, desc="Text to Unicode \\u (\\u****)")
+
+            def exstr_unicode_bsu_whitespace(s):
+                return ' '.join(f'\\u{ord(c):04X}' for c in s)
+            self.pylo_def("exstr", "unicode.bsu.whitespace", exstr_unicode_bsu_whitespace, desc="Text to Unicode \\u (\\u****), split with Whitespace")
 
         elif id == "stdmath":
             self.pylo_def("@", "min", min)
@@ -611,7 +661,7 @@ class Interpreter:
 
             def pylo_range(start=1, end=None):
                 if end == None:
-                    raise RuntimeError("[ERROR:-------] stdmath/range (internal: pylo_range): At least one argument is required: end")
+                    raise RuntimeError("[PYLO:E--------] stdmath/range (internal: pylo_range): At least one argument is required: end")
                 else:
                     return range(start, end+1)
             self.pylo_def("@", "range", pylo_range)
@@ -619,7 +669,7 @@ class Interpreter:
         elif id == "env":
             def get_system_env(id):
                 return os.environ[id]
-            self.pylo_def("@", "env", get_system_env)
+            self.pylo_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
         elif id == "conv":
             self.pylo_def("conv", "str", str)
@@ -729,6 +779,10 @@ class Interpreter:
 
         elif id == "import":
             
+            def import_normal(id):
+                self.module_enable(id)
+            self.pylo_def("@", "import", import_normal)
+
             def import_pylo(file_path):
                 if not os.path.isfile(file_path):
                     raise RuntimeError(f"File not found: {file_path}.")
@@ -738,7 +792,7 @@ class Interpreter:
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.pylo_def("import", "pylo", import_pylo)
+            self.pylo_def("@", "import.pylo", import_pylo)
 
             def import_py(file_path):
                 if not os.path.isfile(file_path):
@@ -750,7 +804,7 @@ class Interpreter:
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
                         self.pylo_globals.set(key, value)
-            self.pylo_def("import", "py", import_py)
+            self.pylo_def("@", "import.py", import_py)
 
         elif id == "exec":
 
@@ -913,7 +967,7 @@ class Interpreter:
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
-                raise RuntimeError("[ERROR:INTE004] The expression in for loop is not iterable.")
+                raise RuntimeError("[PYLO:E-INTE004] The expression in for loop is not iterable.")
             for value in iterable:
                 local_env = Environment(env)
                 local_env.set(node.var_name, value)
@@ -960,7 +1014,7 @@ class Interpreter:
             elif node.op == '!=':
                 return left != right
             else:
-                raise RuntimeError(f"[ERROR:INTE005] Unknown operator {node.op}.")
+                raise RuntimeError(f"[PYLO:E-INTE005] Unknown operator {node.op}.")
         elif isinstance(node, FuncCall):
             func_obj = env.get(node.name)
             if callable(func_obj):
@@ -969,11 +1023,11 @@ class Interpreter:
             elif isinstance(func_obj, Function):
                 return func_obj.call(node.args, self)
             else:
-                raise RuntimeError(f"[ERROR:INTE006] Attempting to call a non-callable {node.name}.")
+                raise RuntimeError(f"[PYLO:E-INTE006] Attempting to call a non-callable {node.name}.")
         elif isinstance(node, str):
             return env.get(node)
         else:
-            raise RuntimeError(f"[ERROR:INTE007] Cannot evaluate node {node}.")
+            raise RuntimeError(f"[PYLO:E-INTE007] Cannot evaluate node {node}.")
 
 ##############################
 # REPL / Script Executing / Other
