@@ -32,31 +32,3 @@ add(5, 7)
 # Execute Python from Pylo
 exec.py("print(\"Hello, World!\")")
 ```
-
-## Loop Control
-
-`break` exits the nearest loop and `continue` skips to the next iteration.
-
-```pylo
-var i = 0
-while (true) {
-    i = i + 1
-    if (i == 2) {
-        continue
-    }
-    show(i)
-    if (i > 3) {
-        break
-    }
-}
-```
-
-## Logical Operators
-
-Boolean expressions support `&&`, `||` and `!`.
-
-```pylo
-if (true && !false) {
-    show("logic works")
-}
-```
