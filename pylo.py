@@ -42,6 +42,9 @@ TOKEN_SPEC = [
     ('GE',       r'>='),
     ('EQ',       r'=='),
     ('NE',       r'!='),
+    ('AND',      r'&&'),
+    ('OR',       r'\|\|'),
+    ('NOT',      r'!'),
     ('LT',       r'<'),
     ('GT',       r'>'),
     ('OP',       r'\+|-|\*|/'),
@@ -134,6 +137,13 @@ class BinOp(ASTNode):
     def __repr__(self):
         return f'BinOp({self.left}, {self.op}, {self.right})'
 
+class UnaryOp(ASTNode):
+    def __init__(self, op, operand):
+        self.op = op
+        self.operand = operand
+    def __repr__(self):
+        return f'UnaryOp({self.op}, {self.operand})'
+
 class FuncDecl(ASTNode):
     def __init__(self, name, params, return_type, body):
         self.name = name
@@ -191,6 +201,14 @@ class ReturnStmt(ASTNode):
     def __repr__(self):
         return f'ReturnStmt({self.value})'
 
+class BreakStmt(ASTNode):
+    def __repr__(self):
+        return 'BreakStmt()'
+
+class ContinueStmt(ASTNode):
+    def __repr__(self):
+        return 'ContinueStmt()'
+
 ##############################
 # Perser
 ##############################
@@ -232,6 +250,12 @@ class Parser:
                 return self.while_stmt()
             elif token.value == 'return':
                 return self.return_stmt()
+            elif token.value == 'break':
+                self.eat('ID')
+                return BreakStmt()
+            elif token.value == 'continue':
+                self.eat('ID')
+                return ContinueStmt()
             else:
                 expr = self.expr()
                 return ExpressionStmt(expr)
@@ -285,9 +309,12 @@ class Parser:
 
     def if_stmt(self):
         self.eat('ID')  # if
-        self.eat('LPAREN')
-        condition = self.expr()
-        self.eat('RPAREN')
+        if self.current() and self.current().type == 'LPAREN':
+            self.eat('LPAREN')
+            condition = self.expr()
+            self.eat('RPAREN')
+        else:
+            condition = self.expr()
         then_block = self.block()
         else_block = None
         if self.current() and self.current().type == 'ID' and self.current().value == 'else':
@@ -308,9 +335,12 @@ class Parser:
 
     def while_stmt(self):
         self.eat('ID')  # while
-        self.eat('LPAREN')
-        condition = self.expr()
-        self.eat('RPAREN')
+        if self.current() and self.current().type == 'LPAREN':
+            self.eat('LPAREN')
+            condition = self.expr()
+            self.eat('RPAREN')
+        else:
+            condition = self.expr()
         body = self.block()
         return WhileStmt(condition, body)
 
@@ -319,8 +349,30 @@ class Parser:
         value = self.expr()
         return ReturnStmt(value)
 
-    # New: support for comparison expressions
     def expr(self):
+        return self.expr_or()
+
+    def expr_or(self):
+        node = self.expr_and()
+        while self.current() and self.current().type == 'OR':
+            self.eat('OR')
+            right = self.expr_and()
+            node = BinOp(node, '||', right)
+        return node
+
+    def expr_and(self):
+        node = self.expr_not()
+        while self.current() and self.current().type == 'AND':
+            self.eat('AND')
+            right = self.expr_not()
+            node = BinOp(node, '&&', right)
+        return node
+
+    def expr_not(self):
+        if self.current() and self.current().type == 'NOT':
+            self.eat('NOT')
+            operand = self.expr_not()
+            return UnaryOp('!', operand)
         return self.expr_comparison()
 
     def expr_comparison(self):
@@ -404,6 +456,12 @@ class Parser:
 class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
+
+class BreakException(Exception):
+    pass
+
+class ContinueException(Exception):
+    pass
 
 ##############################
 # Interpreter
@@ -971,13 +1029,27 @@ class Interpreter:
             for value in iterable:
                 local_env = Environment(env)
                 local_env.set(node.var_name, value)
-                self.execute(node.body, local_env)
+                try:
+                    self.execute(node.body, local_env)
+                except ContinueException:
+                    continue
+                except BreakException:
+                    break
         elif isinstance(node, WhileStmt):
             while self.evaluate(node.condition, env):
-                self.execute(node.body, env)
+                try:
+                    self.execute(node.body, env)
+                except ContinueException:
+                    continue
+                except BreakException:
+                    break
         elif isinstance(node, ReturnStmt):
             value = self.evaluate(node.value, env)
             raise ReturnException(value)
+        elif isinstance(node, BreakStmt):
+            raise BreakException()
+        elif isinstance(node, ContinueStmt):
+            raise ContinueException()
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
@@ -1013,8 +1085,18 @@ class Interpreter:
                 return left == right
             elif node.op == '!=':
                 return left != right
+            elif node.op == '&&':
+                return bool(left) and bool(right)
+            elif node.op == '||':
+                return bool(left) or bool(right)
             else:
-                raise RuntimeError(f"[PYLO:E-INTE005] Unknown operator {node.op}.")
+                raise RuntimeError(f"[ERROR:INTE005] Unknown operator {node.op}.")
+        elif isinstance(node, UnaryOp):
+            operand = self.evaluate(node.operand, env)
+            if node.op == '!':
+                return not bool(operand)
+            else:
+                raise RuntimeError(f"[ERROR:INTE005] Unknown unary operator {node.op}.")
         elif isinstance(node, FuncCall):
             func_obj = env.get(node.name)
             if callable(func_obj):
