@@ -21,7 +21,7 @@ import rlcompleter
 
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "10.0"
+VERSION_NUMBER = "10.0.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -598,20 +598,25 @@ class Interpreter:
             self.pylo_globals.set(f"{module}.{id}", content)
             self.docs[f"{module}.{id}"] = desc
 
-    def pylo_undef(self, module, id):
+    def pylo_undef(self, module, id=None):
         if module in ["@", "root"]:
             self.pylo_globals.unset(f"{id}")
             self.docs.pop(f"root.{id}")
             self.docs.pop(f"@.{id}")
 
-        elif module == id:
-            keys_to_remove = [
-                key for key in self.pylo_globals.vars
-                if key == module or key.startswith(f"{module}.")
-            ]
-            for key in keys_to_remove:
-                self.pylo_globals.unset(key)
-                self.docs.pop(f"{module}.{key}")
+        elif (module == id) or (id is None):
+            try:
+                members = list(self.pylo_globals.get(module))
+            except RuntimeError:
+                return
+
+            for member in members:
+                full_key = f"{module}.{member}"
+                self.pylo_globals.unset(full_key)
+                self.docs.pop(full_key, None)
+
+            self.pylo_globals.unset(module)
+            self.docs.pop(module, None)
 
         else:
             try:
@@ -1169,9 +1174,9 @@ def repl():
 
     while True:
         try:
-            prompt = f"{VERSION}> "
-            promptlen = len(prompt)
-            prompt = prompt if accumulated_code == "" else ("." * promptlen)
+            prompt = f"> "
+            promptlen = len(prompt) - 1
+            prompt = prompt if accumulated_code == "" else (("." * promptlen) + " ")
 
             line = input(prompt)
 
