@@ -13,9 +13,15 @@ import traceback
 from os.path import expanduser
 from rich import print
 from rich.console import Console
+try:
+    import readline
+except ImportError:
+    import pyreadline as readline
+import rlcompleter
+
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "9.0"
+VERSION_NUMBER = "10.0"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -1143,20 +1149,45 @@ def is_code_complete(code):
 def repl():
     interpreter = Interpreter()
     accumulated_code = ""
+
+    readline.set_history_length(1000)
+    if "libedit" in readline.__doc__:
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
+
+    def completer(text, state):
+        env = interpreter.pylo_globals
+        results = []
+        while env:
+            results += [k for k in env.vars.keys() if k.startswith(text)]
+            env = env.parent
+        results = sorted(set(results))
+        return results[state] if state < len(results) else None
+
+    readline.set_completer(completer)
+
     while True:
         try:
             prompt = f"{VERSION}> "
             promptlen = len(prompt)
             prompt = prompt if accumulated_code == "" else ("." * promptlen)
+
             line = input(prompt)
+
         except EOFError:
+            print()
             break
         except KeyboardInterrupt:
             print()
-            break
+            accumulated_code = ""
+            continue
+
         accumulated_code += line + "\n"
+
         if not is_code_complete(accumulated_code):
             continue
+
         try:
             tokens = tokenize(accumulated_code)
             parser = Parser(tokens)
@@ -1164,6 +1195,7 @@ def repl():
             interpreter.interpret(ast)
         except Exception as e:
             print(f"[red]{str(e)} (Pylo)[/red]")
+
         accumulated_code = ""
 
 def run_text(code):
