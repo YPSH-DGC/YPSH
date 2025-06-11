@@ -21,7 +21,7 @@ import rlcompleter
 
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "10.0.1"
+VERSION_NUMBER = "11.0"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
