@@ -32,3 +32,5 @@ add(5, 7)
 # Execute Python from Pylo
 exec.py("print(\"Hello, World!\")")
 ```
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo)
