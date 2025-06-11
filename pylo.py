@@ -323,15 +323,24 @@ class Parser:
             condition = self.expr()
         then_block = self.block()
         else_block = None
-        if self.current() and self.current().type == 'ID' and self.current().value == 'else':
-            self.eat('ID')  # else
-            else_block = self.block()
+        if self.current() and self.current().type == 'ID' and self.current().value in ('else', 'elif', 'else if'):
+            next_token = self.eat('ID')  # else or elif
+
+            # Handle 'else if' as two tokens
+            if next_token.value == 'else' and self.current() and self.current().type == 'ID' and self.current().value == 'if':
+                self.eat('ID')  # 'if'
+                else_block = self.if_stmt()  # recursive call
+            elif next_token.value in ('elif', 'else if'):
+                else_block = self.if_stmt()  # recursive call
+            else:
+                else_block = self.block()
+
         return IfStmt(condition, then_block, else_block)
 
     def for_stmt(self):
         self.eat('ID')  # for
         var_name = self.eat('ID').value
-        # "for var in iterable { ... }" 構文
+        # "for var in iterable { ... }" Syntax
         if not (self.current() and self.current().type == 'ID' and self.current().value == 'in'):
             raise RuntimeError("Expected 'in' in for loop.")
         self.eat('ID')  # in
