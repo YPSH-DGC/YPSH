@@ -1,21 +1,27 @@
+pylo.module.enable("stdmath")
+
 # Save Result of 10 + 20 to "a" variable
-var a: int = 10 + 20
+var a = 10 + 20
 
 # Save The remainder when a is divided by 7 to "b variable"
-var b: int = mod(a, 7)
+var b = mod(a, 7)
 
 # Show Content
 show("A is " + a)
 show("B is " + b)
 
+pylo.module.enable("conv")
+
 # Define Function named "add"
-func add(x: int, y: int) -> int { # Define Input Args, and Return Contents.
-    var result: int = x + y
+func add(x, y) -> int { # Define Input Args, and Return Contents.
+    var result = x + y
     standard.output(conv.str(x) + " + " + conv.str(y) + " = " + result) # Show Content with Other Ways
 }
 
 # Call Function named "add"
 add(5, 7)
+
+pylo.module.enable("exec")
 
 # Execute Python from Pylo
 exec.py("print(\"Hello, World!\")")

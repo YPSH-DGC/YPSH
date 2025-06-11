@@ -629,7 +629,7 @@ class Interpreter:
                 self.pylo_globals.set(module, members)
 
             self.pylo_globals.unset(f"{module}.{id}")
-            self.docs.pop(f"{module}.{key}")
+            self.docs.pop(f"{module}.{id}")
 
     def get_doc(self, key):
         try:
