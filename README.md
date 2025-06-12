@@ -1,7 +1,5 @@
-**Pylo - Simple Programming Language**
-
-# Links
-- [Pylo Docs](https://diamondgotcat.gitbook.io/pylo/): All the features and functions are listed here
+# Pylo
+Simple Programming Language
 
 # Requirements
 **If you use the official installer (Recommended):**
