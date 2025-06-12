@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "11.1.1"
+VERSION_NUMBER = "11.3"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -1277,7 +1277,7 @@ def main():
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
             print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
 
-        if args[0].lower() in ["-c", "--c"]:
+        elif args[0].lower() in ["-c", "--c"]:
             run_text(args[1])
             
         elif args[0].lower() in ["-stdin", "--stdin"]:
