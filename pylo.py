@@ -314,26 +314,28 @@ class Parser:
         return Block(statements)
 
     def if_stmt(self):
-        self.eat('ID')  # if
+        self.eat('ID')  # 'if'
         if self.current() and self.current().type == 'LPAREN':
             self.eat('LPAREN')
             condition = self.expr()
             self.eat('RPAREN')
         else:
             condition = self.expr()
+
         then_block = self.block()
         else_block = None
-        if self.current() and self.current().type == 'ID' and self.current().value in ('else', 'elif', 'else if'):
-            next_token = self.eat('ID')  # else or elif
 
-            # Handle 'else if' as two tokens
-            if next_token.value == 'else' and self.current() and self.current().type == 'ID' and self.current().value == 'if':
-                self.eat('ID')  # 'if'
-                else_block = self.if_stmt()  # recursive call
-            elif next_token.value in ('elif', 'else if'):
-                else_block = self.if_stmt()  # recursive call
-            else:
-                else_block = self.block()
+        if self.current() and self.current().type == 'ID':
+            if self.current().value == 'else':
+                self.eat('ID')  # 'else'
+                if self.current() and self.current().type == 'ID' and self.current().value == 'if':
+                    # Handle "else if"
+                    return IfStmt(condition, then_block, self.if_stmt())
+                else:
+                    else_block = self.block()
+            elif self.current().value == 'elif':
+                self.eat('ID')  # 'elif'
+                return IfStmt(condition, then_block, self.if_stmt())
 
         return IfStmt(condition, then_block, else_block)
 
