@@ -25,6 +25,8 @@ VERSION_NUMBER = "11.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
+shell_cwd = os.getcwd()
+pylo_stdin = sys.stdin.read()
 
 ##############################
 # Helper
@@ -719,7 +721,8 @@ class Interpreter:
             self.pylo_def("@", "exit", exit_now, desc="Exit Pylo's main Process.")
 
             def read_stdin():
-                return sys.stdin.read()
+                global pylo_stdin
+                return pylo_stdin
             self.pylo_def("standard", "input", read_stdin, desc="Read stdin (all lines)")
             self.pylo_def("standard", "output", self.normal_print, desc="Normal Printing (No color, No decoration)")
 
@@ -1055,11 +1058,21 @@ class Interpreter:
             elif node.else_block:
                 return self.execute(node.else_block, Environment(env))
         elif isinstance(node, ShellStmt):
-            try:
-                result = subprocess.run(node.command, shell=True, check=True, text=True, capture_output=True)
-                print(result.stdout)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"{e.stderr.strip()}\n[SHEL:E-NONZERO]")
+            global shell_cwd
+            command_name = node.command.split(" ")[0]
+            if command_name == "cd":
+                changeto: str = node.command.split(" ")[1]
+                changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}")))
+                if changeto.startswith("/"):
+                    shell_cwd = changeto
+                else:
+                    shell_cwd = os.path.abspath(os.path.join(shell_cwd, changeto))
+            else:
+                try:
+                    result = subprocess.run(os.path.expanduser(os.path.expandvars(node.command.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
+                    print(result.stdout)
+                except subprocess.CalledProcessError as e:
+                    print(result.stderr)
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
@@ -1266,6 +1279,9 @@ def main():
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
             print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
 
+        if args[0].lower() in ["-c", "--c"]:
+            run_text(args[1])
+
         elif args[0] == "pylopm":
             print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
             print("[PyloPM] Start PyloPM - Pylo Package Manager...")
@@ -1292,6 +1308,10 @@ librarys.remove("{args[2]}")
 
         else:
             run_file(args[0])
+            
+    elif pylo_stdin.replace(" ", "").replace("\n", "") != "":
+        run_text(pylo_stdin)
+
     else:
         repl()
 
