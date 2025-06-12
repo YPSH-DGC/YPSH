@@ -37,7 +37,6 @@ jobs:
           mkdir upload
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             mv dist/pylo.exe upload/pylo-windows.exe
-            cd upload && zip pylo-windows.zip pylo-windows.exe
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             mv dist/pylo upload/pylo-macos
             cd upload && zip pylo-macos.zip pylo-macos
@@ -45,6 +44,12 @@ jobs:
             mv dist/pylo upload/pylo-linux
             cd upload && zip pylo-linux.zip pylo-linux
           fi
+      
+      - name: Zip on Windows (Compress-Archive)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path upload/pylo-windows.exe -DestinationPath upload/pylo-windows.zip
 
       - name: Get latest release tag
         id: get_release
