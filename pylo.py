@@ -26,7 +26,6 @@ VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
 shell_cwd = os.getcwd()
-pylo_stdin = sys.stdin.read()
 
 ##############################
 # Helper
@@ -721,8 +720,7 @@ class Interpreter:
             self.pylo_def("@", "exit", exit_now, desc="Exit Pylo's main Process.")
 
             def read_stdin():
-                global pylo_stdin
-                return pylo_stdin
+                return sys.stdin.read()
             self.pylo_def("standard", "input", read_stdin, desc="Read stdin (all lines)")
             self.pylo_def("standard", "output", self.normal_print, desc="Normal Printing (No color, No decoration)")
 
@@ -1283,7 +1281,7 @@ def main():
             run_text(args[1])
             
         elif args[0].lower() in ["-stdin", "--stdin"]:
-            run_text(pylo_stdin)
+            run_text(sys.stdin.read())
 
         elif args[0] == "pylopm":
             print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
