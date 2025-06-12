@@ -53,7 +53,7 @@ jobs:
           latest_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
           echo "LATEST_TAG=$latest_tag" >> $GITHUB_ENV
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -61,4 +61,4 @@ jobs:
           files: upload/*.zip
           tag_name: ${{ env.LATEST_TAG || github.ref_name }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
