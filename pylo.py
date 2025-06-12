@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "11.1"
+VERSION_NUMBER = "11.1.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -1281,6 +1281,9 @@ def main():
 
         if args[0].lower() in ["-c", "--c"]:
             run_text(args[1])
+            
+        elif args[0].lower() in ["-stdin", "--stdin"]:
+            run_text(pylo_stdin)
 
         elif args[0] == "pylopm":
             print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
@@ -1308,9 +1311,6 @@ librarys.remove("{args[2]}")
 
         else:
             run_file(args[0])
-            
-    elif pylo_stdin.replace(" ", "").replace("\n", "") != "":
-        run_text(pylo_stdin)
 
     else:
         repl()
