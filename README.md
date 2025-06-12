@@ -1,7 +1,7 @@
 # Pylo
 Simple Programming Language
 
-# Requirements
+## Requirements
 **If you use the official installer (Recommended):**
 - Windows 10+ (amd64/x86_64) *or* macOS (aarch64/arm64/Apple Silicon) *or* Linux (amd64/x86_64)
 - Python 3.6+ (Recommended: 3.10 and above)
@@ -15,8 +15,8 @@ Simple Programming Language
 - Python 3.6+ (Recommended: 3.10 and above)
     - `rich` Library
 
-# Installation
-## Official Installer
+## Installation
+### Official Installer
 **Pros:**
 - Automatic installation
 - Pylo dependencies are bundled with the binaries.
@@ -36,7 +36,7 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc # Zsh
 pylo -V
 ```
 
-## Binary File
+### Binary File
 **Pros:**
 - Pylo dependencies are bundled with the binaries.
 - Commands are short (e.g. `pylo -V`)
@@ -48,7 +48,7 @@ pylo -V
 
 Link: [Downloads](https://github.com/DiamondGotCat/Pylo/releases/)
 
-## Python File
+### Python File
 **Pros:**
 - Pylo starts up quickly.
 
@@ -63,7 +63,7 @@ pip3 install -r requirements.txt
 python3 pylo.py -V
 ```
 
-# Example
+## Example
 ```
 # Save Result of 10 + 20 to "a" variable
 var a: int = 10 + 20
