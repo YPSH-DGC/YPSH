@@ -63,6 +63,9 @@ pip3 install -r requirements.txt
 python3 pylo.py -V
 ```
 
+## Note
+- The binary version is slow to start up, but the processing after startup is very fast.
+
 ## Example
 ```
 # Save Result of 10 + 20 to "a" variable
