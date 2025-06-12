@@ -18,10 +18,10 @@ try:
 except ImportError:
     import pyreadline as readline
 import rlcompleter
-
+import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "11.0"
+VERSION_NUMBER = "11.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -39,6 +39,7 @@ TOKEN_SPEC = [
     ('NEWLINE',  r'\n'),
     ('SKIP',     r'[ \t]+'),
     ('COMMENT',  r'(//[^\n]*|#[^\n]*)'),
+    ('SHELL', r'\$[^\n]+'),
     ('ARROW',    r'->'),
     ('DOT',      r'\.'),
     ('NUMBER',   r'\d+(\.\d+)?'),
@@ -214,6 +215,12 @@ class BreakStmt(ASTNode):
 class ContinueStmt(ASTNode):
     def __repr__(self):
         return 'ContinueStmt()'
+    
+class ShellStmt(ASTNode):
+    def __init__(self, command):
+        self.command = command
+    def __repr__(self):
+        return f'ShellStmt({self.command})'
 
 ##############################
 # Perser
@@ -243,7 +250,10 @@ class Parser:
 
     def statement(self):
         token = self.current()
-        if token.type == 'ID':
+        if token.type == 'SHELL':
+            self.eat('SHELL')
+            return ShellStmt(token.value[1:].strip())
+        elif token.type == 'ID':
             if token.value == 'var':
                 return self.var_decl()
             elif token.value == 'func':
@@ -1044,6 +1054,12 @@ class Interpreter:
                 return self.execute(node.then_block, Environment(env))
             elif node.else_block:
                 return self.execute(node.else_block, Environment(env))
+        elif isinstance(node, ShellStmt):
+            try:
+                result = subprocess.run(node.command, shell=True, check=True, text=True, capture_output=True)
+                print(result.stdout)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"{e.stderr.strip()}\n[SHEL:E-NONZERO]")
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):

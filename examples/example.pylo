@@ -25,3 +25,15 @@ pylo.module.enable("exec")
 
 # Execute Python from Pylo
 exec.py("print(\"Hello, World!\")")
+
+# if, else if(Added in v11.0), else
+if pylo.version == "Pylo 11.1" {
+    print("It's Pylo 11.1")
+} else if pylo.version.number == "11.1" {
+    print("Pylo (Re-Distribution) 11.1")
+} else {
+    print("Not 11.1")
+}
+
+# Shell Integration (Added in v11.1)
+$ echo "Hello from Shell"
