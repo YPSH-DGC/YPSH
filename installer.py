@@ -7,7 +7,7 @@ import shutil
 
 print("Welcome to Pylo Installer.")
 
-latestTag = requests.get("https://github.com/DiamondGotCat/Pylo/raw/refs/heads/main/version.txt").text.strip()
+latestTag = requests.get("http://diamondgotcat.github.io/Pylo/version.txt").text.strip()
 
 def gatekeeperDisable(path: str):
     os.system(f"xattr -d com.apple.quarantine '{path}'")
