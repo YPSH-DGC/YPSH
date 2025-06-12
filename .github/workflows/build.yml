@@ -54,6 +54,7 @@ jobs:
       - name: Get latest release tag
         id: get_release
         if: github.event_name == 'workflow_dispatch'
+        shell: bash
         run: |
           latest_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
           echo "LATEST_TAG=$latest_tag" >> $GITHUB_ENV
