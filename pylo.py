@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "11.3"
+VERSION_NUMBER = "11.3.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -716,7 +716,7 @@ class Interpreter:
             self.pylo_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
 
             def exit_now(code=0):
-                exit(code)
+                sys.exit(code)
             self.pylo_def("@", "exit", exit_now, desc="Exit Pylo's main Process.")
 
             def read_stdin():
