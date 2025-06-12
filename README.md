@@ -30,7 +30,7 @@ Simple Programming Language
 git clone https://github.com/DiamondGotCat/Pylo.git
 cd Pylo
 pip3 install requests
-python3 installer.py
+python3 installer.py # You can also update with the same command.
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc # Bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc # Zsh
 pylo -V
