@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "12.0"
+VERSION_NUMBER = "12.0.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -1339,9 +1339,6 @@ librarys.remove("{args[2]}")
                 print("[PyloPM] No Matched Command")
 
             print("[PyloPM] Finish PyloPM - Pylo Package Manager...")
-
-        elif stdin.replace(" ", "").replace("\n", "") != "":
-            run_text(stdin)
 
         else:
             run_file(args[0])
