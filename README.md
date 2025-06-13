@@ -10,13 +10,12 @@ Simple Programming Language
 **If you use the official build (binary) directly:**
 - Windows 10+ (amd64/x86_64) *or* macOS (aarch64/arm64/Apple Silicon) *or* Linux (amd64/x86_64)
 
-**If you don't use the official build/binary:**
-- Windows 10+ (amd64/x86_64) *or* macOS (aarch64/arm64/Apple Silicon) *or* Linux (amd64/x86_64)
+**If you don't use the official build/binary (Run in Python):**
 - Python 3.6+ (Recommended: 3.10 and above)
     - `rich` Library
 
 ## Installation
-### Official Installer
+### Official Installer (Automatically Install Binary Version)
 **Pros:**
 - Automatic installation
 - Pylo dependencies are bundled with the binaries.
@@ -36,7 +35,7 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc # Zsh
 pylo -V
 ```
 
-### Binary File
+### Binary File (Manually Install Binary Version)
 **Pros:**
 - Pylo dependencies are bundled with the binaries.
 - Commands are short (e.g. `pylo -V`)
@@ -48,7 +47,7 @@ pylo -V
 
 Link: [Downloads](https://github.com/DiamondGotCat/Pylo/releases/)
 
-### Python File
+### Python File (Run in Python)
 **Pros:**
 - Pylo starts up quickly.
 
