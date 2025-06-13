@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "11.3.2"
+VERSION_NUMBER = "12.0"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -65,7 +65,7 @@ TOKEN_SPEC = [
     ('RBRACE',   r'\}'),
     ('LBRACKET', r'\['),
     ('RBRACKET', r'\]'),
-    ('ID',       r'[A-Za-z_]\w*'),
+    ('ID',       r'[A-Za-z_%][A-Za-z0-9_%]*'),
     ('MISMATCH', r'.'),
 ]
 
@@ -680,6 +680,36 @@ class Interpreter:
             self.pylo_def("@", "def", self.pylo_def, desc="Define Anything as Variable")
             self.pylo_def("@", "undef", self.pylo_undef, desc="Delete a Variable(or Function)")
 
+            def shell_exec(command):
+                global shell_cwd
+                command_name = command.split(" ")[0]
+                if command_name == "cd":
+                    changeto: str = command.split(" ")[1]
+                    changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}")))
+                    if changeto.startswith("/"):
+                        shell_cwd = changeto
+                    else:
+                        shell_cwd = os.path.abspath(os.path.join(shell_cwd, changeto))
+                else:
+                    try:
+                        result = subprocess.run(os.path.expanduser(os.path.expandvars(command.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
+                        return result.stdout
+                    except subprocess.CalledProcessError as e:
+                        return result.stderr
+            self.pylo_def("@", "%", shell_exec)
+            self.pylo_def("shell", "run", shell_exec)
+
+            def get_shell_cwd():
+                global shell_cwd
+                return shell_cwd
+            self.pylo_def("shell", "cwd.get", get_shell_cwd)
+
+            def set_shell_cwd(new):
+                global shell_cwd
+                shell_cwd = new
+                return True
+            self.pylo_def("shell", "cwd.set", set_shell_cwd)
+
             self.pylo_def("pylo", "version", self.VERSION, desc="Return Pylo's Full Version Name")
             self.pylo_def("pylo", "version.type", self.VERSION_TYPE, desc="Return Pylo's Type / Distribution Type")
             self.pylo_def("pylo", "version.number", self.VERSION_NUMBER, desc="Return Version Number as str")
@@ -1069,8 +1099,10 @@ class Interpreter:
                 try:
                     result = subprocess.run(os.path.expanduser(os.path.expandvars(node.command.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
                     print(result.stdout)
+                    return result.stdout
                 except subprocess.CalledProcessError as e:
                     print(result.stderr)
+                    return result.stderr
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
@@ -1273,6 +1305,7 @@ def run_file(path):
 ##############################
 def main():
     args = sys.argv[1:]
+    stdin = sys.stdin.read()
     if args:
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
             print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
@@ -1306,6 +1339,9 @@ librarys.remove("{args[2]}")
                 print("[PyloPM] No Matched Command")
 
             print("[PyloPM] Finish PyloPM - Pylo Package Manager...")
+
+        elif stdin.replace(" ", "").replace("\n", "") != "":
+            run_text(stdin)
 
         else:
             run_file(args[0])
