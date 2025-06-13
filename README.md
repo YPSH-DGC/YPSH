@@ -1,6 +1,9 @@
 # Pylo
 Simple Programming Language
 
+## Documentation
+New Official Documentation is [here](https://pylo.diamondgotcat.net)!
+
 ## Requirements
 **If you use the official installer (Recommended):**
 - Windows 10+ (amd64/x86_64) *or* macOS (aarch64/arm64/Apple Silicon) *or* Linux (amd64/x86_64)
