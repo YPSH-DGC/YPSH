@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "12.1"
+VERSION_NUMBER = "12.1.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -695,7 +695,7 @@ class Interpreter:
                         result = subprocess.run(os.path.expanduser(os.path.expandvars(command.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
                         return result.stdout
                     except subprocess.CalledProcessError as e:
-                        return result.stderr
+                        return e.stderr
             self.pylo_def("@", "%", shell_exec)
             self.pylo_def("shell", "run", shell_exec)
 
@@ -1101,8 +1101,8 @@ class Interpreter:
                     print(result.stdout)
                     return result.stdout
                 except subprocess.CalledProcessError as e:
-                    print(result.stderr)
-                    return result.stderr
+                    print(e.stderr)
+                    return e.stderr
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
