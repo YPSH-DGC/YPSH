@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "12.0.1"
+VERSION_NUMBER = "12.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -1305,7 +1305,6 @@ def run_file(path):
 ##############################
 def main():
     args = sys.argv[1:]
-    stdin = sys.stdin.read()
     if args:
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
             print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
