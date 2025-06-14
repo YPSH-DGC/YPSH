@@ -21,7 +21,7 @@ import rlcompleter
 import subprocess
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "12.1.1"
+VERSION_NUMBER = "12.2"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -739,10 +739,9 @@ class Interpreter:
             self.pylo_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'pylo.version') and content, to Pylo's Documentation")
 
         elif id == "standard":
-            self.pylo_def("@", "print", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
-
+            self.pylo_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
+            self.pylo_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
             self.pylo_def("@", "show", self.pylo_print, desc="Show content with Simplize(e.g. 'pylo.module pylo.modules (list)')")
-
             self.pylo_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
 
             def exit_now(code=0):
