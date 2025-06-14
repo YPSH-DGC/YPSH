@@ -68,3 +68,7 @@ jobs:
           tag_name: ${{ env.LATEST_TAG || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Update version.txt with release tag
+        shell: bash
+        run: echo "${{ github.ref_name }}" > version.txt
