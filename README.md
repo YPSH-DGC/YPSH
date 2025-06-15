@@ -33,7 +33,7 @@ New Official Documentation is [here](https://pylo.diamondgotcat.net)!
 ```
 git clone https://github.com/DiamondGotCat/Pylo.git
 cd Pylo
-pip3 install requests
+pip3 install requests rich
 python3 installer.py # You can also update with the same command.
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc # Bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc # Zsh
