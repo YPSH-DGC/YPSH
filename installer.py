@@ -117,6 +117,8 @@ with tempfile.TemporaryDirectory() as tmp_dir:
 
     print(f"Installed binary to: {finalBinaryPath}")
 
+print()
+
 user_path = os.environ.get("PATH", "")
 if installDir not in user_path.split(os.pathsep):
     if system != "Windows":
