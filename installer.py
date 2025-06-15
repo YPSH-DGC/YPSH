@@ -13,9 +13,9 @@ latestTag = requests.get("http://diamondgotcat.github.io/Pylo/version.txt").text
 
 print(f"[blue bold]Latest version:[/blue bold] {latestTag}")
 
-useTag = input("[blue]The version you want to install:[/blue] v")
+useTag = input("The version you want to install: v")
 while useTag.strip() != "":
-    useTag = input("[blue]The version you want to install:[/blue] v")
+    useTag = input("The version you want to install: v")
     if useTag == "":
         useTag = latestTag
 useTag = f"v{useTag.strip()}"
