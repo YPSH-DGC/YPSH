@@ -16,7 +16,7 @@ print(f"[blue bold]Latest version:[/blue bold] {latestTag}")
 useTag = input("The version you want to install: v")
 if useTag == "":
     useTag = latestTag
-while useTag.strip() != "":
+while useTag.strip() == "":
     useTag = input("The version you want to install: v")
     if useTag == "":
         useTag = latestTag
