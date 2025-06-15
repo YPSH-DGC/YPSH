@@ -8,6 +8,7 @@ from rich import print
 from rich.prompt import Prompt
 
 print("[blue bold]Welcome to Pylo Installer.[/blue bold]")
+print()
 
 latestTag = requests.get("http://diamondgotcat.github.io/Pylo/version.txt").text.strip()
 
@@ -16,12 +17,14 @@ print(f"[blue bold]Latest version:[/blue bold] {latestTag}")
 useTag = input("The version you want to install: v")
 if useTag == "":
     useTag = latestTag
+    print(f"Defaulted to {latestTag}")
 elif useTag.strip() != "":
     useTag = f"{useTag.strip()}"
 while useTag.strip() == "":
     useTag = input("The version you want to install: v")
     if useTag == "":
         useTag = latestTag
+        print(f"Defaulted to {latestTag}")
     elif useTag.strip() != "":
         useTag = f"{useTag.strip()}"
 
@@ -62,6 +65,8 @@ if isGatekeeperCommandRequire:
     gatekeeperConfirm = Prompt.ask("Disable Gatekeeper for This Program?", default="Y", choices=["Y", "n"])
     if gatekeeperConfirm == "n":
         isGatekeeperCommandRequire = False
+
+print()
 
 installDir = os.path.expanduser(Prompt.ask("Install to", default="~/.local/bin"))
 systemFriendly = system if system != "Darwin" else "macOS"
