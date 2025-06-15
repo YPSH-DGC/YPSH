@@ -6,71 +6,6 @@ Simple Programming Language
 ## Documentation
 New Official Documentation is [here](https://pylo.diamondgotcat.net)!
 
-## Requirements
-**If you use the official installer (Recommended):**
-- Windows 10+ (amd64/x86_64) *or* macOS (aarch64/arm64/Apple Silicon) *or* Linux (amd64/x86_64)
-- Python 3.6+ (Recommended: 3.10 and above)
-    - `requests` Library (for Automatically Download File)
-
-**If you use the official build (binary) directly:**
-- Windows 10+ (amd64/x86_64) *or* macOS (aarch64/arm64/Apple Silicon) *or* Linux (amd64/x86_64)
-
-**If you don't use the official build/binary (Run in Python):**
-- Python 3.6+ (Recommended: 3.10 and above)
-    - `rich` Library
-
-## Installation
-### Official Installer (Automatically Install Binary Version)
-**Pros:**
-- Automatic installation
-- Pylo dependencies are bundled with the binaries.
-- Commands are short (e.g. `pylo -V`)
-- Automatically disable macOS's Gatekeeper for Pylo files.
-
-**Cons:**
-- Slow initial startup and each startup.
-
-```
-git clone https://github.com/DiamondGotCat/Pylo.git
-cd Pylo
-pip3 install requests rich
-python3 installer.py # You can also update with the same command.
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc # Bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc # Zsh
-pylo -V
-```
-
-### Binary File (Manually Install Binary Version)
-**Pros:**
-- Pylo dependencies are bundled with the binaries.
-- Commands are short (e.g. `pylo -V`)
-
-**Cons:**
-- Slow initial startup and each startup.
-- Configuration is completely manual (setting PATH, etc.)
-- On macOS, gatekeeper needs to be addressed.
-
-Link: [Downloads](https://github.com/DiamondGotCat/Pylo/releases/)
-
-### Python File (Run in Python)
-**Pros:**
-- Pylo starts up quickly.
-
-**Cons:**
-- Depending on the modules you use, more dependencies may be required.
-- Commands are long (e.g. `python3 pylo.py -V`)
-
-```
-git clone https://github.com/DiamondGotCat/Pylo.git
-cd Pylo
-git reset --hard v<The version you want to install>
-pip3 install -r requirements.txt
-python3 pylo.py -V
-```
-
-## Note
-- The binary version is slow to start up, but the processing after startup is very fast.
-
 ## Example
 ```
 # Save Result of 10 + 20 to "a" variable
@@ -95,5 +30,7 @@ add(5, 7)
 # Execute Python from Pylo
 exec.py("print(\"Hello, World!\")")
 ```
+
+---
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo)
