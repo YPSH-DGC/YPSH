@@ -104,6 +104,7 @@ with tempfile.TemporaryDirectory() as tmp_dir:
     if isGatekeeperCommandRequire:
         print(f"{finalBinaryPath} -> Gatekeeper Verified List")
         gatekeeperDisable(finalBinaryPath)
+        print("[blue]You might see a \"No such xattr: com.apple.quarantine\" error, but don't worry.  It just means the quarantine has already been disabled.[/blue]")
 
     print(f"Installed binary to: {finalBinaryPath}")
 
