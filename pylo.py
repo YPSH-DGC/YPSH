@@ -676,6 +676,7 @@ class Interpreter:
     def module_enable(self, id):
         if id == "minimal":
             self.module_enable("pylo")
+            self.module_enable("standard")
 
         elif id == "default":
             self.module_enable("pylo")
