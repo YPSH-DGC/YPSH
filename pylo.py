@@ -612,8 +612,8 @@ class Interpreter:
                 self.pylo_globals.set("root", [])
         
             self.append_global_env_var_list("root", id)
-            self.pylo_globals.set(f"root", content)
-            self.pylo_globals.set(f"@", content)
+            self.pylo_globals.set(f"root.{id}", content)
+            self.pylo_globals.set(f"@.{id}", content)
             self.pylo_globals.set(f"{id}", content)
             self.docs[f"root.{id}"] = desc
             self.docs[f"@.{id}"] = desc
