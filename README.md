@@ -63,6 +63,7 @@ Link: [Downloads](https://github.com/DiamondGotCat/Pylo/releases/)
 ```
 git clone https://github.com/DiamondGotCat/Pylo.git
 cd Pylo
+git reset --hard v<The version you want to install>
 pip3 install -r requirements.txt
 python3 pylo.py -V
 ```
