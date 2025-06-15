@@ -16,11 +16,14 @@ print(f"[blue bold]Latest version:[/blue bold] {latestTag}")
 useTag = input("The version you want to install: v")
 if useTag == "":
     useTag = latestTag
+elif useTag.strip() != "":
+    useTag = f"{useTag.strip()}"
 while useTag.strip() == "":
     useTag = input("The version you want to install: v")
     if useTag == "":
         useTag = latestTag
-useTag = f"v{useTag.strip()}"
+    elif useTag.strip() != "":
+        useTag = f"{useTag.strip()}"
 
 def gatekeeperDisable(path: str):
     os.system(f"xattr -d com.apple.quarantine '{path}'")
