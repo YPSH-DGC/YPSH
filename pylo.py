@@ -612,6 +612,8 @@ class Interpreter:
                 self.pylo_globals.set("root", [])
         
             self.append_global_env_var_list("root", id)
+            self.pylo_globals.set(f"root", content)
+            self.pylo_globals.set(f"@", content)
             self.pylo_globals.set(f"{id}", content)
             self.docs[f"root.{id}"] = desc
             self.docs[f"@.{id}"] = desc
@@ -627,6 +629,8 @@ class Interpreter:
 
     def pylo_undef(self, module, id=None):
         if module in ["@", "root"]:
+            self.pylo_globals.unset(f"root.{id}")
+            self.pylo_globals.unset(f"@.{id}")
             self.pylo_globals.unset(f"{id}")
             self.docs.pop(f"root.{id}")
             self.docs.pop(f"@.{id}")
