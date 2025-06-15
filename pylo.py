@@ -40,7 +40,7 @@ TOKEN_SPEC = [
     ('NEWLINE',  r'\n'),
     ('SKIP',     r'[ \t]+'),
     ('COMMENT',  r'(//[^\n]*|#[^\n]*)'),
-    ('SHELL', r'\$[^\n]+'),
+    ('SHELL',    r'\$[^\n]+'),
     ('ARROW',    r'->'),
     ('DOT',      r'\.'),
     ('NUMBER',   r'\d+(\.\d+)?'),
@@ -65,7 +65,7 @@ TOKEN_SPEC = [
     ('RBRACE',   r'\}'),
     ('LBRACKET', r'\['),
     ('RBRACKET', r'\]'),
-    ('ID',       r'[A-Za-z_%][A-Za-z0-9_%]*'),
+    ('ID',       r'[A-Za-z@_%][A-Za-z0-9@_%]*'),
     ('MISMATCH', r'.'),
 ]
 
@@ -529,11 +529,16 @@ class Function:
             return e.value
 
 class Interpreter:
+    modules = []
+    docs = {}
+
     VERSION_TYPE = VERSION_TYPE
     VERSION_NUMBER = VERSION_NUMBER
     VERSION = VERSION
-    modules = []
-    docs = {}
+
+    pylo_false = "__false__"
+    pylo_true = "__true__"
+    pylo_none = "__none__"
 
     def __init__(self):
         self.pylo_globals = Environment()
@@ -657,7 +662,7 @@ class Interpreter:
         try:
             result = self.docs[key]
         except KeyError:
-            return False
+            return self.pylo_false
 
         return result
     
@@ -674,9 +679,9 @@ class Interpreter:
             self.module_enable("docs")
 
         elif id == "pylo":
-            self.pylo_def("@", "false", False)
-            self.pylo_def("@", "true", True)
-            self.pylo_def("@", "none", None)
+            self.pylo_def("@", "false", "<false>")
+            self.pylo_def("@", "true", "<true>")
+            self.pylo_def("@", "none", "<none>")
             self.pylo_def("@", "def", self.pylo_def, desc="Define Anything as Variable")
             self.pylo_def("@", "undef", self.pylo_undef, desc="Delete a Variable(or Function)")
 
@@ -751,7 +756,15 @@ class Interpreter:
             def read_stdin():
                 return sys.stdin.read()
             self.pylo_def("standard", "input", read_stdin, desc="Read stdin (all lines)")
-            self.pylo_def("standard", "output", self.normal_print, desc="Normal Printing (No color, No decoration)")
+            self.pylo_def("stdin", "all", read_stdin, desc="Read stdin (all lines)")
+
+            def read_stdin_oneline():
+                return sys.stdin.read()
+            self.pylo_def("standard", "input.oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
+            self.pylo_def("stdin", "oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
+
+            self.pylo_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
+            self.pylo_def("@", "stdout", self.normal_print, desc="Directly Printing to stdout")
 
         elif id == "exstr":
             def exstr_unicode_uplus(s):
@@ -787,9 +800,26 @@ class Interpreter:
             self.pylo_def("@", "range", pylo_range)
 
         elif id == "env":
+            from dotenv import load_dotenv
+            self.pylo_globals.set("dotenv._enabled", self.pylo_true)
+
+            def dotenv_enabled():
+                return self.pylo_globals.get("dotenv._enabled")
+            self.pylo_def("dotenv", "enabled", dotenv_enabled, desc="Enable Dotenv for 'env' module")
+
             def get_system_env(id):
+                if dotenv_enabled() == self.pylo_true:
+                    load_dotenv()
                 return os.environ[id]
             self.pylo_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
+
+            def dotenv_enable():
+                self.pylo_globals.set("dotenv._enabled", self.pylo_true)
+            self.pylo_def("dotenv", "enable", dotenv_enable, desc="Enable Dotenv for 'env' module")
+
+            def dotenv_disable():
+                self.pylo_globals.set("dotenv._enabled", self.pylo_false)
+            self.pylo_def("dotenv", "disable", dotenv_disable, desc="Disable Dotenv for 'env' module")
 
         elif id == "conv":
             self.pylo_def("conv", "str", str)
@@ -1187,7 +1217,14 @@ class Interpreter:
             else:
                 raise RuntimeError(f"[PYLO:E-INTE006] Attempting to call a non-callable {node.name}.")
         elif isinstance(node, str):
-            return env.get(node)
+            value = env.get(node)
+            if value == self.pylo_false:
+                return False
+            elif value == self.pylo_true:
+                return True
+            elif value == self.pylo_none:
+                return None
+            return value
         else:
             raise RuntimeError(f"[PYLO:E-INTE007] Cannot evaluate node {node}.")
 
