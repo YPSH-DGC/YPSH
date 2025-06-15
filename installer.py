@@ -58,7 +58,7 @@ else:
 print()
 
 if isGatekeeperCommandRequire:
-    print("[yellow bold]You might need to disable Gatekeeper on macOS for this program to work.[/yellow bold]")
+    print("[yellow bold]You might need to disable Gatekeeper for this program to work.[/yellow bold]")
     gatekeeperConfirm = Prompt.ask("Disable Gatekeeper for This Program?", default="Y", choices=["Y", "n"])
     if gatekeeperConfirm == "n":
         isGatekeeperCommandRequire = False
