@@ -25,6 +25,8 @@ while useTag.strip() == "":
     elif useTag.strip() != "":
         useTag = f"{useTag.strip()}"
 
+print()
+
 def gatekeeperDisable(path: str):
     os.system(f"xattr -d com.apple.quarantine '{path}'")
 
@@ -52,6 +54,8 @@ elif system == "Windows":
     finalBinaryName = "pylo.exe"
 else:
     print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
+
+print()
 
 if isGatekeeperCommandRequire:
     print("[yellow bold]You might need to disable Gatekeeper on macOS for this program to work.[/yellow bold]")
