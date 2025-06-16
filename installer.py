@@ -6,6 +6,7 @@ import tempfile
 import shutil
 from rich import print
 from rich.prompt import Prompt
+import sys
 
 print("[blue bold]Welcome to Pylo Installer.[/blue bold]")
 print()
@@ -38,20 +39,45 @@ system = platform.system()
 useV2 = "N"
 
 if system == "Darwin":
-    print("[blue]Detected Platform:[/blue] macOS")
-    print("[blue][AutoBuild V2] v14.3.r2 and later are compatible with Intel version of macOS.[/blue]")
-    useV2 = Prompt.ask("Would you like to use that?", choices=["y", "N"], default="N")
-    if useV2 == "N":
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos.zip"
-        originalBinaryName = "pylo-macos"
+    arch = platform.machine()
+    if arch == "x86_64":
+        print("[blue]Detected Platform:[/blue] macOS (Intel)")
+        if useTag != latestTag:
+            print("[blue][AutoBuild V2] Intel macOS is supported from AutoBuild V2. It is available in Pylo v14.3.r2 and later.[/blue]")
+            changeToLatest = Prompt.ask("Would you like to change your version selection to the latest version?", choices=["Y", "n"], default="Y")
+            if changeToLatest == "Y":
+                useTag = latestTag
+        useV2 = "Y"
+        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-amd64.zip"
+        originalBinaryName = "pylo-macos-amd64"
+
+    elif arch == "arm64":
+        print("[blue]Detected Platform:[/blue] macOS (Apple Silicon)")
+        if useTag != latestTag:
+            print("[blue][AutoBuild V2] Starting from v14.3.r2, a new build structure is available.[/blue]")
+            useV2 = Prompt.ask("Would you like to use it?", choices=["y", "N"], default="N")
+            if useV2 == "N":
+                downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos.zip"
+                originalBinaryName = "pylo-macos"
+            else:
+                downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
+                originalBinaryName = "pylo-macos-arm64"
+        else:
+            useV2 = "y"
+            downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
+            originalBinaryName = "pylo-macos-arm64"
     else:
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
-        originalBinaryName = "pylo-macos-arm64"
+        print(f"Unknown Architecture: {arch}")
+        sys.exit(1)
+
     finalBinaryName = "pylo"
     isGatekeeperCommandRequire = True
 else:
-    print("[blue][AutoBuild V2]Starting from v14.3.r2, a new build structure is available.[/blue]")
-    useV2 = Prompt.ask("Would you like to use it?", choices=["y", "N"], default="N")
+    if useTag != latestTag:
+        print("[blue][AutoBuild V2] Starting from v14.3.r2, a new build structure is available.[/blue]")
+        useV2 = Prompt.ask("Would you like to use it?", choices=["y", "N"], default="N")
+    else:
+        useV2 = "y"
 
     if useV2 == "N":
         if system == "Linux":
@@ -68,6 +94,7 @@ else:
             finalBinaryName = "pylo.exe"
         else:
             print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
+            sys.exit(1)
     
     else:
         if system == "Linux":
@@ -84,6 +111,7 @@ else:
             finalBinaryName = "pylo.exe"
         else:
             print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
+            sys.exit(1)
 
 print()
 
@@ -102,17 +130,18 @@ print()
 print("[blue bold]Install Infomation[/blue bold]")
 print("[blue]Platform:[/blue] " + systemFriendly)
 print("[blue]Version:[/blue] " + useTag)
+
+if useV2.lower() == "n":
+    print("[blue]AutoBuild V2:[/blue] No")
+else:
+    print("[blue]AutoBuild V2:[/blue] Yes")
+
 print("[blue]Download URL:[/blue] " + downloadURL)
 
 if systemFriendly == "macOS" and (isGatekeeperCommandRequire):
     print("[blue]Disable Gatekeeper:[/blue] Yes")
 elif systemFriendly == "macOS" and (not isGatekeeperCommandRequire):
     print("[blue]Disable Gatekeeper:[/blue] No")
-
-if useV2 == "N":
-    print("[blue]AutoBuild V2:[/blue] No")
-else:
-    print("[blue]AutoBuild V2:[/blue] Yes")
 
 print("[blue]Install to[/blue] " + installDir)
 confirm = Prompt.ask("Continue?", default="Y", choices=["Y", "n"])
