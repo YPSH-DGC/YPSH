@@ -145,7 +145,7 @@ with tempfile.TemporaryDirectory() as tmp_dir:
     os.chmod(finalBinaryPath, 0o755)
 
     if isGatekeeperCommandRequire:
-        print(f"(TASK) {finalBinaryPath} -> Gatekeeper Verified List")
+        print(f"(TASK) {finalBinaryPath} -> com.apple.quarantine")
         gatekeeperDisable(finalBinaryPath)
         print("[blue]You might see a \"No such xattr: com.apple.quarantine\" error, but don't worry. It just means the quarantine has already been disabled.[/blue]")
 
