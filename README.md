@@ -1,34 +1,23 @@
-![Pylo](https://github.com/user-attachments/assets/be096b09-00a0-40bc-893f-fd0158b258c6)
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo) [![DGC-AutoBuild](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml/badge.svg)](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml)
-
 # Pylo
 Simple Programming Language
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo) [![DGC-AutoBuild](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml/badge.svg)](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml)
 
 ## Documentation
 New Official Documentation is [here](https://pylo.diamondgotcat.net)!
 
-## Example
-```
-# Save Result of 10 + 20 to "a" variable
-var a: int = 10 + 20
+## AutoBuild
+Pylo builds are automated using GitHub Actions.
 
-# Save The remainder when a is divided by 7 to "b variable"
-var b: int = mod(a, 7)
+### AutoBuild V1
+AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
+- `pylo-macos.zip`: macOS (Apple Silicon aarch64/arm64)
+- `pylo-linux.zip`: Linux (AMD amd64, Intel x86_64)
+- `pylo-windows.zip`: Windows (AMD amd64, Intel x86_64)
 
-# Show Content
-show("A is " + a)
-show("B is " + b)
-
-# Define Function named "add"
-func add(x: int, y: int) -> int { # Define Input Args, and Return Contents.
-    var result: int = x + y
-    standard.output(conv.str(x) + " + " + conv.str(y) + " = " + result) # Show Content with Other Ways
-}
-
-# Call Function named "add"
-add(5, 7)
-
-# Execute Python from Pylo
-exec.py("print(\"Hello, World!\")")
-```
+### AutoBuild V2
+AutoBuild V2 is a 4-platform build automation that uses Nuitka.
+- `pylo-macos-amd64.zip`: macOS (Intel x86_64)
+- `pylo-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
+- `pylo-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
+- `pylo-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
