@@ -75,7 +75,7 @@ jobs:
     needs: build-executable-v1
     strategy:
       matrix:
-        os: [macos-latest, macos-latest-large, ubuntu-latest, windows-latest]
+        os: [macos-latest, macos-13, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -116,7 +116,7 @@ jobs:
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             mv dist/pylo.bin upload/pylo-macos-arm64
             cd upload && zip pylo-macos-arm64.zip pylo-macos-arm64
-          elif [[ "${{ matrix.os }}" == "macos-latest-large" ]]; then
+          elif [[ "${{ matrix.os }}" == "macos-13" ]]; then
             mv dist/pylo.bin upload/pylo-macos-amd64
             cd upload && zip pylo-macos-amd64.zip pylo-macos-amd64
           else
