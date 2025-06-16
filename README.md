@@ -1,5 +1,7 @@
 ![Pylo](https://github.com/user-attachments/assets/be096b09-00a0-40bc-893f-fd0158b258c6)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo) [![DGC-AutoBuild](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml/badge.svg)](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml)
+
 # Pylo
 Simple Programming Language
 
@@ -30,7 +32,3 @@ add(5, 7)
 # Execute Python from Pylo
 exec.py("print(\"Hello, World!\")")
 ```
-
----
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo)
