@@ -2,7 +2,7 @@ name: Build
 
 on:
   release:
-    types: [published]
+    types: [published, prereleased]
   workflow_dispatch:
 
 jobs:
@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -65,7 +67,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: upload/*.zip
-          tag_name: ${{ env.LATEST_TAG || github.ref_name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && env.LATEST_TAG || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
@@ -98,6 +100,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Update version.txt with release tag
+        if: (github.event_name == 'release' && !github.event.release.prerelease) || github.event_name == 'workflow_dispatch'
         run: |
           echo "$TAG_NAME" > version.txt
           git add version.txt
