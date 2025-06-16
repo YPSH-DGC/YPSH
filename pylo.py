@@ -22,7 +22,7 @@ else:
     import msvcrt
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "13.2"
+VERSION_NUMBER = "13.3"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
