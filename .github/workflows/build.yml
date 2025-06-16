@@ -47,10 +47,10 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             mv dist/pylo.exe upload/pylo-windows.exe
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            mv dist/pylo upload/pylo-macos
+            mv dist/pylo.bin upload/pylo-macos
             cd upload && zip pylo-macos.zip pylo-macos
           else
-            mv dist/pylo upload/pylo-linux
+            mv dist/pylo.bin upload/pylo-linux
             cd upload && zip pylo-linux.zip pylo-linux
           fi
       
