@@ -13,12 +13,14 @@ import traceback
 from os.path import expanduser
 from rich import print
 from rich.console import Console
-try:
-    import readline
-except ImportError:
-    import pyreadline as readline
-import rlcompleter
 import subprocess
+
+import sys, os, inspect
+import platform
+if os.name == "posix":
+    import termios, tty
+else:
+    import msvcrt
 
 VERSION_TYPE = "Pylo"
 VERSION_NUMBER = "13.2"
@@ -752,6 +754,7 @@ class Interpreter:
             self.pylo_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
             self.pylo_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
             self.pylo_def("@", "show", self.pylo_print, desc="Show content with Simplize(e.g. 'pylo.module pylo.modules (list)')")
+            self.pylo_def("@", "lookup", self.pylo_print, desc="Show content with Simplize(e.g. 'pylo.module pylo.modules (list)')")
             self.pylo_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
 
             def exit_now(code=0):
@@ -1133,10 +1136,8 @@ class Interpreter:
                 try:
                     result = subprocess.run(os.path.expanduser(os.path.expandvars(node.command.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
                     print(result.stdout)
-                    return result.stdout
                 except subprocess.CalledProcessError as e:
                     print(e.stderr)
-                    return e.stderr
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
@@ -1262,57 +1263,138 @@ def is_code_complete(code):
 
     return brace_count == 0 and paren_count == 0 and bracket_count == 0
 
+def get_completions(interpreter, prefix: str):
+    env = interpreter.pylo_globals
+    seen = set()
+    out  = []
+
+    while env:
+        for k, v in env.vars.items():
+            if not k.startswith(prefix) or k in seen:
+                continue
+            seen.add(k)
+            if isinstance(v, Function):
+                out.append(f"{k}()")
+            elif callable(v):
+                try:
+                    out.append(f"{k}()")
+                except (TypeError, ValueError):
+                    out.append(f"{k}(")
+            else:
+                out.append(k)
+        env = env.parent
+    return sorted(out)
+
+class RawInput:
+    def __enter__(self):
+        self.is_posix = os.name == "posix"
+        if self.is_posix:
+            self.fd   = sys.stdin.fileno()
+            self.old  = termios.tcgetattr(self.fd)
+
+            tty.setraw(self.fd)
+            new    = termios.tcgetattr(self.fd)
+            new[1] |= termios.OPOST | termios.ONLCR
+            termios.tcsetattr(self.fd, termios.TCSADRAIN, new)
+        return self
+    def __exit__(self, *_):
+        if self.is_posix:
+            termios.tcsetattr(self.fd, termios.TCSADRAIN, self.old)
+    def read_key(self):
+        if self.is_posix:
+            ch = sys.stdin.read(1)
+            if ch == '\x1b':
+                ch += sys.stdin.read(2)
+            return ch
+        else:
+            ch = msvcrt.getwch()
+            if ch == '\x00' or ch == '\xe0':
+                ch += msvcrt.getwch()
+            return ch
+
 def repl():
     interpreter = Interpreter()
-    accumulated_code = ""
+    history, hist_idx = [], 0
 
-    readline.set_history_length(1000)
-    if "libedit" in readline.__doc__:
-        readline.parse_and_bind("bind ^I rl_complete")
-    else:
-        readline.parse_and_bind("tab: complete")
+    with RawInput() as R:
+        buffer, cursor = [], 0
+        prompt = "> "
 
-    def completer(text, state):
-        env = interpreter.pylo_globals
-        results = []
-        while env:
-            results += [k for k in env.vars.keys() if k.startswith(text)]
-            env = env.parent
-        results = sorted(set(results))
-        return results[state] if state < len(results) else None
+        def refresh():
+            sys.stdout.write("\r\033[K" + prompt + ''.join(buffer))
+            sys.stdout.flush()
+            back = len(buffer) - cursor
+            if back:
+                sys.stdout.write("\033[{}D".format(back))
+                sys.stdout.flush()
 
-    readline.set_completer(completer)
+        while True:
+            refresh()
+            key = R.read_key()
 
-    while True:
-        try:
-            prompt = f"> "
-            promptlen = len(prompt) - 1
-            prompt = prompt if accumulated_code == "" else (("." * promptlen) + " ")
+            if key in ('\r', '\n'):
+                sys.stdout.write("\n")
+                line = ''.join(buffer)
+                history.append(line)
+                hist_idx = len(history)
+                buffer, cursor = [], 0
 
-            line = input(prompt)
+                try:
+                    tokens  = tokenize(line + "\n")
+                    parser  = Parser(tokens)
+                    ast     = parser.parse()
+                    result  = interpreter.interpret(ast)
 
-        except EOFError:
-            print()
-            break
-        except KeyboardInterrupt:
-            print()
-            accumulated_code = ""
-            continue
+                    if (result is not None and not callable(result) and not isinstance(result, Function)):
+                        interpreter.pylo_print(result)
+                except Exception as e:
+                    print(f"[red]{e} (Pylo)[/red]")
+                continue
 
-        accumulated_code += line + "\n"
+            if key in ('\x03',):
+                buffer, cursor = [], 0
+                continue
+            if key in ('\x1b[D', '\xe0K'):
+                if cursor:
+                    cursor -= 1
+                continue
+            if key in ('\x1b[C', '\xe0M'):
+                if cursor < len(buffer):
+                    cursor += 1
+                continue
+            if key in ('\x1b[A', '\xe0H'):
+                if hist_idx:
+                    hist_idx -= 1
+                buffer = list(history[hist_idx])
+                cursor = len(buffer)
+                continue
+            if key in ('\x1b[B', '\xe0P'):
+                if hist_idx < len(history)-1:
+                    hist_idx += 1
+                    buffer = list(history[hist_idx])
+                else:
+                    buffer = []
+                cursor = len(buffer)
+                continue
+            if key in ('\x7f', '\b'):
+                if cursor:
+                    cursor -= 1
+                    buffer.pop(cursor)
+                continue
+            if key == '\t':
+                prefix = ''.join(buffer[:cursor])
+                comp   = get_completions(interpreter, prefix)
+                if not comp:
+                    continue
+                if len(comp) == 1:
+                    buffer = list(comp[0])
+                    cursor = len(buffer)
+                else:
+                    print("\n" + "  ".join(comp))
+                continue
 
-        if not is_code_complete(accumulated_code):
-            continue
-
-        try:
-            tokens = tokenize(accumulated_code)
-            parser = Parser(tokens)
-            ast = parser.parse()
-            interpreter.interpret(ast)
-        except Exception as e:
-            print(f"[red]{str(e)} (Pylo)[/red]")
-
-        accumulated_code = ""
+            buffer.insert(cursor, key)
+            cursor += 1
 
 def run_text(code):
     try:
