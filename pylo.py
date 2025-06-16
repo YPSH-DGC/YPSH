@@ -609,7 +609,7 @@ class Interpreter:
         return matching_keys
 
     def normal_print(self, content, end="\n"):
-        console.out.write(str(content) + end)
+        console.file.write(str(content) + end)
 
     def color_print(self, content, end="\n"):
         print(str(content), end=end)
@@ -1386,19 +1386,19 @@ def repl():
         prompt = "> "
 
         def refresh():
-            console.out.write("\r\033[K" + prompt + ''.join(buffer))
-            console.out.flush()
+            console.file.write("\r\033[K" + prompt + ''.join(buffer))
+            console.file.flush()
             back = len(buffer) - cursor
             if back:
-                console.out.write("\033[{}D".format(back))
-                console.out.flush()
+                console.file.write("\033[{}D".format(back))
+                console.file.flush()
 
         while True:
             refresh()
             key = R.read_key()
 
             if key in ('\r', '\n'):
-                console.out.write("\n")
+                console.file.write("\n")
                 line = ''.join(buffer)
                 history.append(line)
                 hist_idx = len(history)
