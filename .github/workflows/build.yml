@@ -31,7 +31,7 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller pylo.py --onefile --noconsole
+          pyinstaller pylo.py --onefile --console
 
       - name: Rename and zip binary
         shell: bash
