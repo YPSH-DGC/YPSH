@@ -186,19 +186,19 @@ user_path = os.environ.get("PATH", "")
 if installDir not in user_path.split(os.pathsep):
     if system == "Windows":
         print()
-        print("[yellow bold]WARNING: ~\\.local\\bin is not in your PATH.[/yellow bold]")
-        print("Please add the following to your Windows system environment variable PATH:")
+        print(f"[yellow bold]WARNING: {os.path.expanduser('~')}\\.local\\bin is not in your PATH.[/yellow bold]")
+        print("Please add the following to your Windows system environment variable \"Path\":")
         print(f"{os.path.expanduser('~')}\\.local\\bin\n")
     else:
         print()
-        print("[yellow bold]WARNING: ~/.local/bin is not in your PATH.[/yellow bold]")
+        print(f"[yellow bold]WARNING: {os.path.expanduser('~')}/.local/bin is not in your PATH.[/yellow bold]")
         print("You can add it by appending the following line to your shell config file (e.g., ~/.bashrc, ~/.zshrc):")
-        print('export PATH="$HOME/.local/bin:$PATH"\n')
+        print(f'export PATH="{os.path.expanduser("~")}/.local/bin:$PATH"\n')
 else:
     if system == "Windows":
-        print("[blue bold]Your PATH includes ~\\.local\\bin. You're good to go![/blue bold]")
+        print(f"[blue bold]Your PATH includes {os.path.expanduser('~')}\\.local\\bin. You're good to go![/blue bold]")
     else:
-        print("[blue bold]Your PATH includes ~/.local/bin. You're good to go![/blue bold]")
+        print(f'[blue bold]Your PATH includes {os.path.expanduser("~")}/.local/bin. You\'re good to go![/blue bold]')
 
 print()
 print("[green bold]Installation complete.[/green bold]")
