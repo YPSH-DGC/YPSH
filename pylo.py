@@ -1414,7 +1414,7 @@ def repl():
                     if (result is not None and not callable(result) and not isinstance(result, Function)):
                         interpreter.pylo_print(result)
                 except Exception as e:
-                    print(f"[red]{e} (Pylo)[/red]")
+                    rich_print(f"[red]{e} (Pylo)[/red]")
                 continue
 
             if key in ('\x03',):
@@ -1456,7 +1456,7 @@ def repl():
                     buffer = list(comp[0])
                     cursor = len(buffer)
                 else:
-                    print("\n" + "  ".join(comp))
+                    rich_print("\n" + "  ".join(comp))
                 continue
 
             buffer.insert(cursor, key)
@@ -1470,7 +1470,7 @@ def run_text(code):
         interpreter = Interpreter()
         interpreter.interpret(ast)
     except Exception as e:
-        print(f"[red]{str(e)} (Pylo)[/red]")
+        rich_print(f"[red]{str(e)} (Pylo)[/red]")
 
 def run_file(path):
     if not os.path.isfile(path):
@@ -1485,7 +1485,7 @@ def run_file(path):
         interpreter = Interpreter()
         interpreter.interpret(ast)
     except Exception as e:
-        print(f"[red]{str(e)} (Pylo)[/red]")
+        rich_print(f"[red]{str(e)} (Pylo)[/red]")
 
 #!checkpoint!
 
@@ -1496,7 +1496,7 @@ def main():
     args = sys.argv[1:]
     if args:
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
-            print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
+            rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
 
         elif args[0].lower() in ["-c", "--c"]:
             run_text(args[1])
@@ -1505,28 +1505,28 @@ def main():
             run_text(sys.stdin.read())
 
         elif args[0] == "pylopm":
-            print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
-            print("[PyloPM] Start PyloPM - Pylo Package Manager...")
+            rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
+            rich_print("[PyloPM] Start PyloPM - Pylo Package Manager...")
 
             try:
                 if args[1] == "install" and (args[2] != "" and args[3] != ""):
-                    print(f"Install Library: {args[2]} (from {args[3]})")
+                    rich_print(f"Install Library: {args[2]} (from {args[3]})")
                     run_text(f"""
 pylo.modules.enable("librarys")
 librarys.install("{args[2]}", "{args[3]}")
     """)
                 elif args[1] == "remove" and (args[2] != ""):
-                    print(f"Remove Library: {args[2]}")
+                    rich_print(f"Remove Library: {args[2]}")
                     run_text(f"""
 pylo.modules.enable("librarys")
 librarys.remove("{args[2]}")
     """)
                 else:
-                    print("[PyloPM] No Matched Command")
+                    rich_print("[PyloPM] No Matched Command")
             except IndexError:
-                print("[PyloPM] No Matched Command")
+                rich_print("[PyloPM] No Matched Command")
 
-            print("[PyloPM] Finish PyloPM - Pylo Package Manager...")
+            rich_print("[PyloPM] Finish PyloPM - Pylo Package Manager...")
 
         else:
             run_file(args[0])
