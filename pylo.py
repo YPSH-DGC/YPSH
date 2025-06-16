@@ -25,8 +25,9 @@ import threading
 from next_drop_lib import FileSender, FileReceiver
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "14.3"
+VERSION_NUMBER = "15.0"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
+LANG = "en"
 
 console = Console()
 rich_print = console.print
@@ -37,6 +38,27 @@ shell_cwd = os.getcwd()
 ##############################
 def unescape_string_literal(s):
     return bytes(s, "utf-8").decode("unicode_escape")
+
+##############################
+# Built-in Error Documentation
+##############################
+class PyloError(Exception):
+    def __init__(self, location: str = "PYLO", level: str = "E", ecode: str = "0000", desc = None):
+        if desc is None:
+            desc = {"en": "Unknown Error", "ja": "不明なエラー"}
+        self.location = location
+        self.level = level
+        self.ecode = ecode
+        self.desc = desc
+        super().__init__(self.__str__())
+
+    def __str__(self):
+        if LANG in self.desc.keys():
+            return f"<{self.location}:{self.level}{self.ecode}> {self.desc[LANG]}"
+        elif "en" in self.desc.keys():
+            return f"<{self.location}:{self.level}{self.ecode}> {self.desc['en']}"
+        else:
+            return f"<{self.location}:{self.level}{self.ecode}> No Description"
 
 ##############################
 # Tokens
@@ -64,6 +86,7 @@ TOKEN_SPEC = [
     ('COLON',    r':'),
     ('EQUAL',    r'='),
     ('COMMA',    r','),
+    ('QUESTION', r'\?'),
     ('LPAREN',   r'\('),
     ('RPAREN',   r'\)'),
     ('LBRACE',   r'\{'),
@@ -101,7 +124,7 @@ def tokenize(code):
         elif kind in ('SKIP', 'COMMENT'):
             continue
         elif kind == 'MISMATCH':
-            raise RuntimeError(f"[PYLO:E-TKNZ002] Unexpected character {value!r} at line {line_num}.")
+            raise PyloError("PYLO", "E", "0001", {"en": f"Unexpected character {value!r} at line {line_num}.", "ja": f"予想外の文字「{value!r}」が{line_num}行目に存在します。"})
         else:
             tokens.append(Token(kind, value, line_num))
     return tokens
@@ -133,6 +156,12 @@ class ListLiteral(ASTNode):
         self.elements = elements
     def __repr__(self):
         return f'ListLiteral({self.elements})'
+    
+class DictLiteral(ASTNode):
+    def __init__(self, pairs):
+        self.pairs = pairs  # list of (key, value)
+    def __repr__(self):
+        return f'DictLiteral({self.pairs})'
 
 class VarDecl(ASTNode):
     def __init__(self, name, var_type, expr):
@@ -156,6 +185,14 @@ class UnaryOp(ASTNode):
         self.operand = operand
     def __repr__(self):
         return f'UnaryOp({self.op}, {self.operand})'
+    
+class TernaryOp(ASTNode):
+    def __init__(self, condition, if_true, if_false):
+        self.condition = condition
+        self.if_true = if_true
+        self.if_false = if_false
+    def __repr__(self):
+        return f'TernaryOp({self.condition}, {self.if_true}, {self.if_false})'
 
 class FuncDecl(ASTNode):
     def __init__(self, name, params, return_type, body):
@@ -284,7 +321,7 @@ class Parser:
             self.pos += 1
             return token
         else:
-            raise RuntimeError(f"Expected token {token_type} but got {token}.")
+            raise PyloError("PYLO", "E", "0002", {"en": f"Expected token {token_type} but got {token}.", "ja": f"{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"})
 
     def parse(self):
         statements = []
@@ -395,18 +432,17 @@ class Parser:
         return IfStmt(condition, then_block, else_block)
 
     def for_stmt(self):
-        self.eat('ID')  # for
+        self.eat('ID')
         var_name = self.eat('ID').value
-        # "for var in iterable { ... }" Syntax
         if not (self.current() and self.current().type == 'ID' and self.current().value == 'in'):
-            raise RuntimeError("Expected 'in' in for loop.")
-        self.eat('ID')  # in
+            raise PyloError("PYLO", "E", "0003", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"})
+        self.eat('ID')
         iterable = self.expr()
         body = self.block()
         return ForStmt(var_name, iterable, body)
 
     def while_stmt(self):
-        self.eat('ID')  # while
+        self.eat('ID')
         if self.current() and self.current().type == 'LPAREN':
             self.eat('LPAREN')
             condition = self.expr()
@@ -422,7 +458,7 @@ class Parser:
         return ReturnStmt(value)
 
     def expr(self):
-        return self.expr_or()
+        return self.expr_ternary()
 
     def expr_or(self):
         node = self.expr_and()
@@ -431,6 +467,16 @@ class Parser:
             right = self.expr_and()
             node = BinOp(node, '||', right)
         return node
+    
+    def expr_ternary(self):
+        condition = self.expr_or()
+        if self.current() and self.current().type == 'QUESTION':
+            self.eat('QUESTION')
+            if_true = self.expr()
+            self.eat('COLON')
+            if_false = self.expr()
+            return TernaryOp(condition, if_true, if_false)
+        return condition
 
     def expr_and(self):
         node = self.expr_not()
@@ -483,33 +529,46 @@ class Parser:
         elif token.type == 'LBRACKET':
             return self.list_literal()
         elif token.type == 'ID':
-            id_str = self.eat('ID').value
-            while self.current() and self.current().type == 'DOT':
-                self.eat('DOT')
-                next_id = self.eat('ID').value
-                id_str += '.' + next_id
-            if self.current() and self.current().type == 'LPAREN':
-                self.eat('LPAREN')
-                args = []
-                if self.current() and self.current().type != 'RPAREN':
-                    while True:
-                        arg = self.expr()
-                        args.append(arg)
-                        if self.current() and self.current().type == 'COMMA':
-                            self.eat('COMMA')
-                        else:
-                            break
-                self.eat('RPAREN')
-                return FuncCall(id_str, args)
-            else:
-                return id_str
+            expr = self.eat('ID').value
+
+            while True:
+                if self.current() and self.current().type == 'DOT':
+                    self.eat('DOT')
+                    next_id = self.eat('ID').value
+                    expr += '.' + next_id
+
+                elif self.current() and self.current().type == 'LPAREN':
+                    self.eat('LPAREN')
+                    args = []
+                    if self.current() and self.current().type != 'RPAREN':
+                        while True:
+                            args.append(self.expr())
+                            if self.current() and self.current().type == 'COMMA':
+                                self.eat('COMMA')
+                            else:
+                                break
+                    self.eat('RPAREN')
+                    return FuncCall(expr, args)
+
+                elif self.current() and self.current().type == 'LBRACKET':
+                    self.eat('LBRACKET')
+                    index_expr = self.expr()
+                    self.eat('RBRACKET')
+                    expr = BinOp(expr, '[]', index_expr)  # Special index access op
+                else:
+                    break
+
+            return expr
+
         elif token.type == 'LPAREN':
             self.eat('LPAREN')
             node = self.expr()
             self.eat('RPAREN')
             return node
+        elif token.type == 'LBRACE':
+            return self.dict_literal()
         else:
-            raise RuntimeError(f"[PYLO:E-PARS002] Unexpected token {token}.")
+            raise PyloError("PYLO", "E", "0004", {"en": f"Unexpected token {token}.", "ja": f"予想外のトークン: {token}"})
 
     def list_literal(self):
         self.eat('LBRACKET')
@@ -524,6 +583,30 @@ class Parser:
                     break
         self.eat('RBRACKET')
         return ListLiteral(elements)
+    
+    def dict_literal(self):
+        self.eat('LBRACE')
+        pairs = []
+        if self.current() and self.current().type != 'RBRACE':
+            while True:
+                key_token = self.current()
+                if key_token.type in ('STRING', 'MLSTRING'):
+                    key = self.eat(key_token.type).value
+                    key = unescape_string_literal(key[1:-1])
+                elif key_token.type == 'ID':
+                    key = self.eat('ID').value
+                else:
+                    raise PyloError("PYLO", "E", "0015", {"en": f"Invalid dictionary key: {key_token}.", "ja": f"辞書のキーが無効です: {key_token}"})
+
+                self.eat('COLON')
+                value = self.expr()
+                pairs.append((key, value))
+                if self.current() and self.current().type == 'COMMA':
+                    self.eat('COMMA')
+                else:
+                    break
+        self.eat('RBRACE')
+        return DictLiteral(pairs)
 
 class ReturnException(Exception):
     def __init__(self, value):
@@ -548,7 +631,7 @@ class Environment:
         elif self.parent:
             return self.parent.get(name)
         else:
-            raise RuntimeError(f"[PYLO:E-INTE002] Cannot find '{name}' in scope.")
+            raise PyloError("PYLO", "E", "0005", {"en": f"Cannot find '{name}' in scope.", "ja": f"'{name}'がスコープに見つかりません。"})
     def set(self, name, value):
         self.vars[name] = value
     def unset(self, name):
@@ -561,7 +644,7 @@ class Function:
     def call(self, args, interpreter):
         local_env = Environment(self.env)
         if len(args) != len(self.decl.params):
-            raise RuntimeError("[PYLO:E-INTE003] Function argument count mismatch.")
+            raise PyloError("PYLO", "E", "0006", {"en": "Function argument count mismatch.", "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"})
         for (param_name, _), arg in zip(self.decl.params, args):
             local_env.set(param_name, interpreter.evaluate(arg, local_env))
         try:
@@ -597,7 +680,7 @@ class Interpreter:
                 current_conv.append(content)
                 self.pylo_globals.set(id, current_conv)
         else:
-            raise RuntimeError(f"[PYLO:E-INTE008] Expected '{id}' to be a list.")
+            raise PyloError("PYLO", "E", "0007", {"en": f"Expected '{id}' to be a list.", "ja": f"'{id}' の種類はlistではありません。"})
 
     def get_ids_from_content(self, content):
         matching_keys = []
@@ -652,7 +735,7 @@ class Interpreter:
         if module in ["@", "root"]:
             try:
                 self.pylo_globals.get("root")
-            except RuntimeError:
+            except PyloError:
                 self.pylo_globals.set("root", [])
         
             self.append_global_env_var_list("root", id)
@@ -664,7 +747,7 @@ class Interpreter:
         else:
             try:
                 self.pylo_globals.get(module)
-            except RuntimeError:
+            except PyloError:
                 self.pylo_globals.set(module, [])
         
             self.append_global_env_var_list(module, id)
@@ -682,7 +765,7 @@ class Interpreter:
         elif (module == id) or (id is None):
             try:
                 members = list(self.pylo_globals.get(module))
-            except RuntimeError:
+            except PyloError:
                 return
 
             for member in members:
@@ -696,7 +779,7 @@ class Interpreter:
         else:
             try:
                 members = list(self.pylo_globals.get(module))
-            except RuntimeError:
+            except PyloError:
                 return
 
             if id in members:
@@ -788,6 +871,19 @@ class Interpreter:
                 return self.VERSION
             self.pylo_def("pylo", "version.get", get_pylo_version, desc="Get Pylo's Full Version Name (func)")
 
+            def pylo_error(location: str = "APP", level: str = "E", ecode: str = "0000", desc = None):
+                return PyloError(location=location, level=level, ecode=ecode, desc=desc)
+            self.pylo_def("@", "error", pylo_error, desc="Return a Error Object.")
+
+            def raise_error(error: Exception):
+                raise error
+            self.pylo_def("@", "raise", raise_error, desc="Raise a Error with Error Object.")
+
+            def error_lang_set(lang="en"):
+                global LANG
+                LANG = lang
+            self.pylo_def("@", "error.lang.set", error_lang_set, desc="Set a Language ID for Localized Error Message.")
+
         elif id == "docs":
             self.pylo_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'pylo.version'), from Pylo's Documentation")
             self.pylo_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'pylo.version') and content, to Pylo's Documentation")
@@ -868,7 +964,7 @@ class Interpreter:
 
             def pylo_range(start=1, end=None):
                 if end == None:
-                    raise RuntimeError("[PYLO:E--------] stdmath/range (internal: pylo_range): At least one argument is required: end")
+                    raise PyloError("STDMATH", "E", "0008", {"en": "At least one argument is required: end", "ja": "少なくとも引数「end」が必要です。"})
                 else:
                     return range(start, end+1)
             self.pylo_def("@", "range", pylo_range)
@@ -1009,7 +1105,7 @@ class Interpreter:
 
             def import_pylo(file_path):
                 if not os.path.isfile(file_path):
-                    raise RuntimeError(f"File not found: {file_path}.")
+                    raise PyloError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
                 tokens = tokenize(code)
@@ -1020,7 +1116,7 @@ class Interpreter:
 
             def import_py(file_path):
                 if not os.path.isfile(file_path):
-                    raise RuntimeError(f"File not found: {file_path}.")
+                    raise PyloError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
                 local_dict = {}
@@ -1207,7 +1303,7 @@ class Interpreter:
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
-                raise RuntimeError("[PYLO:E-INTE004] The expression in for loop is not iterable.")
+                raise PyloError("PYLO", "E", "0010", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"})
             for value in iterable:
                 local_env = Environment(env)
                 local_env.set(node.var_name, value)
@@ -1271,14 +1367,24 @@ class Interpreter:
                 return bool(left) and bool(right)
             elif node.op == '||':
                 return bool(left) or bool(right)
+            elif node.op == '[]':
+                collection = self.evaluate(node.left, env)
+                index = self.evaluate(node.right, env)
+                try:
+                    return collection[index]
+                except Exception:
+                    raise PyloError("PYLO", "E", "0016", {
+                        "en": f"Cannot access index/key '{index}' on {collection}",
+                        "ja": f"{collection} に対してインデックス/キー '{index}' を取得できません"
+                    })
             else:
-                raise RuntimeError(f"[ERROR:INTE005] Unknown operator {node.op}.")
+                raise PyloError("PYLO", "E", "0011", {"en": f"Unknown operator: {node.op}.", "ja": f"未知の演算子: {node.op}"})
         elif isinstance(node, UnaryOp):
             operand = self.evaluate(node.operand, env)
             if node.op == '!':
                 return not bool(operand)
             else:
-                raise RuntimeError(f"[ERROR:INTE005] Unknown unary operator {node.op}.")
+                raise PyloError("PYLO", "E", "0012", {"en": f"Unknown unary operator {node.op}.", "ja": f"未知の単項演算子: {node.op}"})
         elif isinstance(node, FuncCall):
             func_obj = env.get(node.name)
             if callable(func_obj):
@@ -1287,7 +1393,7 @@ class Interpreter:
             elif isinstance(func_obj, Function):
                 return func_obj.call(node.args, self)
             else:
-                raise RuntimeError(f"[PYLO:E-INTE006] Attempting to call a non-callable {node.name}.")
+                raise PyloError("PYLO", "E", "0013", {"en": f"Attempting to call a non-callable {node.name}.", "ja": f"呼び出し不可能なオブジェクト {node.name} に対して呼び出そうとしました。"})
         elif isinstance(node, str):
             value = env.get(node)
             if value == self.pylo_false:
@@ -1297,8 +1403,16 @@ class Interpreter:
             elif value == self.pylo_none:
                 return None
             return value
+        elif isinstance(node, DictLiteral):
+            return {key: self.evaluate(value, env) for key, value in node.pairs}
+        elif isinstance(node, TernaryOp):
+            condition = self.evaluate(node.condition, env)
+            if condition:
+                return self.evaluate(node.if_true, env)
+            else:
+                return self.evaluate(node.if_false, env)
         else:
-            raise RuntimeError(f"[PYLO:E-INTE007] Cannot evaluate node {node}.")
+            raise PyloError("PYLO", "E", "0014", {"en": f"Cannot evaluate node {node}.", "ja": f"{node} を処理できません。"})
 
 ##############################
 # REPL / Script Executing / Other
@@ -1377,7 +1491,7 @@ def repl():
             ast = parser.parse()
             interpreter.interpret(ast)
         except Exception as e:
-            rich_print(f"[red]{str(e)} (Pylo)[/red]")
+            rich_print(f"[red]{str(e)}[/red]")
 
         accumulated_code = ""
 
@@ -1389,7 +1503,7 @@ def run_text(code):
         interpreter = Interpreter()
         interpreter.interpret(ast)
     except Exception as e:
-        rich_print(f"[red]{str(e)} (Pylo)[/red]")
+        rich_print(f"[red]{str(e)}[/red]")
 
 def run_file(path):
     if not os.path.isfile(path):
@@ -1404,7 +1518,7 @@ def run_file(path):
         interpreter = Interpreter()
         interpreter.interpret(ast)
     except Exception as e:
-        rich_print(f"[red]{str(e)} (Pylo)[/red]")
+        rich_print(f"[red]{str(e)}[/red]")
 
 #!checkpoint!
 
