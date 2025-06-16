@@ -98,6 +98,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Update version.txt with release tag
+        if: (github.event_name == 'release' && !github.event.release.prerelease) || github.event_name == 'workflow_dispatch'
         run: |
           echo "$TAG_NAME" > version.txt
           git add version.txt
