@@ -161,7 +161,7 @@ jobs:
 
       - name: Set up Git
         run: |
-          git config user.name "DGC-BuildBot"
+          git config user.name "DGC-AutoBuild"
           git config user.email "bot@diamondgotcat.net"
 
       - name: Determine release tag
