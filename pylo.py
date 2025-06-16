@@ -11,7 +11,6 @@ import os
 import json
 import traceback
 from os.path import expanduser
-from rich import print
 from rich.console import Console
 import subprocess
 import sys, os, inspect
@@ -29,6 +28,7 @@ VERSION_NUMBER = "14.0.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
+rich_print = console.print
 shell_cwd = os.getcwd()
 
 ##############################
@@ -609,10 +609,10 @@ class Interpreter:
         return matching_keys
 
     def normal_print(self, content, end="\n"):
-        console.file.write(str(content) + end)
+        print(str(content), end=end)
 
     def color_print(self, content, end="\n"):
-        print(str(content), end=end)
+        rich_print(str(content), end=end)
 
     def pylo_print(self, content, end="\n"):
         returnValue = ""
@@ -1377,6 +1377,9 @@ class RawInput:
                 ch += msvcrt.getwch()
             return ch
 
+def print_noend(content):
+    print(str(content), end="")
+
 def repl():
     interpreter = Interpreter()
     history, hist_idx = [], 0
@@ -1386,19 +1389,17 @@ def repl():
         prompt = "> "
 
         def refresh():
-            console.file.write("\r\033[K" + prompt + ''.join(buffer))
-            console.file.flush()
+            print_noend("\r\033[K" + prompt + ''.join(buffer))
             back = len(buffer) - cursor
             if back:
-                console.file.write("\033[{}D".format(back))
-                console.file.flush()
+                print_noend("\033[{}D".format(back))
 
         while True:
             refresh()
             key = R.read_key()
 
             if key in ('\r', '\n'):
-                console.file.write("\n")
+                print_noend("\n")
                 line = ''.join(buffer)
                 history.append(line)
                 hist_idx = len(history)
