@@ -6,7 +6,7 @@ Simple Programming Language
 ## Documentation
 New Official Documentation is [here](https://pylo.diamondgotcat.net)!
 
-## AutoBuild
+## AutoBuild (for Binary Version)
 Pylo builds are automated using GitHub Actions.
 
 ### AutoBuild V1
