@@ -39,7 +39,7 @@ useV2 = "N"
 
 if system == "Darwin":
     print("[blue]Detected Platform:[/blue] macOS")
-    print("[blue][AutoBuild V2] v14.3-r1 and later are compatible with Intel version of macOS.[/blue]")
+    print("[blue][AutoBuild V2] v14.3.r2 and later are compatible with Intel version of macOS.[/blue]")
     useV2 = Prompt.ask("Would you like to use that?", choices=["y", "N"], default="N")
     if useV2 == "N":
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos.zip"
@@ -50,7 +50,7 @@ if system == "Darwin":
     finalBinaryName = "pylo"
     isGatekeeperCommandRequire = True
 else:
-    print("[blue][AutoBuild V2]Starting from v14.3-r1, a new build structure is available.[/blue]")
+    print("[blue][AutoBuild V2]Starting from v14.3.r2, a new build structure is available.[/blue]")
     useV2 = Prompt.ask("Would you like to use it?", choices=["y", "N"], default="N")
 
     if useV2 == "N":
