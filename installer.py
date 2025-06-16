@@ -19,14 +19,14 @@ if useTag == "":
     useTag = latestTag
     print(f"Defaulted to {latestTag}")
 elif useTag.strip() != "":
-    useTag = f"{useTag.strip()}"
+    useTag = f"v{useTag.strip()}"
 while useTag.strip() == "":
     useTag = input("The version you want to install: v")
     if useTag == "":
         useTag = latestTag
         print(f"Defaulted to {latestTag}")
     elif useTag.strip() != "":
-        useTag = f"{useTag.strip()}"
+        useTag = f"v{useTag.strip()}"
 
 print()
 
