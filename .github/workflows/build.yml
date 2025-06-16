@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-executable-v1:
+  v1:
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
@@ -71,8 +71,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
-  build-executable-v2:
-    needs: build-executable-v1
+  v2:
+    needs: v1
     strategy:
       matrix:
         os: [macos-13, macos-latest, ubuntu-latest, windows-latest]
@@ -148,8 +148,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
-  update-version-txt:
-    needs: build-executable-v2
+  after:
+    needs: v2
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     steps:
