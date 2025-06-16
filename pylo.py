@@ -25,7 +25,7 @@ import threading
 from next_drop_lib import FileSender, FileReceiver
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "14.0"
+VERSION_NUMBER = "14.0.1"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
