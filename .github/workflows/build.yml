@@ -36,7 +36,7 @@ jobs:
             --onefile \
             --output-dir=dist \
             --remove-output \
-            --enable-plugin=pylint-warnings,optimize-inline-functions \
+            --enable-plugin=pylint-warnings \
             pylo.py
 
       - name: Rename and zip binary
