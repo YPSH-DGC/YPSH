@@ -14,7 +14,6 @@ from os.path import expanduser
 from rich import print
 from rich.console import Console
 import subprocess
-
 import sys, os, inspect
 import platform
 if os.name == "posix":
