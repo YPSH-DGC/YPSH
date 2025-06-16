@@ -20,9 +20,12 @@ if os.name == "posix":
     import termios, tty
 else:
     import msvcrt
+import asyncio
+import threading
+from next_drop_lib import FileSender, FileReceiver
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "13.3.1"
+VERSION_NUMBER = "14.0"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 
 console = Console()
@@ -223,6 +226,45 @@ class ShellStmt(ASTNode):
         self.command = command
     def __repr__(self):
         return f'ShellStmt({self.command})'
+
+##############################
+# NextDP Integration
+# https://github.com/DiamondGotCat/NextDrop/
+##############################
+
+class NextDPManager:
+    def __init__(self, host="localhost", port=4321, save_dir="./received/"):
+        self.host = host
+        self.port = port
+        self.save_dir = save_dir
+        self._server = None
+        self._server_task = None
+        self._loop = None
+
+    async def _start_receiver(self):
+        self._server = FileReceiver(port=self.port, save_dir=self.save_dir)
+        await self._server.start_server()
+
+    def start_receiving(self):
+        def runner():
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._server_task = self._loop.create_task(self._start_receiver())
+            self._loop.run_forever()
+
+        threading.Thread(target=runner, daemon=True).start()
+
+    def stop_receiving(self):
+        if self._loop and self._server_task:
+            def stopper():
+                self._server_task.cancel()
+                self._loop.stop()
+
+            self._loop.call_soon_threadsafe(stopper)
+
+    async def send_file(self, file_path):
+        sender = FileSender(self.host, port=self.port, file_path=file_path)
+        await sender.send_file()
 
 ##############################
 # Perser
@@ -773,6 +815,30 @@ class Interpreter:
             self.pylo_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
             self.pylo_def("@", "stdout", self.normal_print, desc="Directly Printing to stdout")
 
+        elif id == "nextdp":
+            global nextdp_manager
+            nextdp_manager = NextDPManager()
+
+            def nextdp_receiver_start(host: str = "0.0.0.0", port: int = 4321, save_dir: str = "./received/"):
+                global nextdp_manager
+                nextdp_manager.host = host
+                nextdp_manager.port = port
+                nextdp_manager.save_dir = save_dir
+                nextdp_manager.start_receiving()
+            self.pylo_def("nextdp", "receiver.start", nextdp_receiver_start, desc="Start the NextDP Receiver")
+
+            def nextdp_receiver_stop():
+                global nextdp_manager
+                nextdp_manager.stop_receiving()
+            self.pylo_def("nextdp", "receiver.stop", nextdp_receiver_stop, desc="Stop the NextDP Receiver")
+
+            def nextdp_receiver_start(filepath: str, host: str = "0.0.0.0", port: int = 4321):
+                global nextdp_manager
+                nextdp_manager.host = host
+                nextdp_manager.port = port
+                nextdp_manager.send_file(filepath)
+            self.pylo_def("nextdp", "send", nextdp_receiver_start, desc="Send a file using NextDP")
+
         elif id == "exstr":
             def exstr_unicode_uplus(s):
                 return ''.join(f'U+{ord(c):04X}' for c in s)
@@ -812,7 +878,7 @@ class Interpreter:
 
             def dotenv_enabled():
                 return self.pylo_globals.get("dotenv._enabled")
-            self.pylo_def("dotenv", "enabled", dotenv_enabled, desc="Enable Dotenv for 'env' module")
+            self.pylo_def("dotenv", "enabled", dotenv_enabled)
 
             def get_system_env(id):
                 if dotenv_enabled() == self.pylo_true:
