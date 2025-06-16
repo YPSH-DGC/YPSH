@@ -65,7 +65,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: upload/*.zip
-          tag_name: ${{ env.LATEST_TAG || github.ref_name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && env.LATEST_TAG || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
