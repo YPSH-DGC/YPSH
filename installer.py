@@ -196,11 +196,10 @@ print("[blue bold]Final Installation Infomation[/blue bold]")
 print("[blue]Platform:[/blue] " + systemFriendly)
 print("[blue]Version:[/blue] " + useTag)
 print("[blue]Download URL:[/blue] " + downloadURL)
-print("[blue]Temporary Downloaded to[/blue] " + zipPath)
-print("[blue]Binary File Path:[/blue] " + finalBinaryPath)
-print("[blue]Binary Dir Path:[/blue] " + installDir)
-
 if system == "Darwin" and (isGatekeeperCommandRequire):
     print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] Yes")
 elif system == "Darwin" and (not isGatekeeperCommandRequire):
     print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] No")
+print("[blue]Temporary Downloaded to[/blue] " + zipPath)
+print("[blue]Binary File Path:[/blue] " + finalBinaryPath)
+print("[blue]Binary Dir Path:[/blue] " + installDir)
