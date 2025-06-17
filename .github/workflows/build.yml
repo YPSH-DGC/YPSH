@@ -7,6 +7,7 @@ on:
 
 jobs:
   build:
+    continue-on-error: true
     strategy:
       matrix:
         include:
@@ -217,7 +218,7 @@ jobs:
   after:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: ${{ success() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch') }}
 
     steps:
       - name: Checkout main branch
