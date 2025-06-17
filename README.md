@@ -14,10 +14,6 @@ Pylo builds are automated using GitHub Actions.
 ### Dashboard
 You can view the build status at [pylo.build.diamondgotcat.net](https://pylo.build.diamondgotcat.net/)
 
-#### Regarding time zones on the dashboard
-
-During daylight saving time (from the second Sunday in March to the first Sunday in November), the time zone is displayed as UTC-4, and for other periods, UTC-5 is used.
-
 ### AutoBuild V1
 AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
 - `pylo-macos.zip`: macOS (Apple Silicon aarch64/arm64)
