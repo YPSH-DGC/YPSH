@@ -12,7 +12,7 @@ Simple Programming Language
 Pylo builds are automated using GitHub Actions.
 
 ### Dashboard
-You can view the build status at [pylo.build.diamondgotcat.net](https://pylo.build.diamondgotcat.net/)
+You can view the build status at [build.diamondgotcat.net](https://build.diamondgotcat.net/)
 
 ### AutoBuild V1
 AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
