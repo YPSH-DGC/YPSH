@@ -4,7 +4,7 @@
 # Copyright (c) 2025 DiamondGotCat
 
 VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "Python Version"
+VERSION_NUMBER = "for Python"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 LANG = "en"
 
@@ -59,6 +59,20 @@ class PyloError(Exception):
             return f"<{self.location}:{self.level}{self.ecode}> {self.desc['en']}"
         else:
             return f"<{self.location}:{self.level}{self.ecode}> No Description"
+    
+    def __getitem__(self, key):
+        if key == "full":
+            return str(self)
+        elif key == "location":
+            return self.location
+        elif key == "level":
+            return self.level
+        elif key in ("ecode", "code"):
+            return self.ecode
+        elif key == "desc":
+            return self.desc.get(LANG, self.desc.get("en", ""))
+        else:
+            raise KeyError(key)
 
 ##############################
 # Tokens
@@ -265,6 +279,14 @@ class ShellStmt(ASTNode):
     def __repr__(self):
         return f'ShellStmt({self.command})'
 
+class TryCatchStmt(ASTNode):
+    def __init__(self, try_block, catch_var, catch_block):
+        self.try_block = try_block
+        self.catch_var = catch_var
+        self.catch_block = catch_block
+    def __repr__(self):
+        return f'TryCatchStmt(try, catch {self.catch_var})'
+
 ##############################
 # NextDP Integration
 # https://github.com/DiamondGotCat/NextDrop/
@@ -332,7 +354,10 @@ class Parser:
 
     def statement(self):
         token = self.current()
-        if token.type == 'SHELL':
+        
+        if token and token.type == 'ID' and token.value == 'do':
+            return self.try_catch_stmt()
+        elif token.type == 'SHELL':
             self.eat('SHELL')
             return ShellStmt(token.value[1:].strip())
         elif token.type == 'ID':
@@ -456,6 +481,21 @@ class Parser:
         self.eat('ID')  # return
         value = self.expr()
         return ReturnStmt(value)
+
+    def try_catch_stmt(self):
+        self.eat('ID')  # 'do'
+        try_block = self.block()
+
+        if self.current().type == 'ID' and self.current().value == 'catch':
+            self.eat('ID')  # 'catch'
+            catch_var = self.eat('ID').value
+            catch_block = self.block()
+            return TryCatchStmt(try_block, catch_var, catch_block)
+        else:
+            raise PyloError("PYLO", "E", "0020", {
+                "en": "Expected 'catch' after 'do' block.",
+                "ja": "'do' ブロックの後に 'catch' が必要です。"
+            })
 
     def expr(self):
         return self.expr_ternary()
@@ -1328,6 +1368,13 @@ class Interpreter:
             raise BreakException()
         elif isinstance(node, ContinueStmt):
             raise ContinueException()
+        elif isinstance(node, TryCatchStmt):
+            try:
+                return self.execute(node.try_block, Environment(env))
+            except Exception as e:
+                local_env = Environment(env)
+                local_env.set(node.catch_var, e)
+                return self.execute(node.catch_block, local_env)
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
