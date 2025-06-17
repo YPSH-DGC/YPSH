@@ -124,7 +124,7 @@ jobs:
             --standalone \
             --onefile \
             --output-dir=dist \
-            --remove-output \
+            --remove-output=no \
             --enable-plugin=pylint-warnings \
             --assume-yes-for-downloads \
             for-build.py
