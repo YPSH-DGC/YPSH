@@ -120,9 +120,9 @@ print("[blue]Platform:[/blue] " + systemFriendly)
 print("[blue]Version:[/blue] " + useTag)
 print("[blue]Download URL:[/blue] " + downloadURL)
 
-if systemFriendly == "macOS" and (isGatekeeperCommandRequire):
+if system == "Darwin" and (isGatekeeperCommandRequire):
     print("[blue]Automatically Disable Gatekeeper for Pylo:[/blue] Yes")
-elif systemFriendly == "macOS" and (not isGatekeeperCommandRequire):
+elif system == "Darwin" and (not isGatekeeperCommandRequire):
     print("[blue]Automatically Disable Gatekeeper for Pylo:[/blue] No")
 
 print("[blue]Install to[/blue] " + installDir)
@@ -200,7 +200,7 @@ print("[blue]Temporary Downloaded to[/blue] " + zipPath)
 print("[blue]Binary File Path:[/blue] " + finalBinaryPath)
 print("[blue]Binary Dir Path:[/blue] " + installDir)
 
-if systemFriendly == "macOS" and (isGatekeeperCommandRequire):
+if system == "Darwin" and (isGatekeeperCommandRequire):
     print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] Yes")
-elif systemFriendly == "macOS" and (not isGatekeeperCommandRequire):
+elif system == "Darwin" and (not isGatekeeperCommandRequire):
     print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] No")
