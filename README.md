@@ -9,6 +9,8 @@ New Official Documentation is [here](https://pylo.diamondgotcat.net)!
 ## AutoBuild (for Binary Version)
 Pylo builds are automated using GitHub Actions.
 
+You can view the build status at [Build Status Dashboard](https://pylo.build.diamondgotcat.net/)
+
 ### AutoBuild V1
 AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
 - `pylo-macos.zip`: macOS (Apple Silicon aarch64/arm64)
