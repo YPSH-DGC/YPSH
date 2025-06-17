@@ -1,7 +1,7 @@
 # Pylo
 Simple Programming Language
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo) [![DGC-AutoBuild](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml/badge.svg)](https://github.com/DiamondGotCat/Pylo/actions/workflows/build.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo)
 
 ## Documentation
 New Official Documentation is [here](https://pylo.diamondgotcat.net)!
@@ -9,7 +9,12 @@ New Official Documentation is [here](https://pylo.diamondgotcat.net)!
 ## AutoBuild (for Binary Version)
 Pylo builds are automated using GitHub Actions.
 
+### Dashboard
 You can view the build status at [Build Status Dashboard](https://pylo.build.diamondgotcat.net/)
+
+#### Regarding time zones on the dashboard
+
+During daylight saving time (from the second Sunday in March to the first Sunday in November), the time zone is displayed as UTC-4, and for other periods, UTC-5 is used.
 
 ### AutoBuild V1
 AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
