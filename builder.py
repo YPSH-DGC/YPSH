@@ -15,7 +15,7 @@ args = parser.parse_args()
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 inte_path = script_dir + "/pylo.py"
-with open(inte_path) as f:
+with open(inte_path, encoding='utf-8') as f:
     inte_script = f.read()
 
 inte_script_nomain = inte_script.split("#!checkpoint!")[1].strip()
@@ -40,5 +40,5 @@ LANG = \"{args.lang}\"
 result = result.strip()
 
 epath = "for-build.py"
-with open(epath, mode='w') as f:
+with open(epath, mode='w', encoding='utf-8') as f:
     f.write(result)
