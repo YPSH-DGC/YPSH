@@ -9,7 +9,7 @@ from rich import print
 from rich.prompt import Prompt
 
 parser = argparse.ArgumentParser()
-parser.add_argument('tag', required=True)
+parser.add_argument('tag')
 parser.add_argument('--lang', default="en")
 args = parser.parse_args()
 
