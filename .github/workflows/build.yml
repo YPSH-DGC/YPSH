@@ -28,7 +28,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "pending",
-              "progress": 0
+              "progress": 0,
+              "product": "pylo"
             }'
 
       - name: Checkout code
@@ -45,7 +46,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 5
+              "progress": 5,
+              "product": "pylo"
             }'
 
       - name: Set up Python
@@ -62,7 +64,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 10
+              "progress": 10,
+              "product": "pylo"
             }'
 
       - name: Install dependencies
@@ -81,7 +84,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 20
+              "progress": 20,
+              "product": "pylo"
             }'
 
       - name: Generate Python Script for Release
@@ -98,7 +102,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 25
+              "progress": 25,
+              "product": "pylo"
             }'
 
       - name: Build with PyInstaller
@@ -115,7 +120,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 70
+              "progress": 70,
+              "product": "pylo"
             }'
 
       - name: Rename and zip binary
@@ -147,7 +153,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 80
+              "progress": 80,
+              "product": "pylo"
             }'
 
       - name: Upload to GitHub Release
@@ -167,7 +174,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "completed",
-              "progress": 100
+              "progress": 100,
+              "product": "pylo"
             }'
 
       - name: Notify failure
@@ -180,7 +188,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
               "platform": "${{ matrix.platform }}",
               "status": "failed",
-              "progress": 100
+              "progress": 100,
+              "product": "pylo"
             }'
 
   v2:
@@ -208,7 +217,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "pending",
-              "progress": 0
+              "progress": 0,
+              "product": "pylo"
             }'
 
       - name: Checkout code
@@ -225,7 +235,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 5
+              "progress": 5,
+              "product": "pylo"
             }'
 
       - name: Set up Python
@@ -242,7 +253,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 10
+              "progress": 10,
+              "product": "pylo"
             }'
 
       - name: Install dependencies
@@ -260,7 +272,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 20
+              "progress": 20,
+              "product": "pylo"
             }'
 
       - name: Generate Python Script for Release
@@ -277,7 +290,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 25
+              "progress": 25,
+              "product": "pylo"
             }'
 
       - name: Build with Nuitka
@@ -301,7 +315,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 70
+              "progress": 70,
+              "product": "pylo"
             }'
 
       - name: Rename and zip binary
@@ -336,7 +351,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
-              "progress": 80
+              "progress": 80,
+              "product": "pylo"
             }'
 
       - name: Upload to GitHub Release
@@ -356,7 +372,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "completed",
-              "progress": 100
+              "progress": 100,
+              "product": "pylo"
             }'
 
       - name: Notify failure
@@ -369,7 +386,8 @@ jobs:
               "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
               "platform": "${{ matrix.platform }}",
               "status": "failed",
-              "progress": 100
+              "progress": 100,
+              "product": "pylo"
             }'
 
   after:
