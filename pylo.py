@@ -949,6 +949,13 @@ class Interpreter:
             self.pylo_def("standard", "input.oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
             self.pylo_def("stdin", "oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
 
+            def stdin_isatty():
+                if sys.stdin.isatty():
+                    return self.pylo_true
+                else:
+                    return self.pylo_false
+            self.pylo_def("stdin", "isatty", stdin_isatty)
+
             self.pylo_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
             self.pylo_def("@", "stdout", self.normal_print, desc="Directly Printing to stdout")
 
@@ -1612,9 +1619,13 @@ librarys.remove("{args[2]}")
             run_file(args[0])
 
     else:
-        print(VERSION + " [REPL]")
-        print()
-        repl()
+        if not sys.stdin.isatty():
+            code = sys.stdin.read()
+            run_text(code)
+        else:
+            print(VERSION + " [REPL]")
+            print()
+            repl()
 
 if __name__ == '__main__':
     main()
