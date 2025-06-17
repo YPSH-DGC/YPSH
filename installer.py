@@ -197,11 +197,10 @@ print("[blue]Platform:[/blue] " + systemFriendly)
 print("[blue]Version:[/blue] " + useTag)
 print("[blue]Download URL:[/blue] " + downloadURL)
 print("[blue]Temporary Downloaded to[/blue] " + zipPath)
-print("[blue]Extracted to[/blue] " + finalBinaryPath)
+print("[blue]Binary File Path:[/blue] " + finalBinaryPath)
+print("[blue]Binary Dir Path:[/blue] " + installDir)
 
 if systemFriendly == "macOS" and (isGatekeeperCommandRequire):
     print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] Yes")
 elif systemFriendly == "macOS" and (not isGatekeeperCommandRequire):
     print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] No")
-
-print("[blue]Installed to[/blue] " + installDir)
