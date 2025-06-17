@@ -25,6 +25,11 @@ result = f"""
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
+VERSION_TYPE = \"EmbedPylo\"
+VERSION_NUMBER = \"1.0\"
+VERSION = f\"{{VERSION_TYPE}} {{VERSION_NUMBER}}\"
+LANG = \"en\"
+
 {inte_script_nomain}
 
 ##############################

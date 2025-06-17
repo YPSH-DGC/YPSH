@@ -3,6 +3,11 @@
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
+VERSION_TYPE = "Pylo"
+VERSION_NUMBER = "Python Version"
+VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
+LANG = "en"
+
 #!checkpoint!
 
 import re
@@ -23,11 +28,6 @@ import rlcompleter
 import asyncio
 import threading
 from next_drop_lib import FileSender, FileReceiver
-
-VERSION_TYPE = "Pylo"
-VERSION_NUMBER = "15.0"
-VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
-LANG = "en"
 
 console = Console()
 rich_print = console.print
@@ -1565,7 +1565,7 @@ librarys.remove("{args[2]}")
             run_file(args[0])
 
     else:
-        print(VERSION_TYPE + " v" + VERSION_NUMBER + " [REPL]")
+        print(VERSION + " [REPL]")
         print()
         repl()
 
