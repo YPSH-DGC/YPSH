@@ -43,10 +43,12 @@ if system == "Darwin":
     if arch == "x86_64":
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-amd64.zip"
         originalBinaryName = "pylo-macos-amd64"
+        systemFriendly = "macOS Intel"
 
     elif arch == "arm64":
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
         originalBinaryName = "pylo-macos-arm64"
+        systemFriendly = "macOS Apple Silicon"
 
     else:
         print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
@@ -61,10 +63,12 @@ elif system == "Linux":
     if arch == "x86_64":
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-amd64.zip"
         originalBinaryName = "pylo-linux-amd64"
+        systemFriendly = "Linux Intel/AMD"
 
     elif arch == "arm64":
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-arm64.zip"
         originalBinaryName = "pylo-linux-arm64"
+        systemFriendly = "Linux ARM"
 
     else:
         print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
@@ -79,10 +83,12 @@ elif system == "Windows":
     if arch == "x86_64":
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-amd64.zip"
         originalBinaryName = "pylo-windows-amd64.exe"
+        systemFriendly = "Windows Intel/AMD"
 
     elif arch == "arm64":
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-arm64.zip"
         originalBinaryName = "pylo-windows-arm64.exe"
+        systemFriendly = "Windows ARM"
 
     else:
         print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
@@ -107,7 +113,6 @@ if isGatekeeperCommandRequire:
 print()
 
 installDir = os.path.expanduser(Prompt.ask("Install to", default=defaultInstallDir))
-systemFriendly = system if system != "Darwin" else "macOS"
 
 print()
 print("[blue bold]Install Infomation[/blue bold]")
