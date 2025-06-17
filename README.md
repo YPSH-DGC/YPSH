@@ -4,13 +4,15 @@ Simple Programming Language
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo)
 
 ## Documentation
-New Official Documentation is [here](https://pylo.diamondgotcat.net)!
+**Official Documentation (Current):** [pylo.diamondgotcat.net](https://pylo.diamondgotcat.net)
+
+**Official Documentation (Legacy):** [diamondgotcat.gitbook.io/pylo](https://diamondgotcat.gitbook.io/pylo/)
 
 ## AutoBuild (for Binary Version)
 Pylo builds are automated using GitHub Actions.
 
 ### Dashboard
-You can view the build status at [Build Status Dashboard](https://pylo.build.diamondgotcat.net/)
+You can view the build status at [pylo.build.diamondgotcat.net](https://pylo.build.diamondgotcat.net/)
 
 #### Regarding time zones on the dashboard
 
