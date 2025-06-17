@@ -36,82 +36,65 @@ def gatekeeperDisable(path: str):
 
 isGatekeeperCommandRequire = False
 system = platform.system()
-useV2 = "N"
+arch = platform.machine()
 
 if system == "Darwin":
-    arch = platform.machine()
+
     if arch == "x86_64":
-        print("[blue]Detected Platform:[/blue] macOS (Intel)")
-        if useTag != latestTag:
-            print("[blue][AutoBuild V2] Intel macOS is supported from AutoBuild V2. It is available in Pylo v14.3.r2 and later.[/blue]")
-            changeToLatest = Prompt.ask("Would you like to change your version selection to the latest version?", choices=["Y", "n"], default="Y")
-            if changeToLatest == "Y":
-                useTag = latestTag
-        useV2 = "Y"
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-amd64.zip"
         originalBinaryName = "pylo-macos-amd64"
 
     elif arch == "arm64":
-        print("[blue]Detected Platform:[/blue] macOS (Apple Silicon)")
-        if useTag != latestTag:
-            print("[blue][AutoBuild V2] Starting from v14.3.r2, a new build structure is available.[/blue]")
-            useV2 = Prompt.ask("Would you like to use it?", choices=["y", "N"], default="N")
-            if useV2 == "N":
-                downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos.zip"
-                originalBinaryName = "pylo-macos"
-            else:
-                downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
-                originalBinaryName = "pylo-macos-arm64"
-        else:
-            useV2 = "y"
-            downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
-            originalBinaryName = "pylo-macos-arm64"
-    else:
-        print(f"Unknown Architecture: {arch}")
-        sys.exit(1)
+        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
+        originalBinaryName = "pylo-macos-arm64"
 
+    else:
+        print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
+        sys.exit(1)
+    
     finalBinaryName = "pylo"
     isGatekeeperCommandRequire = True
-else:
-    if useTag != latestTag:
-        print("[blue][AutoBuild V2] Starting from v14.3.r2, a new build structure is available.[/blue]")
-        useV2 = Prompt.ask("Would you like to use it?", choices=["y", "N"], default="N")
-    else:
-        useV2 = "y"
+    defaultInstallDir = "~/.local/bin"
 
-    if useV2 == "N":
-        if system == "Linux":
-            print("[blue]Detected Platform:[/blue] Linux")
-            print("[yellow][bold]NOTE:[/bold] Linux binaries currently only support amd64 (x86_64).[/yellow]")
-            downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux.zip"
-            originalBinaryName = "pylo-linux"
-            finalBinaryName = "pylo"
-        elif system == "Windows":
-            print("[blue]Detected Platform:[/blue] Windows")
-            print("[yellow][bold]NOTE:[/bold] Windows binaries currently only support amd64 (x86_64).[/yellow]")
-            downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows.zip"
-            originalBinaryName = "pylo-windows.exe"
-            finalBinaryName = "pylo.exe"
-        else:
-            print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
-            sys.exit(1)
-    
+elif system == "Linux":
+
+    if arch == "x86_64":
+        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-amd64.zip"
+        originalBinaryName = "pylo-linux-amd64"
+
+    elif arch == "arm64":
+        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-arm64.zip"
+        originalBinaryName = "pylo-linux-arm64"
+
     else:
-        if system == "Linux":
-            print("[blue]Detected Platform:[/blue] Linux")
-            print("[yellow][bold]NOTE:[/bold] Linux binaries currently only support amd64 (x86_64).[/yellow]")
-            downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-amd64.zip"
-            originalBinaryName = "pylo-linux-amd64"
-            finalBinaryName = "pylo"
-        elif system == "Windows":
-            print("[blue]Detected Platform:[/blue] Windows")
-            print("[yellow][bold]NOTE:[/bold] Windows binaries currently only support amd64 (x86_64).[/yellow]")
-            downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-amd64.zip"
-            originalBinaryName = "pylo-windows-amd64.exe"
-            finalBinaryName = "pylo.exe"
-        else:
-            print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
-            sys.exit(1)
+        print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
+        sys.exit(1)
+    
+    finalBinaryName = "pylo"
+    isGatekeeperCommandRequire = False
+    defaultInstallDir = "~/.local/bin"
+
+elif system == "Windows":
+
+    if arch == "x86_64":
+        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-amd64.zip"
+        originalBinaryName = "pylo-windows-amd64.exe"
+
+    elif arch == "arm64":
+        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-arm64.zip"
+        originalBinaryName = "pylo-windows-arm64.exe"
+
+    else:
+        print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
+        sys.exit(1)
+    
+    finalBinaryName = "pylo.exe"
+    isGatekeeperCommandRequire = False
+    defaultInstallDir = "~\\.local\\bin"
+
+else:
+    print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
+    sys.exit(1)
 
 print()
 
@@ -123,25 +106,19 @@ if isGatekeeperCommandRequire:
 
 print()
 
-installDir = os.path.expanduser(Prompt.ask("Install to", default="~/.local/bin"))
+installDir = os.path.expanduser(Prompt.ask("Install to", default=defaultInstallDir))
 systemFriendly = system if system != "Darwin" else "macOS"
 
 print()
 print("[blue bold]Install Infomation[/blue bold]")
 print("[blue]Platform:[/blue] " + systemFriendly)
 print("[blue]Version:[/blue] " + useTag)
-
-if useV2.lower() == "n":
-    print("[blue]AutoBuild V2:[/blue] No")
-else:
-    print("[blue]AutoBuild V2:[/blue] Yes")
-
 print("[blue]Download URL:[/blue] " + downloadURL)
 
 if systemFriendly == "macOS" and (isGatekeeperCommandRequire):
-    print("[blue]Disable Gatekeeper:[/blue] Yes")
+    print("[blue]Automatically Disable Gatekeeper for Pylo:[/blue] Yes")
 elif systemFriendly == "macOS" and (not isGatekeeperCommandRequire):
-    print("[blue]Disable Gatekeeper:[/blue] No")
+    print("[blue]Automatically Disable Gatekeeper for Pylo:[/blue] No")
 
 print("[blue]Install to[/blue] " + installDir)
 confirm = Prompt.ask("Continue?", default="Y", choices=["Y", "n"])
@@ -183,6 +160,7 @@ with tempfile.TemporaryDirectory() as tmp_dir:
 print()
 
 user_path = os.environ.get("PATH", "")
+foundInPATH = False
 if installDir not in user_path.split(os.pathsep):
     if system == "Windows":
         print()
@@ -195,6 +173,7 @@ if installDir not in user_path.split(os.pathsep):
         print("You can add it by appending the following line to your shell config file (e.g., ~/.bashrc, ~/.zshrc):")
         print(f'export PATH="{os.path.expanduser("~")}/.local/bin:$PATH"\n')
 else:
+    foundInPATH = True
     if system == "Windows":
         print(f"[blue bold]Your PATH includes {os.path.expanduser('~')}\\.local\\bin. You're good to go![/blue bold]")
     else:
@@ -202,4 +181,22 @@ else:
 
 print()
 print("[green bold]Installation complete.[/green bold]")
-print(f"You can now run Pylo by typing: {finalBinaryName}")
+if foundInPATH:
+    print(f"You can now run Pylo by typing: {finalBinaryName}")
+else:
+    print(f"You can now run Pylo by typing: {finalBinaryPath}")
+
+print()
+print("[blue bold]Final Installation Infomation[/blue bold]")
+print("[blue]Platform:[/blue] " + systemFriendly)
+print("[blue]Version:[/blue] " + useTag)
+print("[blue]Download URL:[/blue] " + downloadURL)
+print("[blue]Temporary Downloaded to[/blue] " + zipPath)
+print("[blue]Extracted to[/blue] " + finalBinaryPath)
+
+if systemFriendly == "macOS" and (isGatekeeperCommandRequire):
+    print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] Yes")
+elif systemFriendly == "macOS" and (not isGatekeeperCommandRequire):
+    print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] No")
+
+print("[blue]Installed to[/blue] " + installDir)
