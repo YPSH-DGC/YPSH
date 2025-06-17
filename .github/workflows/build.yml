@@ -13,15 +13,66 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Notify build start (pending)
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "pending",
+              "progress": 0
+            }'
+      
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
 
+      - name: Notify progress 5%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 5
+            }'
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
+
+      - name: Notify progress 10%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 10
+            }'
 
       - name: Install dependencies
         shell: bash
@@ -30,15 +81,66 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Notify progress 20%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 20
+            }'
+
       - name: Generate Python Script for Release
         shell: bash
         run: |
           python builder.py ${{ github.event.release.tag_name || github.ref }}
 
+      - name: Notify progress 25%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 25
+            }'
+
       - name: Build with PyInstaller
         shell: bash
         run: |
           pyinstaller for-build.py --onefile --console
+
+      - name: Notify progress 70%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 70
+            }'
 
       - name: Rename and zip binary
         shell: bash
@@ -60,6 +162,23 @@ jobs:
         run: |
           Compress-Archive -Path upload/pylo-windows.exe -DestinationPath upload/pylo-windows.zip
 
+      - name: Notify progress 80%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 80
+            }'
+
       - name: Get latest release tag
         id: get_release
         if: github.event_name == 'workflow_dispatch'
@@ -78,6 +197,42 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
+      - name: Notify success (completed)
+        if: success()
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "completed",
+              "progress": 100
+            }'
+
+      - name: Notify failure
+        if: failure()
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v1",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "failed",
+              "progress": 100
+            }'
+
   v2:
     needs: v1
     strategy:
@@ -86,15 +241,66 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Notify build start (pending)
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "pending",
+              "progress": 0
+            }'
+
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
 
+      - name: Notify progress 5%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 5
+            }'
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
+
+      - name: Notify progress 10%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 10
+            }'
 
       - name: Install dependencies
         run: |
@@ -102,10 +308,44 @@ jobs:
           pip install -r requirements.txt
           pip install nuitka ordered-set zstandard pefile
 
+      - name: Notify progress 20%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 20
+            }'
+
       - name: Generate Python Script for Release
         shell: bash
         run: |
           python builder.py ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Notify progress 25%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 25
+            }'
 
       - name: Build with Nuitka
         shell: bash
@@ -118,6 +358,23 @@ jobs:
             --enable-plugin=pylint-warnings \
             --assume-yes-for-downloads \
             for-build.py
+
+      - name: Notify progress 70%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 70
+            }'
 
       - name: Rename and zip binary
         shell: bash
@@ -142,6 +399,23 @@ jobs:
         run: |
           Compress-Archive -Path upload/pylo-windows-amd64.exe -DestinationPath upload/pylo-windows-amd64.zip
 
+      - name: Notify progress 80%
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "in_progress",
+              "progress": 80
+            }'
+
       - name: Get latest release tag
         id: get_release
         if: github.event_name == 'workflow_dispatch'
@@ -159,6 +433,42 @@ jobs:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && env.LATEST_TAG || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Notify success (completed)
+        if: success()
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "completed",
+              "progress": 100
+            }'
+
+      - name: Notify failure
+        if: failure()
+        shell: bash
+        run: |
+          curl -X POST ${{ secrets.BUILD_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ github.event.release.tag_name || github.ref_name }}-v2",
+              "platform": "${{ 
+                matrix.os == 'windows-latest' ? 'Windows Intel/AMD' :
+                matrix.os == 'macos-latest' ? 'macOS Apple Silicon' :
+                matrix.os == 'macos-13' ? 'macOS Intel' :
+                'Linux Intel/AMD'
+              }}",
+              "status": "failed",
+              "progress": 100
+            }'
 
   after:
     needs: v2
