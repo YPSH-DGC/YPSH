@@ -40,12 +40,12 @@ arch = platform.machine()
 
 if system == "Darwin":
 
-    if arch == "x86_64":
+    if arch.lower() in ["x86_64", "amd64"]:
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-amd64.zip"
         originalBinaryName = "pylo-macos-amd64"
         systemFriendly = "macOS Intel"
 
-    elif arch == "arm64":
+    elif arch.lower() in ["arm64", "aarch64"]:
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
         originalBinaryName = "pylo-macos-arm64"
         systemFriendly = "macOS Apple Silicon"
@@ -60,12 +60,12 @@ if system == "Darwin":
 
 elif system == "Linux":
 
-    if arch == "x86_64":
+    if arch.lower() in ["x86_64", "amd64"]:
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-amd64.zip"
         originalBinaryName = "pylo-linux-amd64"
         systemFriendly = "Linux Intel/AMD"
 
-    elif arch == "arm64":
+    elif arch.lower() in ["arm64", "aarch64"]:
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-arm64.zip"
         originalBinaryName = "pylo-linux-arm64"
         systemFriendly = "Linux ARM"
@@ -80,12 +80,12 @@ elif system == "Linux":
 
 elif system == "Windows":
 
-    if arch == "x86_64":
+    if arch.lower() in ["x86_64", "amd64"]:
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-amd64.zip"
         originalBinaryName = "pylo-windows-amd64.exe"
         systemFriendly = "Windows Intel/AMD"
 
-    elif arch == "arm64":
+    elif arch.lower() in ["arm64", "aarch64"]:
         downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-arm64.zip"
         originalBinaryName = "pylo-windows-arm64.exe"
         systemFriendly = "Windows ARM"
