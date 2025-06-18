@@ -13,22 +13,22 @@ jobs:
         include:
           - os: macos-13
             platform: macOS Intel
-            filename: pylo-macos-amd64
+            filename: YPSH-macos-amd64
           - os: macos-latest
             platform: macOS Apple Silicon
-            filename: pylo-macos-arm64
+            filename: YPSH-macos-arm64
           - os: ubuntu-latest
             platform: Linux Intel/AMD
-            filename: pylo-linux-amd64
+            filename: YPSH-linux-amd64
           - os: ubuntu-24.04-arm
             platform: Linux ARM
-            filename: pylo-linux-arm64
+            filename: YPSH-linux-arm64
           - os: windows-latest
             platform: Windows Intel/AMD
-            filename: pylo-windows-amd64
+            filename: YPSH-windows-amd64
           - os: windows-11-arm
             platform: Windows ARM
-            filename: pylo-windows-arm64
+            filename: YPSH-windows-arm64
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -42,7 +42,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "pending",
               "progress": 0,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Checkout code
@@ -60,7 +60,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
               "progress": 5,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Set up Python
@@ -78,7 +78,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
               "progress": 10,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Install dependencies
@@ -97,7 +97,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
               "progress": 20,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Generate Python Script for Release
@@ -115,7 +115,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
               "progress": 25,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Build with Nuitka
@@ -139,7 +139,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
               "progress": 70,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Rename binary, Zip (non-Windows)
@@ -177,7 +177,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "in_progress",
               "progress": 80,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Upload to GitHub Release
@@ -198,7 +198,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "completed",
               "progress": 100,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
       - name: Notify failure
@@ -212,7 +212,7 @@ jobs:
               "platform": "${{ matrix.platform }}",
               "status": "failed",
               "progress": 100,
-              "product": "pylo"
+              "product": "YPSH"
             }'
 
   after:
