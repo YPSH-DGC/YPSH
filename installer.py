@@ -8,10 +8,10 @@ from rich import print
 from rich.prompt import Prompt
 import sys
 
-print("[blue bold]Welcome to Pylo Installer.[/blue bold]")
+print("[blue bold]Welcome to YPSH Installer.[/blue bold]")
 print()
 
-latestTag = requests.get("http://diamondgotcat.github.io/Pylo/version.txt").text.strip()
+latestTag = requests.get("http://diamondgotcat.github.io/YPSH/version.txt").text.strip()
 
 print(f"[blue bold]Latest version:[/blue bold] {latestTag}")
 
@@ -41,60 +41,60 @@ arch = platform.machine()
 if system == "Darwin":
 
     if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-amd64.zip"
-        originalBinaryName = "pylo-macos-amd64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-macos-amd64.zip"
+        originalBinaryName = "ypsh-macos-amd64"
         systemFriendly = "macOS Intel"
 
     elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-macos-arm64.zip"
-        originalBinaryName = "pylo-macos-arm64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-macos-arm64.zip"
+        originalBinaryName = "ypsh-macos-arm64"
         systemFriendly = "macOS Apple Silicon"
 
     else:
         print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
         sys.exit(1)
     
-    finalBinaryName = "pylo"
+    finalBinaryName = "ypsh"
     isGatekeeperCommandRequire = True
     defaultInstallDir = "~/.local/bin"
 
 elif system == "Linux":
 
     if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-amd64.zip"
-        originalBinaryName = "pylo-linux-amd64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-linux-amd64.zip"
+        originalBinaryName = "ypsh-linux-amd64"
         systemFriendly = "Linux Intel/AMD"
 
     elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-linux-arm64.zip"
-        originalBinaryName = "pylo-linux-arm64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-linux-arm64.zip"
+        originalBinaryName = "ypsh-linux-arm64"
         systemFriendly = "Linux ARM"
 
     else:
         print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
         sys.exit(1)
     
-    finalBinaryName = "pylo"
+    finalBinaryName = "ypsh"
     isGatekeeperCommandRequire = False
     defaultInstallDir = "~/.local/bin"
 
 elif system == "Windows":
 
     if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-amd64.zip"
-        originalBinaryName = "pylo-windows-amd64.exe"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-windows-amd64.zip"
+        originalBinaryName = "ypsh-windows-amd64.exe"
         systemFriendly = "Windows Intel/AMD"
 
     elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/Pylo/releases/download/{useTag}/pylo-windows-arm64.zip"
-        originalBinaryName = "pylo-windows-arm64.exe"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-windows-arm64.zip"
+        originalBinaryName = "ypsh-windows-arm64.exe"
         systemFriendly = "Windows ARM"
 
     else:
         print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
         sys.exit(1)
     
-    finalBinaryName = "pylo.exe"
+    finalBinaryName = "ypsh.exe"
     isGatekeeperCommandRequire = False
     defaultInstallDir = "~\\.local\\bin"
 
@@ -121,9 +121,9 @@ print("[blue]Version:[/blue] " + useTag)
 print("[blue]Download URL:[/blue] " + downloadURL)
 
 if system == "Darwin" and (isGatekeeperCommandRequire):
-    print("[blue]Automatically Disable Gatekeeper for Pylo:[/blue] Yes")
+    print("[blue]Automatically Disable Gatekeeper for YPSH:[/blue] Yes")
 elif system == "Darwin" and (not isGatekeeperCommandRequire):
-    print("[blue]Automatically Disable Gatekeeper for Pylo:[/blue] No")
+    print("[blue]Automatically Disable Gatekeeper for YPSH:[/blue] No")
 
 print("[blue]Install to[/blue] " + installDir)
 confirm = Prompt.ask("Continue?", default="Y", choices=["Y", "n"])
@@ -134,7 +134,7 @@ if confirm != "Y":
 print()
 
 with tempfile.TemporaryDirectory() as tmp_dir:
-    zipPath = os.path.join(tmp_dir, "pylo.zip")
+    zipPath = os.path.join(tmp_dir, "ypsh.zip")
 
     print(f"(TASK) {downloadURL} -> {zipPath}")
     response = requests.get(downloadURL)
@@ -187,9 +187,9 @@ else:
 print()
 print("[green bold]Installation complete.[/green bold]")
 if foundInPATH:
-    print(f"You can now run Pylo by typing: {finalBinaryName}")
+    print(f"You can now run YPSH by typing: {finalBinaryName}")
 else:
-    print(f"You can now run Pylo by typing: {finalBinaryPath}")
+    print(f"You can now run YPSH by typing: {finalBinaryPath}")
 
 print()
 print("[blue bold]Final Installation Infomation[/blue bold]")
@@ -197,9 +197,9 @@ print("[blue]Platform:[/blue] " + systemFriendly)
 print("[blue]Version:[/blue] " + useTag)
 print("[blue]Download URL:[/blue] " + downloadURL)
 if system == "Darwin" and (isGatekeeperCommandRequire):
-    print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] Yes")
+    print("[blue]Automatically Disabled Gatekeeper for YPSH:[/blue] Yes")
 elif system == "Darwin" and (not isGatekeeperCommandRequire):
-    print("[blue]Automatically Disabled Gatekeeper for Pylo:[/blue] No")
+    print("[blue]Automatically Disabled Gatekeeper for YPSH:[/blue] No")
 print("[blue]Temporary Downloaded to[/blue] " + zipPath)
 print("[blue]Binary File Path:[/blue] " + finalBinaryPath)
 print("[blue]Binary Dir Path:[/blue] " + installDir)
