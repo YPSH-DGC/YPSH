@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# Pylo by DiamondGotCat
+# YPSH by DiamondGotCat
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
-VERSION_TYPE = "Pylo"
+VERSION_TYPE = "YPSH"
 VERSION_NUMBER = "for Python"
 VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
 LANG = "en"
@@ -42,8 +42,8 @@ def unescape_string_literal(s):
 ##############################
 # Built-in Error Documentation
 ##############################
-class PyloError(Exception):
-    def __init__(self, location: str = "PYLO", level: str = "E", ecode: str = "0000", desc = None):
+class YPSHError(Exception):
+    def __init__(self, location: str = "YPSH", level: str = "E", ecode: str = "0000", desc = None):
         if desc is None:
             desc = {"en": "Unknown Error", "ja": "不明なエラー"}
         self.location = location
@@ -138,7 +138,7 @@ def tokenize(code):
         elif kind in ('SKIP', 'COMMENT'):
             continue
         elif kind == 'MISMATCH':
-            raise PyloError("PYLO", "E", "0001", {"en": f"Unexpected character {value!r} at line {line_num}.", "ja": f"予想外の文字「{value!r}」が{line_num}行目に存在します。"})
+            raise YPSHError("YPSH", "E", "0001", {"en": f"Unexpected character {value!r} at line {line_num}.", "ja": f"予想外の文字「{value!r}」が{line_num}行目に存在します。"})
         else:
             tokens.append(Token(kind, value, line_num))
     return tokens
@@ -343,7 +343,7 @@ class Parser:
             self.pos += 1
             return token
         else:
-            raise PyloError("PYLO", "E", "0002", {"en": f"Expected token {token_type} but got {token}.", "ja": f"{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"})
+            raise YPSHError("YPSH", "E", "0002", {"en": f"Expected token {token_type} but got {token}.", "ja": f"{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"})
 
     def parse(self):
         statements = []
@@ -460,7 +460,7 @@ class Parser:
         self.eat('ID')
         var_name = self.eat('ID').value
         if not (self.current() and self.current().type == 'ID' and self.current().value == 'in'):
-            raise PyloError("PYLO", "E", "0003", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"})
+            raise YPSHError("YPSH", "E", "0003", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"})
         self.eat('ID')
         iterable = self.expr()
         body = self.block()
@@ -492,7 +492,7 @@ class Parser:
             catch_block = self.block()
             return TryCatchStmt(try_block, catch_var, catch_block)
         else:
-            raise PyloError("PYLO", "E", "0020", {
+            raise YPSHError("YPSH", "E", "0020", {
                 "en": "Expected 'catch' after 'do' block.",
                 "ja": "'do' ブロックの後に 'catch' が必要です。"
             })
@@ -608,7 +608,7 @@ class Parser:
         elif token.type == 'LBRACE':
             return self.dict_literal()
         else:
-            raise PyloError("PYLO", "E", "0004", {"en": f"Unexpected token {token}.", "ja": f"予想外のトークン: {token}"})
+            raise YPSHError("YPSH", "E", "0004", {"en": f"Unexpected token {token}.", "ja": f"予想外のトークン: {token}"})
 
     def list_literal(self):
         self.eat('LBRACKET')
@@ -636,7 +636,7 @@ class Parser:
                 elif key_token.type == 'ID':
                     key = self.eat('ID').value
                 else:
-                    raise PyloError("PYLO", "E", "0015", {"en": f"Invalid dictionary key: {key_token}.", "ja": f"辞書のキーが無効です: {key_token}"})
+                    raise YPSHError("YPSH", "E", "0015", {"en": f"Invalid dictionary key: {key_token}.", "ja": f"辞書のキーが無効です: {key_token}"})
 
                 self.eat('COLON')
                 value = self.expr()
@@ -671,7 +671,7 @@ class Environment:
         elif self.parent:
             return self.parent.get(name)
         else:
-            raise PyloError("PYLO", "E", "0005", {"en": f"Cannot find '{name}' in scope.", "ja": f"'{name}'がスコープに見つかりません。"})
+            raise YPSHError("YPSH", "E", "0005", {"en": f"Cannot find '{name}' in scope.", "ja": f"'{name}'がスコープに見つかりません。"})
     def set(self, name, value):
         self.vars[name] = value
     def unset(self, name):
@@ -684,7 +684,7 @@ class Function:
     def call(self, args, interpreter):
         local_env = Environment(self.env)
         if len(args) != len(self.decl.params):
-            raise PyloError("PYLO", "E", "0006", {"en": "Function argument count mismatch.", "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"})
+            raise YPSHError("YPSH", "E", "0006", {"en": "Function argument count mismatch.", "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"})
         for (param_name, _), arg in zip(self.decl.params, args):
             local_env.set(param_name, interpreter.evaluate(arg, local_env))
         try:
@@ -703,28 +703,28 @@ class Interpreter:
     VERSION_NUMBER = VERSION_NUMBER
     VERSION = VERSION
 
-    pylo_false = "__false__"
-    pylo_true = "__true__"
-    pylo_none = "__none__"
+    ypsh_false = "__false__"
+    ypsh_true = "__true__"
+    ypsh_none = "__none__"
 
     def __init__(self):
-        self.pylo_globals = Environment()
+        self.ypsh_globals = Environment()
         self.setup_builtins()
 
     def append_global_env_var_list(self, id, content):
         if id not in self.modules:
             self.modules.append(id)
-        current_conv = self.pylo_globals.get(id)
+        current_conv = self.ypsh_globals.get(id)
         if isinstance(current_conv, list):
             if content not in current_conv:
                 current_conv.append(content)
-                self.pylo_globals.set(id, current_conv)
+                self.ypsh_globals.set(id, current_conv)
         else:
-            raise PyloError("PYLO", "E", "0007", {"en": f"Expected '{id}' to be a list.", "ja": f"'{id}' の種類はlistではありません。"})
+            raise YPSHError("YPSH", "E", "0007", {"en": f"Expected '{id}' to be a list.", "ja": f"'{id}' の種類はlistではありません。"})
 
     def get_ids_from_content(self, content):
         matching_keys = []
-        env = self.pylo_globals
+        env = self.ypsh_globals
         while env is not None:
             for key, value in env.vars.items():
                 if value == content:
@@ -738,7 +738,7 @@ class Interpreter:
     def color_print(self, content, end="\n"):
         rich_print(str(content), end=end)
 
-    def pylo_print(self, content, end="\n"):
+    def ypsh_print(self, content, end="\n"):
         returnValue = ""
         foundKeys_list = self.get_ids_from_content(content)
         foundKeys = ", ".join(foundKeys_list)
@@ -771,69 +771,69 @@ class Interpreter:
 
         self.color_print(returnValue, end)
 
-    def pylo_def(self, module, id, content, desc=None):
+    def ypsh_def(self, module, id, content, desc=None):
         if module in ["@", "root"]:
             try:
-                self.pylo_globals.get("root")
-            except PyloError:
-                self.pylo_globals.set("root", [])
+                self.ypsh_globals.get("root")
+            except YPSHError:
+                self.ypsh_globals.set("root", [])
         
             self.append_global_env_var_list("root", id)
-            self.pylo_globals.set(f"root.{id}", content)
-            self.pylo_globals.set(f"@.{id}", content)
-            self.pylo_globals.set(f"{id}", content)
+            self.ypsh_globals.set(f"root.{id}", content)
+            self.ypsh_globals.set(f"@.{id}", content)
+            self.ypsh_globals.set(f"{id}", content)
             self.docs[f"root.{id}"] = desc
             self.docs[f"@.{id}"] = desc
         else:
             try:
-                self.pylo_globals.get(module)
-            except PyloError:
-                self.pylo_globals.set(module, [])
+                self.ypsh_globals.get(module)
+            except YPSHError:
+                self.ypsh_globals.set(module, [])
         
             self.append_global_env_var_list(module, id)
-            self.pylo_globals.set(f"{module}.{id}", content)
+            self.ypsh_globals.set(f"{module}.{id}", content)
             self.docs[f"{module}.{id}"] = desc
 
-    def pylo_undef(self, module, id=None):
+    def ypsh_undef(self, module, id=None):
         if module in ["@", "root"]:
-            self.pylo_globals.unset(f"root.{id}")
-            self.pylo_globals.unset(f"@.{id}")
-            self.pylo_globals.unset(f"{id}")
+            self.ypsh_globals.unset(f"root.{id}")
+            self.ypsh_globals.unset(f"@.{id}")
+            self.ypsh_globals.unset(f"{id}")
             self.docs.pop(f"root.{id}")
             self.docs.pop(f"@.{id}")
 
         elif (module == id) or (id is None):
             try:
-                members = list(self.pylo_globals.get(module))
-            except PyloError:
+                members = list(self.ypsh_globals.get(module))
+            except YPSHError:
                 return
 
             for member in members:
                 full_key = f"{module}.{member}"
-                self.pylo_globals.unset(full_key)
+                self.ypsh_globals.unset(full_key)
                 self.docs.pop(full_key, None)
 
-            self.pylo_globals.unset(module)
+            self.ypsh_globals.unset(module)
             self.docs.pop(module, None)
 
         else:
             try:
-                members = list(self.pylo_globals.get(module))
-            except PyloError:
+                members = list(self.ypsh_globals.get(module))
+            except YPSHError:
                 return
 
             if id in members:
                 members.remove(id)
-                self.pylo_globals.set(module, members)
+                self.ypsh_globals.set(module, members)
 
-            self.pylo_globals.unset(f"{module}.{id}")
+            self.ypsh_globals.unset(f"{module}.{id}")
             self.docs.pop(f"{module}.{id}")
 
     def get_doc(self, key):
         try:
             result = self.docs[key]
         except KeyError:
-            return self.pylo_false
+            return self.ypsh_false
 
         return result
     
@@ -842,20 +842,20 @@ class Interpreter:
 
     def module_enable(self, id):
         if id == "minimal":
-            self.module_enable("pylo")
+            self.module_enable("ypsh")
             self.module_enable("standard")
 
         elif id == "default":
-            self.module_enable("pylo")
+            self.module_enable("ypsh")
             self.module_enable("standard")
             self.module_enable("docs")
 
-        elif id == "pylo":
-            self.pylo_def("@", "false", "<false>")
-            self.pylo_def("@", "true", "<true>")
-            self.pylo_def("@", "none", "<none>")
-            self.pylo_def("@", "def", self.pylo_def, desc="Define Anything as Variable")
-            self.pylo_def("@", "undef", self.pylo_undef, desc="Delete a Variable(or Function)")
+        elif id == "ypsh":
+            self.ypsh_def("@", "false", "<false>")
+            self.ypsh_def("@", "true", "<true>")
+            self.ypsh_def("@", "none", "<none>")
+            self.ypsh_def("@", "def", self.ypsh_def, desc="Define Anything as Variable")
+            self.ypsh_def("@", "undef", self.ypsh_undef, desc="Delete a Variable(or Function)")
 
             def shell_exec(command):
                 global shell_cwd
@@ -873,91 +873,91 @@ class Interpreter:
                         return result.stdout
                     except subprocess.CalledProcessError as e:
                         return e.stderr
-            self.pylo_def("@", "%", shell_exec)
-            self.pylo_def("shell", "run", shell_exec)
+            self.ypsh_def("@", "%", shell_exec)
+            self.ypsh_def("shell", "run", shell_exec)
 
             def get_shell_cwd():
                 global shell_cwd
                 return shell_cwd
-            self.pylo_def("shell", "cwd.get", get_shell_cwd)
+            self.ypsh_def("shell", "cwd.get", get_shell_cwd)
 
             def set_shell_cwd(new):
                 global shell_cwd
                 shell_cwd = new
                 return True
-            self.pylo_def("shell", "cwd.set", set_shell_cwd)
+            self.ypsh_def("shell", "cwd.set", set_shell_cwd)
 
-            self.pylo_def("pylo", "version", self.VERSION, desc="Return Pylo's Full Version Name")
-            self.pylo_def("pylo", "version.type", self.VERSION_TYPE, desc="Return Pylo's Type / Distribution Type")
-            self.pylo_def("pylo", "version.number", self.VERSION_NUMBER, desc="Return Version Number as str")
-            self.pylo_def("pylo", "module", self.modules, desc="Module List / submodule 'module'")
-            self.pylo_def("pylo", "modules", self.modules, desc="Module List / submodule 'modules'")
-            self.pylo_def("pylo", "module.enable", self.module_enable, desc="Enable a Module on This Session")
-            self.pylo_def("pylo", "modules.enable", self.module_enable, desc="Enable a Module on This Session")
-            self.pylo_def("pylo", "module.append", self.module_enable, desc="Enable a Module on This Session")
-            self.pylo_def("pylo", "modules.append", self.module_enable, desc="Enable a Module on This Session")
+            self.ypsh_def("ypsh", "version", self.VERSION, desc="Return YPSH's Full Version Name")
+            self.ypsh_def("ypsh", "version.type", self.VERSION_TYPE, desc="Return YPSH's Type / Distribution Type")
+            self.ypsh_def("ypsh", "version.number", self.VERSION_NUMBER, desc="Return Version Number as str")
+            self.ypsh_def("ypsh", "module", self.modules, desc="Module List / submodule 'module'")
+            self.ypsh_def("ypsh", "modules", self.modules, desc="Module List / submodule 'modules'")
+            self.ypsh_def("ypsh", "module.enable", self.module_enable, desc="Enable a Module on This Session")
+            self.ypsh_def("ypsh", "modules.enable", self.module_enable, desc="Enable a Module on This Session")
+            self.ypsh_def("ypsh", "module.append", self.module_enable, desc="Enable a Module on This Session")
+            self.ypsh_def("ypsh", "modules.append", self.module_enable, desc="Enable a Module on This Session")
 
-            def pylo_reset():
-                self.pylo_globals = Environment()
+            def ypsh_reset():
+                self.ypsh_globals = Environment()
                 self.module_enable("default")
-            self.pylo_def("pylo", "reset", pylo_reset, desc="Reset all Variables(and Functions), and Enable 'default' Module")
+            self.ypsh_def("ypsh", "reset", ypsh_reset, desc="Reset all Variables(and Functions), and Enable 'default' Module")
 
-            def pylo_minimal():
-                self.pylo_globals = Environment()
+            def ypsh_minimal():
+                self.ypsh_globals = Environment()
                 self.module_enable("minimal")
-            self.pylo_def("pylo", "minimalize", pylo_minimal, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
+            self.ypsh_def("ypsh", "minimalize", ypsh_minimal, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
 
-            def get_pylo_version():
+            def get_ypsh_version():
                 return self.VERSION
-            self.pylo_def("pylo", "version.get", get_pylo_version, desc="Get Pylo's Full Version Name (func)")
+            self.ypsh_def("ypsh", "version.get", get_ypsh_version, desc="Get YPSH's Full Version Name (func)")
 
-            def pylo_error(location: str = "APP", level: str = "E", ecode: str = "0000", desc = None):
-                return PyloError(location=location, level=level, ecode=ecode, desc=desc)
-            self.pylo_def("@", "error", pylo_error, desc="Return a Error Object.")
+            def ypsh_error(location: str = "APP", level: str = "E", ecode: str = "0000", desc = None):
+                return YPSHError(location=location, level=level, ecode=ecode, desc=desc)
+            self.ypsh_def("@", "error", ypsh_error, desc="Return a Error Object.")
 
             def raise_error(error: Exception):
                 raise error
-            self.pylo_def("@", "raise", raise_error, desc="Raise a Error with Error Object.")
+            self.ypsh_def("@", "raise", raise_error, desc="Raise a Error with Error Object.")
 
             def error_lang_set(lang="en"):
                 global LANG
                 LANG = lang
-            self.pylo_def("@", "error.lang.set", error_lang_set, desc="Set a Language ID for Localized Error Message.")
+            self.ypsh_def("@", "error.lang.set", error_lang_set, desc="Set a Language ID for Localized Error Message.")
 
         elif id == "docs":
-            self.pylo_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'pylo.version'), from Pylo's Documentation")
-            self.pylo_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'pylo.version') and content, to Pylo's Documentation")
+            self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Documentation")
+            self.ypsh_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'ypsh.version') and content, to YPSH's Documentation")
 
         elif id == "standard":
-            self.pylo_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
-            self.pylo_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
-            self.pylo_def("@", "show", self.pylo_print, desc="Show content with Simplize(e.g. 'pylo.module pylo.modules (list)')")
-            self.pylo_def("@", "lookup", self.pylo_print, desc="Show content with Simplize(e.g. 'pylo.module pylo.modules (list)')")
-            self.pylo_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
+            self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
+            self.ypsh_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
+            self.ypsh_def("@", "show", self.ypsh_print, desc="Show content with Simplize(e.g. 'ypsh.module ypsh.modules (list)')")
+            self.ypsh_def("@", "lookup", self.ypsh_print, desc="Show content with Simplize(e.g. 'ypsh.module ypsh.modules (list)')")
+            self.ypsh_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
 
             def exit_now(code=0):
                 raise SystemExit(code)
-            self.pylo_def("@", "exit", exit_now, desc="Exit Pylo's main Process.")
+            self.ypsh_def("@", "exit", exit_now, desc="Exit YPSH's main Process.")
 
             def read_stdin():
                 return sys.stdin.read()
-            self.pylo_def("standard", "input", read_stdin, desc="Read stdin (all lines)")
-            self.pylo_def("stdin", "all", read_stdin, desc="Read stdin (all lines)")
+            self.ypsh_def("standard", "input", read_stdin, desc="Read stdin (all lines)")
+            self.ypsh_def("stdin", "all", read_stdin, desc="Read stdin (all lines)")
 
             def read_stdin_oneline():
                 return sys.stdin.read()
-            self.pylo_def("standard", "input.oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
-            self.pylo_def("stdin", "oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
+            self.ypsh_def("standard", "input.oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
+            self.ypsh_def("stdin", "oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
 
             def stdin_isatty():
                 if sys.stdin.isatty():
-                    return self.pylo_true
+                    return self.ypsh_true
                 else:
-                    return self.pylo_false
-            self.pylo_def("stdin", "isatty", stdin_isatty)
+                    return self.ypsh_false
+            self.ypsh_def("stdin", "isatty", stdin_isatty)
 
-            self.pylo_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
-            self.pylo_def("@", "stdout", self.normal_print, desc="Directly Printing to stdout")
+            self.ypsh_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
+            self.ypsh_def("@", "stdout", self.normal_print, desc="Directly Printing to stdout")
 
         elif id == "nextdp":
             global nextdp_manager
@@ -969,96 +969,96 @@ class Interpreter:
                 nextdp_manager.port = port
                 nextdp_manager.save_dir = save_dir
                 nextdp_manager.start_receiving()
-            self.pylo_def("nextdp", "receiver.start", nextdp_receiver_start, desc="Start the NextDP Receiver")
+            self.ypsh_def("nextdp", "receiver.start", nextdp_receiver_start, desc="Start the NextDP Receiver")
 
             def nextdp_receiver_stop():
                 global nextdp_manager
                 nextdp_manager.stop_receiving()
-            self.pylo_def("nextdp", "receiver.stop", nextdp_receiver_stop, desc="Stop the NextDP Receiver")
+            self.ypsh_def("nextdp", "receiver.stop", nextdp_receiver_stop, desc="Stop the NextDP Receiver")
 
             def nextdp_receiver_start(filepath: str, host: str = "0.0.0.0", port: int = 4321):
                 global nextdp_manager
                 nextdp_manager.host = host
                 nextdp_manager.port = port
                 nextdp_manager.send_file(filepath)
-            self.pylo_def("nextdp", "send", nextdp_receiver_start, desc="Send a file using NextDP")
+            self.ypsh_def("nextdp", "send", nextdp_receiver_start, desc="Send a file using NextDP")
 
         elif id == "exstr":
             def exstr_unicode_uplus(s):
                 return ''.join(f'U+{ord(c):04X}' for c in s)
-            self.pylo_def("exstr", "unicode.uplus", exstr_unicode_uplus, desc="Text to Unicode U+ (U+****)")
+            self.ypsh_def("exstr", "unicode.uplus", exstr_unicode_uplus, desc="Text to Unicode U+ (U+****)")
 
             def exstr_unicode_uplus_whitespace(s):
                 return ' '.join(f'U+{ord(c):04X}' for c in s)
-            self.pylo_def("exstr", "unicode.uplus.whitespace", exstr_unicode_uplus_whitespace, desc="Text to Unicode U+ (U+****), split with Whitespace")
+            self.ypsh_def("exstr", "unicode.uplus.whitespace", exstr_unicode_uplus_whitespace, desc="Text to Unicode U+ (U+****), split with Whitespace")
 
             def exstr_unicode_bsu(s):
                 return ''.join(f'\\u{ord(c):04X}' for c in s)
-            self.pylo_def("exstr", "unicode.bsu", exstr_unicode_bsu, desc="Text to Unicode \\u (\\u****)")
+            self.ypsh_def("exstr", "unicode.bsu", exstr_unicode_bsu, desc="Text to Unicode \\u (\\u****)")
 
             def exstr_unicode_bsu_whitespace(s):
                 return ' '.join(f'\\u{ord(c):04X}' for c in s)
-            self.pylo_def("exstr", "unicode.bsu.whitespace", exstr_unicode_bsu_whitespace, desc="Text to Unicode \\u (\\u****), split with Whitespace")
+            self.ypsh_def("exstr", "unicode.bsu.whitespace", exstr_unicode_bsu_whitespace, desc="Text to Unicode \\u (\\u****), split with Whitespace")
 
         elif id == "stdmath":
-            self.pylo_def("@", "min", min)
-            self.pylo_def("@", "max", max)
-            self.pylo_def("@", "mod", lambda a, b: a % b)
+            self.ypsh_def("@", "min", min)
+            self.ypsh_def("@", "max", max)
+            self.ypsh_def("@", "mod", lambda a, b: a % b)
 
             def count_func(input):
                 return len(input)
-            self.pylo_def("@", "count", count_func)
+            self.ypsh_def("@", "count", count_func)
 
-            def pylo_range(start=1, end=None):
+            def ypsh_range(start=1, end=None):
                 if end == None:
-                    raise PyloError("STDMATH", "E", "0008", {"en": "At least one argument is required: end", "ja": "少なくとも引数「end」が必要です。"})
+                    raise YPSHError("STDMATH", "E", "0008", {"en": "At least one argument is required: end", "ja": "少なくとも引数「end」が必要です。"})
                 else:
                     return range(start, end+1)
-            self.pylo_def("@", "range", pylo_range)
+            self.ypsh_def("@", "range", ypsh_range)
 
         elif id == "env":
             from dotenv import load_dotenv
-            self.pylo_globals.set("dotenv._enabled", self.pylo_true)
+            self.ypsh_globals.set("dotenv._enabled", self.ypsh_true)
 
             def dotenv_enabled():
-                return self.pylo_globals.get("dotenv._enabled")
-            self.pylo_def("dotenv", "enabled", dotenv_enabled)
+                return self.ypsh_globals.get("dotenv._enabled")
+            self.ypsh_def("dotenv", "enabled", dotenv_enabled)
 
             def get_system_env(id):
-                if dotenv_enabled() == self.pylo_true:
+                if dotenv_enabled() == self.ypsh_true:
                     load_dotenv()
                 return os.environ[id]
-            self.pylo_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
+            self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
             def dotenv_enable():
-                self.pylo_globals.set("dotenv._enabled", self.pylo_true)
-            self.pylo_def("dotenv", "enable", dotenv_enable, desc="Enable Dotenv for 'env' module")
+                self.ypsh_globals.set("dotenv._enabled", self.ypsh_true)
+            self.ypsh_def("dotenv", "enable", dotenv_enable, desc="Enable Dotenv for 'env' module")
 
             def dotenv_disable():
-                self.pylo_globals.set("dotenv._enabled", self.pylo_false)
-            self.pylo_def("dotenv", "disable", dotenv_disable, desc="Disable Dotenv for 'env' module")
+                self.ypsh_globals.set("dotenv._enabled", self.ypsh_false)
+            self.ypsh_def("dotenv", "disable", dotenv_disable, desc="Disable Dotenv for 'env' module")
 
         elif id == "conv":
-            self.pylo_def("conv", "str", str)
-            self.pylo_def("conv", "int", int)
+            self.ypsh_def("conv", "str", str)
+            self.ypsh_def("conv", "int", int)
 
             def convert_to_decimal(value) -> str:
                 if isinstance(value, str):
                     value = int(value)
                 return str(value)
-            self.pylo_def("conv", "decimal", convert_to_decimal)
+            self.ypsh_def("conv", "decimal", convert_to_decimal)
 
             def convert_to_binary(value) -> str:
                 if isinstance(value, str):
                     value = int(value)
                 return bin(value)[2:]
-            self.pylo_def("conv", "binary", convert_to_binary)
+            self.ypsh_def("conv", "binary", convert_to_binary)
 
             def convert_to_hexadecimal(value) -> str:
                 if isinstance(value, str):
                     value = int(value)
                 return hex(value)[2:]
-            self.pylo_def("conv", "hexadecimal", convert_to_hexadecimal)
+            self.ypsh_def("conv", "hexadecimal", convert_to_hexadecimal)
 
         elif id == "base58":
             global BASE58_ALPHABET
@@ -1072,7 +1072,7 @@ class Interpreter:
                     value2, remainder = divmod(value2, 58)
                     result = BASE58_ALPHABET[remainder] + result
                 return result or "--"
-            self.pylo_def("conv", "base58", convert_to_base58)
+            self.ypsh_def("conv", "base58", convert_to_base58)
 
         elif id == "base64":
             global base64
@@ -1081,7 +1081,7 @@ class Interpreter:
             def convert_to_base64(value: str) -> str:
                 input_bytes = value.encode('utf-8')
                 return base64.b64encode(input_bytes).decode('utf-8')
-            self.pylo_def("conv", "base64", convert_to_base64)
+            self.ypsh_def("conv", "base64", convert_to_base64)
 
         elif id == "librarys":
             self.module_enable("https")
@@ -1091,7 +1091,7 @@ class Interpreter:
             def _load_library_list():
                 global installed_packages
                 home = expanduser("~")
-                installedfile = "$HOME/.dgc/pylo/external_modules.json".replace("$HOME", home)
+                installedfile = "$HOME/.dgc/ypsh/external_modules.json".replace("$HOME", home)
                 os.makedirs(os.path.dirname(installedfile), exist_ok=True)
                 if os.path.isfile(installedfile):
                     with open(installedfile, "r") as f:
@@ -1116,13 +1116,13 @@ class Interpreter:
                     ast = parser.parse()
                     self.interpret(ast)
 
-            self.pylo_def("librarys", "import", import_library)
+            self.ypsh_def("librarys", "import", import_library)
 
             def add_library(id, library_script_url):
                 _load_library_list()
                 global installed_packages
                 home = expanduser("~")
-                installedfile = "$HOME/.dgc/pylo/external_modules.json".replace("$HOME", home)
+                installedfile = "$HOME/.dgc/ypsh/external_modules.json".replace("$HOME", home)
 
                 installed_packages[id] = {
                     "script_url": library_script_url
@@ -1130,65 +1130,65 @@ class Interpreter:
 
                 with open(installedfile, "w", encoding="utf-8") as f:
                     json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.pylo_def("librarys", "install", add_library)
+            self.ypsh_def("librarys", "install", add_library)
 
             def remove_library(id):
                 _load_library_list()
                 global installed_packages
                 home = expanduser("~")
-                installedfile = "$HOME/.dgc/pylo/external_modules.json".replace("$HOME", home)
+                installedfile = "$HOME/.dgc/ypsh/external_modules.json".replace("$HOME", home)
 
                 if id in installed_packages:
                     del installed_packages[id]
                     with open(installedfile, "w", encoding="utf-8") as f:
                         json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.pylo_def("librarys", "remove", remove_library)
+            self.ypsh_def("librarys", "remove", remove_library)
 
         elif id == "import":
             
             def import_normal(id):
                 self.module_enable(id)
-            self.pylo_def("@", "import", import_normal)
+            self.ypsh_def("@", "import", import_normal)
 
-            def import_pylo(file_path):
+            def import_ypsh(file_path):
                 if not os.path.isfile(file_path):
-                    raise PyloError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
+                    raise YPSHError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
                 tokens = tokenize(code)
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.pylo_def("@", "import.pylo", import_pylo)
+            self.ypsh_def("@", "import.ypsh", import_ypsh)
 
             def import_py(file_path):
                 if not os.path.isfile(file_path):
-                    raise PyloError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
+                    raise YPSHError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
                 local_dict = {}
                 exec(code, local_dict)
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
-                        self.pylo_globals.set(key, value)
-            self.pylo_def("@", "import.py", import_py)
+                        self.ypsh_globals.set(key, value)
+            self.ypsh_def("@", "import.py", import_py)
 
         elif id == "exec":
 
-            def exec_pylo(code_string):
+            def exec_ypsh(code_string):
                 tokens = tokenize(code_string)
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.pylo_def("exec", "pylo", exec_pylo)
+            self.ypsh_def("exec", "ypsh", exec_ypsh)
 
             def exec_py(code_string):
                 local_dict = {}
                 exec(code_string, local_dict)
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
-                        self.pylo_globals.set(key, value)
-            self.pylo_def("exec", "py", exec_py)
+                        self.ypsh_globals.set(key, value)
+            self.ypsh_def("exec", "py", exec_py)
 
         elif id == "https":
             global requests
@@ -1198,33 +1198,33 @@ class Interpreter:
                 r = requests.get(url)
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
-            self.pylo_def("https", "get.save", https_get_save)
+            self.ypsh_def("https", "get.save", https_get_save)
 
             def https_post_save(url, path):
                 r = requests.post(url)
                 with open(path, 'wb') as saveFile:
                     saveFile.write(r.content)
-            self.pylo_def("https", "post.save", https_post_save)
+            self.ypsh_def("https", "post.save", https_post_save)
 
             def https_get_text(url):
                 r = requests.get(url)
                 return r.text
-            self.pylo_def("https", "get.text", https_get_text)
+            self.ypsh_def("https", "get.text", https_get_text)
 
             def https_post_text(url):
                 r = requests.post(url)
                 return r.text
-            self.pylo_def("https", "post.text", https_post_text)
+            self.ypsh_def("https", "post.text", https_post_text)
 
             def https_get_json(url):
                 r = requests.get(url)
                 return r.json()
-            self.pylo_def("https", "get.json", https_get_json)
+            self.ypsh_def("https", "get.json", https_get_json)
 
             def https_post_json(url):
                 r = requests.post(url)
                 return r.json()
-            self.pylo_def("https", "post.json", https_post_json)
+            self.ypsh_def("https", "post.json", https_post_json)
 
         elif id == "file":
             
@@ -1233,33 +1233,33 @@ class Interpreter:
                     return True
                 else:
                     return False
-            self.pylo_def("file", "isexist", file_isexist)
+            self.ypsh_def("file", "isexist", file_isexist)
 
             def file_isfile(path):
                 if os.path.isfile(path):
                     return True
                 else:
                     return False
-            self.pylo_def("file", "isfile", file_isfile)
+            self.ypsh_def("file", "isfile", file_isfile)
 
             def file_isdir(path):
                 if os.path.isdir(path):
                     return True
                 else:
                     return False
-            self.pylo_def("file", "isdir", file_isdir)
+            self.ypsh_def("file", "isdir", file_isdir)
 
             def file_remove(path):
                 os.remove(path)
-            self.pylo_def("file", "remove", file_remove)
+            self.ypsh_def("file", "remove", file_remove)
 
         elif id == "datetime":
             global datetime, timezone, timedelta
             from datetime import datetime, timezone, timedelta
 
-            self.pylo_def("@", "datetime", datetime)
-            self.pylo_def("@", "timezone", timezone)
-            self.pylo_def("@", "timedelta", timedelta)
+            self.ypsh_def("@", "datetime", datetime)
+            self.ypsh_def("@", "timezone", timezone)
+            self.ypsh_def("@", "timedelta", timedelta)
 
         elif id == "dgce":
             self.module_enable("datetime")
@@ -1272,7 +1272,7 @@ class Interpreter:
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '048b')
                 return binary_str
-            self.pylo_def("conv", "dgce48", datetime_to_dgc_epoch48)
+            self.ypsh_def("conv", "dgce48", datetime_to_dgc_epoch48)
 
             def datetime_to_dgc_epoch64(dt: datetime) -> str:
                 if dt.tzinfo is None:
@@ -1281,12 +1281,12 @@ class Interpreter:
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '064b')
                 return binary_str
-            self.pylo_def("conv", "conv.dgce64", datetime_to_dgc_epoch64)
+            self.ypsh_def("conv", "conv.dgce64", datetime_to_dgc_epoch64)
 
             def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
                 milliseconds = int(dgc_epoch_str, 2)
                 return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
-            self.pylo_def("conv", "datetime", dgc_epoch64_to_datetime)
+            self.ypsh_def("conv", "datetime", dgc_epoch64_to_datetime)
 
         elif id == "luhn":
             def exec_luhn_algo(card_number: str):
@@ -1301,7 +1301,7 @@ class Interpreter:
                             n -= 9
                     total += n
                 return total % 10 == 0
-            self.pylo_def("@", "luhn", exec_luhn_algo)
+            self.ypsh_def("@", "luhn", exec_luhn_algo)
         else:
             self.module_enable("librarys")
             import_library(id)
@@ -1310,7 +1310,7 @@ class Interpreter:
         self.module_enable("default")
 
     def interpret(self, node):
-        return self.execute(node, self.pylo_globals)
+        return self.execute(node, self.ypsh_globals)
     def execute(self, node, env):
         if isinstance(node, Block):
             result = None
@@ -1350,7 +1350,7 @@ class Interpreter:
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
-                raise PyloError("PYLO", "E", "0010", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"})
+                raise YPSHError("YPSH", "E", "0010", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"})
             for value in iterable:
                 local_env = Environment(env)
                 local_env.set(node.var_name, value)
@@ -1427,18 +1427,18 @@ class Interpreter:
                 try:
                     return collection[index]
                 except Exception:
-                    raise PyloError("PYLO", "E", "0016", {
+                    raise YPSHError("YPSH", "E", "0016", {
                         "en": f"Cannot access index/key '{index}' on {collection}",
                         "ja": f"{collection} に対してインデックス/キー '{index}' を取得できません"
                     })
             else:
-                raise PyloError("PYLO", "E", "0011", {"en": f"Unknown operator: {node.op}.", "ja": f"未知の演算子: {node.op}"})
+                raise YPSHError("YPSH", "E", "0011", {"en": f"Unknown operator: {node.op}.", "ja": f"未知の演算子: {node.op}"})
         elif isinstance(node, UnaryOp):
             operand = self.evaluate(node.operand, env)
             if node.op == '!':
                 return not bool(operand)
             else:
-                raise PyloError("PYLO", "E", "0012", {"en": f"Unknown unary operator {node.op}.", "ja": f"未知の単項演算子: {node.op}"})
+                raise YPSHError("YPSH", "E", "0012", {"en": f"Unknown unary operator {node.op}.", "ja": f"未知の単項演算子: {node.op}"})
         elif isinstance(node, FuncCall):
             func_obj = env.get(node.name)
             if callable(func_obj):
@@ -1447,14 +1447,14 @@ class Interpreter:
             elif isinstance(func_obj, Function):
                 return func_obj.call(node.args, self)
             else:
-                raise PyloError("PYLO", "E", "0013", {"en": f"Attempting to call a non-callable {node.name}.", "ja": f"呼び出し不可能なオブジェクト {node.name} に対して呼び出そうとしました。"})
+                raise YPSHError("YPSH", "E", "0013", {"en": f"Attempting to call a non-callable {node.name}.", "ja": f"呼び出し不可能なオブジェクト {node.name} に対して呼び出そうとしました。"})
         elif isinstance(node, str):
             value = env.get(node)
-            if value == self.pylo_false:
+            if value == self.ypsh_false:
                 return False
-            elif value == self.pylo_true:
+            elif value == self.ypsh_true:
                 return True
-            elif value == self.pylo_none:
+            elif value == self.ypsh_none:
                 return None
             return value
         elif isinstance(node, DictLiteral):
@@ -1466,7 +1466,7 @@ class Interpreter:
             else:
                 return self.evaluate(node.if_false, env)
         else:
-            raise PyloError("PYLO", "E", "0014", {"en": f"Cannot evaluate node {node}.", "ja": f"{node} を処理できません。"})
+            raise YPSHError("YPSH", "E", "0014", {"en": f"Cannot evaluate node {node}.", "ja": f"{node} を処理できません。"})
 
 ##############################
 # REPL / Script Executing / Other
@@ -1508,7 +1508,7 @@ def repl():
         readline.parse_and_bind("tab: complete")
 
     def completer(text, state):
-        env = interpreter.pylo_globals
+        env = interpreter.ypsh_globals
         results = []
         while env:
             results += [k for k in env.vars.keys() if k.startswith(text)]
@@ -1520,7 +1520,7 @@ def repl():
 
     while True:
         try:
-            prompt = f"PYLO> "
+            prompt = f"YPSH> "
             promptlen = len(prompt.strip())
             prompt = prompt if accumulated_code == "" else (("." * promptlen) + " ")
 
@@ -1591,29 +1591,29 @@ def main():
         elif args[0].lower() in ["-stdin", "--stdin"]:
             run_text(sys.stdin.read())
 
-        elif args[0] == "pylopm":
+        elif args[0] == "ypshpm":
             rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
-            rich_print("[PyloPM] Start PyloPM - Pylo Package Manager...")
+            rich_print("[YPSHPM] Start YPSHPM - YPSH Package Manager...")
 
             try:
                 if args[1] == "install" and (args[2] != "" and args[3] != ""):
                     rich_print(f"Install Library: {args[2]} (from {args[3]})")
                     run_text(f"""
-pylo.modules.enable("librarys")
+ypsh.modules.enable("librarys")
 librarys.install("{args[2]}", "{args[3]}")
     """)
                 elif args[1] == "remove" and (args[2] != ""):
                     rich_print(f"Remove Library: {args[2]}")
                     run_text(f"""
-pylo.modules.enable("librarys")
+ypsh.modules.enable("librarys")
 librarys.remove("{args[2]}")
     """)
                 else:
-                    rich_print("[PyloPM] No Matched Command")
+                    rich_print("[YPSHPM] No Matched Command")
             except IndexError:
-                rich_print("[PyloPM] No Matched Command")
+                rich_print("[YPSHPM] No Matched Command")
 
-            rich_print("[PyloPM] Finish PyloPM - Pylo Package Manager...")
+            rich_print("[YPSHPM] Finish YPSHPM - YPSH Package Manager...")
 
         else:
             run_file(args[0])
