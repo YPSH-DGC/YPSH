@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Pylo
+# YPSH
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
@@ -14,7 +14,7 @@ parser.add_argument('--lang', default="en")
 args = parser.parse_args()
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-inte_path = script_dir + "/pylo.py"
+inte_path = script_dir + "/ypsh.py"
 with open(inte_path, encoding='utf-8') as f:
     inte_script = f.read()
 
@@ -23,11 +23,11 @@ inte_script_main = inte_script.split("#!checkpoint!")[2].strip()
 
 result = f"""
 #!/usr/bin/env python3
-# Pylo
+# YPSH
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
-VERSION_TYPE = \"Pylo\"
+VERSION_TYPE = \"YPSH\"
 VERSION_NUMBER = \"{args.tag}\"
 VERSION = f\"{{VERSION_TYPE}} {{VERSION_NUMBER}}\"
 LANG = \"{args.lang}\"
