@@ -1,5 +1,7 @@
-# Pylo
-Simple Programming Language
+![YPSH - Your route of Programming is Starting from Here](https://github.com/user-attachments/assets/0c2fb7a0-54bd-4bf5-b3e5-4442f4e428cd)
+
+# YPSH Language (formerly Pylo)
+A programming language with a simple and intuitive syntax
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo)
 
@@ -9,7 +11,7 @@ Simple Programming Language
 **Official Documentation (Legacy):** [diamondgotcat.gitbook.io/pylo](https://diamondgotcat.gitbook.io/pylo/)
 
 ## AutoBuild (for Binary Version)
-Pylo builds are automated using GitHub Actions.
+YPSH builds are automated using GitHub Actions.
 
 ### Dashboard
 You can view the build status at [build.diamondgotcat.net](https://build.diamondgotcat.net/)
