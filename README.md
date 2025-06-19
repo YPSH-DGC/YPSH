@@ -4,7 +4,7 @@
 A programming language with a simple and intuitive syntax
 > Your route of Programming is Starting from Here
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/Pylo)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/YPSH)
 
 ## Documentation
 **Official Documentation (Current):** [pylo.diamondgotcat.net](https://pylo.diamondgotcat.net)
