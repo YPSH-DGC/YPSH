@@ -23,12 +23,6 @@ jobs:
           - os: ubuntu-24.04-arm
             platform: Linux ARM
             filename: YPSH-linux-arm64
-          - os: ubuntu-latest
-            platform: Linux ARMv7
-            filename: YPSH-linux-armv7
-          - os: ubuntu-latest
-            platform: Linux RISC-V
-            filename: YPSH-linux-riscv64
           - os: windows-latest
             platform: Windows Intel/AMD
             filename: YPSH-windows-amd64
