@@ -41,13 +41,13 @@ arch = platform.machine()
 if system == "Darwin":
 
     if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-macos-amd64.zip"
-        originalBinaryName = "ypsh-macos-amd64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/YPSH-macos-amd64.zip"
+        originalBinaryName = "YPSH-macos-amd64"
         systemFriendly = "macOS Intel"
 
     elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-macos-arm64.zip"
-        originalBinaryName = "ypsh-macos-arm64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/YPSH-macos-arm64.zip"
+        originalBinaryName = "YPSH-macos-arm64"
         systemFriendly = "macOS Apple Silicon"
 
     else:
@@ -61,13 +61,13 @@ if system == "Darwin":
 elif system == "Linux":
 
     if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-linux-amd64.zip"
-        originalBinaryName = "ypsh-linux-amd64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/YPSH-linux-amd64.zip"
+        originalBinaryName = "YPSH-linux-amd64"
         systemFriendly = "Linux Intel/AMD"
 
     elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-linux-arm64.zip"
-        originalBinaryName = "ypsh-linux-arm64"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/YPSH-linux-arm64.zip"
+        originalBinaryName = "YPSH-linux-arm64"
         systemFriendly = "Linux ARM"
 
     else:
@@ -81,13 +81,13 @@ elif system == "Linux":
 elif system == "Windows":
 
     if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-windows-amd64.zip"
-        originalBinaryName = "ypsh-windows-amd64.exe"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/YPSH-windows-amd64.zip"
+        originalBinaryName = "YPSH-windows-amd64.exe"
         systemFriendly = "Windows Intel/AMD"
 
     elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/ypsh-windows-arm64.zip"
-        originalBinaryName = "ypsh-windows-arm64.exe"
+        downloadURL = f"https://github.com/DiamondGotCat/YPSH/releases/download/{useTag}/YPSH-windows-arm64.zip"
+        originalBinaryName = "YPSH-windows-arm64.exe"
         systemFriendly = "Windows ARM"
 
     else:
