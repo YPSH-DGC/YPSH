@@ -844,11 +844,13 @@ class Interpreter:
         if id == "minimal":
             self.module_enable("ypsh")
             self.module_enable("standard")
+            self.module_enable("import")
 
         elif id == "default":
             self.module_enable("ypsh")
             self.module_enable("standard")
             self.module_enable("docs")
+            self.module_enable("import")
 
         elif id == "ypsh":
             self.ypsh_def("@", "false", "<false>")
