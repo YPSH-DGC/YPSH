@@ -14,16 +14,16 @@ jobs:
           - os: macos-13
             platform: macOS Intel
             filename: YPSH-macos-amd64
-          - os: macos-latest
+          - os: macos-14
             platform: macOS Apple Silicon
             filename: YPSH-macos-arm64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: Linux Intel/AMD
             filename: YPSH-linux-amd64
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             platform: Linux ARM
             filename: YPSH-linux-arm64
-          - os: windows-latest
+          - os: windows-2022
             platform: Windows Intel/AMD
             filename: YPSH-windows-amd64
           - os: windows-11-arm
