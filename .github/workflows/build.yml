@@ -246,21 +246,26 @@ jobs:
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
-      - name: Create pyproject.toml for Pyodide
+      - name: Prepare Pyodide build project
         run: |
-          echo '[project]' > pyproject.toml
-          echo 'name = "ypsh"' >> pyproject.toml
-          echo 'version = "${{ steps.get_version.outputs.version }}"' >> pyproject.toml
-          echo 'description = "YPSH for WebAssembly"' >> pyproject.toml
-          echo 'readme = ""' >> pyproject.toml
-          echo 'requires-python = ">=3.8"' >> pyproject.toml
-          echo '' >> pyproject.toml
-          echo '[tool.pyodide]' >> pyproject.toml
-          echo 'entry = "ypsh-release.py"' >> pyproject.toml
-          echo 'requirements = "requirements.txt"' >> pyproject.toml
-          echo 'output-dir = "dist"' >> pyproject.toml
+          mkdir -p pyodide_project
+          cp ypsh-release.py pyodide_project/__main__.py
+          cp requirements.txt pyodide_project/requirements.txt
+
+          echo '[project]' > pyodide_project/pyproject.toml
+          echo 'name = "ypsh"' >> pyodide_project/pyproject.toml
+          echo 'version = "${{ github.event.release.tag_name || github.ref_name }}"' >> pyodide_project/pyproject.toml
+          echo 'description = "YPSH for WebAssembly"' >> pyodide_project/pyproject.toml
+          echo 'readme = ""' >> pyodide_project/pyproject.toml
+          echo 'requires-python = ">=3.8"' >> pyodide_project/pyproject.toml
+          echo '' >> pyodide_project/pyproject.toml
+          echo '[tool.pyodide]' >> pyodide_project/pyproject.toml
+          echo 'entry = "__main__"' >> pyodide_project/pyproject.toml
+          echo 'requirements = "requirements.txt"' >> pyodide_project/pyproject.toml
+          echo 'output-dir = "dist"' >> pyodide_project/pyproject.toml
 
       - name: Build Pyodide distribution
+        working-directory: pyodide_project
         run: |
           source emsdk/emsdk_env.sh
           pyodide build
@@ -268,7 +273,7 @@ jobs:
       - name: Archive WASM artifacts
         run: |
           mkdir -p upload
-          cp dist/*.wasm dist/*.js dist/*.data upload/
+          cp pyodide_project/dist/*.wasm pyodide_project/dist/*.js pyodide_project/dist/*.data upload/ || echo "No WASM files found"
 
       - name: Upload WASM to GitHub Release
         uses: softprops/action-gh-release@v2
