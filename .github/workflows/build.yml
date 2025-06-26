@@ -246,6 +246,19 @@ jobs:
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
+      - name: Create pyproject.toml for Pyodide
+        run: |
+          echo '[project]' > pyproject.toml
+          echo 'name = "ypsh"' >> pyproject.toml
+          echo 'version = "${{ steps.get_version.outputs.version }}"' >> pyproject.toml
+          echo 'description = "YPSH for WebAssembly"' >> pyproject.toml
+          echo 'readme = ""' >> pyproject.toml
+          echo 'requires-python = ">=3.8"' >> pyproject.toml
+          echo '' >> pyproject.toml
+          echo '[tool.pyodide]' >> pyproject.toml
+          echo 'entry = "ypsh-release.py"' >> pyproject.toml
+          echo 'requirements = "requirements.txt"' >> pyproject.toml
+
       - name: Build Pyodide distribution
         run: |
           source emsdk/emsdk_env.sh
