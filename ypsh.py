@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-# YPSH by DiamondGotCat
+#################################################################
+# YPSH Language - Your route of Programming is Starting from Here
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
+#################################################################
 
 VERSION_TYPE = "YPSH"
 VERSION_NUMBER = "for Python"
@@ -1151,8 +1153,9 @@ class Interpreter:
 
         elif id == "import":
             
-            def import_normal(id):
-                self.module_enable(id)
+            def import_normal(*ids):
+                for id in ids:
+                    self.module_enable(id)
             self.ypsh_def("@", "import", import_normal)
 
             def import_ypsh(file_path):

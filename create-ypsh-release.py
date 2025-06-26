@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-# YPSH
+#################################################################
+# YPSH Language - Your route of Programming is Starting from Here
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
+#################################################################
 
 import os
 import argparse
