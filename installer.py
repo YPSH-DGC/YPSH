@@ -11,24 +11,13 @@ import sys
 print("[blue bold]Welcome to YPSH Installer.[/blue bold]")
 print()
 
-latestTag = requests.get("http://diamondgotcat.github.io/YPSH/version.txt").text.strip()
+stableTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/stable.txt").text.strip()
+channel = Prompt.ask("Channel", choices=["beta", "stable", "custom"], default="stable")
+if channel == "custom":
+    channel = Prompt.ask("Version", default=stableTag)
+useTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/{channel}.txt").text.strip()
 
-print(f"[blue bold]Latest version:[/blue bold] {latestTag}")
-
-useTag = input("The version you want to install: v")
-if useTag == "":
-    useTag = latestTag
-    print(f"Defaulted to {latestTag}")
-elif useTag.strip() != "":
-    useTag = f"v{useTag.strip()}"
-while useTag.strip() == "":
-    useTag = input("The version you want to install: v")
-    if useTag == "":
-        useTag = latestTag
-        print(f"Defaulted to {latestTag}")
-    elif useTag.strip() != "":
-        useTag = f"v{useTag.strip()}"
-
+print(f"Tag: {useTag}")
 print()
 
 def gatekeeperDisable(path: str):

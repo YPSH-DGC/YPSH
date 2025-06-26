@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  exec-build:
+  build:
     continue-on-error: true
     strategy:
       matrix:
@@ -208,94 +208,10 @@ jobs:
               "product": "YPSH"
             }'
 
-  wasm-build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Generate ypsh-release.py
-        run: |
-          python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
-
-      - name: Install Rust & wasm-bindgen
-        run: |
-          rustup target add wasm32-unknown-unknown
-          cargo install wasm-bindgen-cli
-
-      - name: Create Rust project for WebAssembly
-        run: |
-          mkdir rustwasm
-          cd rustwasm
-          cargo init --lib
-          mkdir -p src
-
-          echo '[package]'                             >  Cargo.toml
-          echo 'name = "ypsh"'                        >> Cargo.toml
-          echo 'version = "0.1.0"'                    >> Cargo.toml
-          echo 'edition = "2021"'                     >> Cargo.toml
-          echo ''                                     >> Cargo.toml
-          echo '[lib]'                                >> Cargo.toml
-          echo 'crate-type = ["cdylib"]'              >> Cargo.toml
-          echo ''                                     >> Cargo.toml
-          echo '[dependencies]'                       >> Cargo.toml
-          echo 'wasm-bindgen = "0.2"'                 >> Cargo.toml
-          echo 'rustpython-vm = "0.3"'                >> Cargo.toml
-
-          cp ../ypsh-release.py ypsh-release.py
-
-          echo 'use wasm_bindgen::prelude::*;'                           >  src/lib.rs
-          echo 'use rustpython_vm::{Interpreter, settings::PySettings};' >> src/lib.rs
-          echo ''                                                        >> src/lib.rs
-          echo '#[wasm_bindgen]'                                         >> src/lib.rs
-          echo 'pub fn run_ypsh() {'                                     >> src/lib.rs
-          echo '    let code = include_str!("../ypsh-release.py");'      >> src/lib.rs
-          echo '    let settings = PySettings::default();'               >> src/lib.rs
-          echo '    let interp = Interpreter::new_with_init(settings, |_| {});' >> src/lib.rs
-          echo '    interp.enter(|vm| {'                                 >> src/lib.rs
-          echo '        let _ = vm.run_code_string(code.to_owned(), "<ypsh>".to_string());' >> src/lib.rs
-          echo '    });'                                                 >> src/lib.rs
-          echo '}'                                                       >> src/lib.rs
-
-      - name: Build WASM binary
-        working-directory: rustwasm
-        run: cargo build --release --target wasm32-unknown-unknown
-
-      - name: Generate JS bindings
-        run: |
-          wasm-bindgen rustwasm/target/wasm32-unknown-unknown/release/ypsh.wasm \
-            --out-dir upload \
-            --target web
-
-      - name: Rename output to ypsh.wasm
-        run: |
-          mkdir -p upload
-          mv upload/ypsh_bg.wasm upload/ypsh.wasm
-
-      - name: Upload WASM + JS to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: upload/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
   after:
-    needs: [exec-build, wasm-build]
+    needs: build
     runs-on: ubuntu-latest
-    if: ${{ success() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ success() && github.event_name == 'release' }}
 
     steps:
       - name: Checkout main branch
@@ -309,23 +225,22 @@ jobs:
           git config user.name "DGC-AutoBuild"
           git config user.email "bot@diamondgotcat.net"
 
-      - name: Determine release tag
+      - name: Update release channels
         shell: bash
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
-          else
-            tag="${{ github.ref_name }}"
-          fi
-          echo "TAG_NAME=$tag" >> $GITHUB_ENV
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          tag="${{ github.event.release.tag_name }}"
+          mkdir -p channels
+          echo "$tag" > channels/beta.txt
 
-      - name: Update version.txt
-        if: (github.event_name == 'release' && !github.event.release.prerelease) || github.event_name == 'workflow_dispatch'
-        run: |
-          echo "$TAG_NAME" > version.txt
-          git add version.txt
-          git commit -m "Update version.txt to $TAG_NAME" || echo "No changes to commit"
+          if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
+            echo "$tag" > channels/stable.txt
+          fi
+
+          git add channels/beta.txt
+          if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
+            git add channels/stable.txt
+          fi
+
+          git commit -m "Update release channels to $tag" || echo "No changes to commit"
           git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}
           git push origin HEAD:main
