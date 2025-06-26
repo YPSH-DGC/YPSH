@@ -258,6 +258,7 @@ jobs:
           echo '[tool.pyodide]' >> pyproject.toml
           echo 'entry = "ypsh-release.py"' >> pyproject.toml
           echo 'requirements = "requirements.txt"' >> pyproject.toml
+          echo 'output-dir = "dist"' >> pyproject.toml
 
       - name: Build Pyodide distribution
         run: |
