@@ -222,14 +222,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Generate ypsh-release.py
-        run: |
-          python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config python3-pip libffi-dev cmake git wget curl
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate ypsh-release.py
+        run: |
+          python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
       - name: Install Emscripten SDK
         run: |
@@ -237,8 +242,12 @@ jobs:
           cd emsdk
           ./emsdk install latest
           ./emsdk activate latest
-          source ./emsdk_env.sh
-          echo "source $PWD/emsdk_env.sh" >> $GITHUB_ENV
+          echo "EMSDK_PATH=$(pwd)" >> $GITHUB_ENV
+
+      - name: Source Emscripten environment
+        run: |
+          source "$EMSDK_PATH/emsdk_env.sh"
+          echo "PATH=$PATH" >> $GITHUB_ENV
 
       - name: Clone Micropython
         run: |
@@ -252,7 +261,7 @@ jobs:
 
       - name: Build Micropython WebAssembly
         run: |
-          source emsdk/emsdk_env.sh
+          source "$EMSDK_PATH/emsdk_env.sh"
           make -C micropython/mpy-cross
           make -C micropython/ports/wasm3
 
