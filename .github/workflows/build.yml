@@ -2,7 +2,7 @@ name: DGC-AutoBuild
 
 on:
   release:
-    types: [published, prereleased]
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -103,7 +103,7 @@ jobs:
       - name: Generate Python Script for Release
         shell: bash
         run: |
-          python builder.py ${{ github.event.release.tag_name || github.ref }}
+          python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
       - name: Notify progress 25%
         shell: bash
@@ -121,7 +121,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          pyinstaller --onefile --distpath dist --name for-build for-build.py
+          pyinstaller --onefile --distpath dist --name ypsh-release ypsh-release.py
 
       - name: Notify progress 70%
         shell: bash
@@ -142,7 +142,7 @@ jobs:
         run: |
           mkdir upload
           filename="${{ matrix.filename }}"
-          mv dist/for-build "upload/${filename}"
+          mv dist/ypsh-release "upload/${filename}"
           cd upload
           zip "${filename}.zip" "${filename}"
 
@@ -152,7 +152,7 @@ jobs:
         run: |
           $filename = "${{ matrix.filename }}"
           mkdir upload
-          Move-Item -Path dist/for-build.exe -Destination "upload/$filename.exe"
+          Move-Item -Path dist/ypsh-release.exe -Destination "upload/$filename.exe"
 
       - name: Zip (Windows)
         if: runner.os == 'Windows'

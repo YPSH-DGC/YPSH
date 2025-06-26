@@ -6,3 +6,4 @@ kamu-jp-modern
 aiohttp
 zstandard
 tqdm
+ulid-py

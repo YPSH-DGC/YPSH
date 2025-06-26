@@ -7,9 +7,11 @@ import os
 import argparse
 from rich import print
 from rich.prompt import Prompt
+import ulid
 
 parser = argparse.ArgumentParser()
 parser.add_argument('tag')
+parser.add_argument('--buildid', default=ulid.new().upper())
 parser.add_argument('--lang', default="en")
 args = parser.parse_args()
 
@@ -29,7 +31,8 @@ result = f"""
 
 VERSION_TYPE = \"YPSH\"
 VERSION_NUMBER = \"{args.tag}\"
-VERSION = f\"{{VERSION_TYPE}} {{VERSION_NUMBER}}\"
+BUILDID = \"{args.buildid}\"
+VERSION = f\"{{VERSION_TYPE}} {{VERSION_NUMBER}} ({{BUILDID}})\"
 LANG = \"{args.lang}\"
 
 {inte_script_nomain}
@@ -39,6 +42,6 @@ LANG = \"{args.lang}\"
 
 result = result.strip()
 
-epath = "for-build.py"
+epath = "ypsh-release.py"
 with open(epath, mode='w', encoding='utf-8') as f:
     f.write(result)

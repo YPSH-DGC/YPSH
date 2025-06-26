@@ -5,7 +5,8 @@
 
 VERSION_TYPE = "YPSH"
 VERSION_NUMBER = "for Python"
-VERSION = f"{VERSION_TYPE} {VERSION_NUMBER}"
+BUILDID = "01JYMS8NMD1TM94HC86PKNH8X7"
+VERSION = f"{VERSION_TYPE} {VERSION_NUMBER} ({BUILDID})"
 LANG = "en"
 
 #!checkpoint!
@@ -702,6 +703,7 @@ class Interpreter:
     VERSION_TYPE = VERSION_TYPE
     VERSION_NUMBER = VERSION_NUMBER
     VERSION = VERSION
+    BUILDID = BUILDID
 
     ypsh_false = "__false__"
     ypsh_true = "__true__"
@@ -892,6 +894,7 @@ class Interpreter:
             self.ypsh_def("ypsh", "version", self.VERSION, desc="Return YPSH's Full Version Name")
             self.ypsh_def("ypsh", "version.type", self.VERSION_TYPE, desc="Return YPSH's Type / Distribution Type")
             self.ypsh_def("ypsh", "version.number", self.VERSION_NUMBER, desc="Return Version Number as str")
+            self.ypsh_def("ypsh", "version.build", self.BUILDID, desc="Return the Build ID")
             self.ypsh_def("ypsh", "module", self.modules, desc="Module List / submodule 'module'")
             self.ypsh_def("ypsh", "modules", self.modules, desc="Module List / submodule 'modules'")
             self.ypsh_def("ypsh", "module.enable", self.module_enable, desc="Enable a Module on This Session")
@@ -1585,7 +1588,7 @@ def main():
     args = sys.argv[1:]
     if args:
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
-            rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
+            rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER} ({BUILDID})[/bold][/blue]")
 
         elif args[0].lower() in ["-c", "--c"]:
             run_text(args[1])
