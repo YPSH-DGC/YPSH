@@ -222,6 +222,15 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install Emscripten SDK
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install 3.1.58
+          ./emsdk activate 3.1.58
+          echo "source $(pwd)/emsdk_env.sh" >> $GITHUB_ENV
+          source ./emsdk_env.sh
+
       - name: Install pyodide-build and dependencies
         run: |
           python -m pip install --upgrade pip
