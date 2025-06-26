@@ -1,5 +1,5 @@
 
-![YPSH - Your route of Programming is Starting from Here](https://github.com/user-attachments/assets/896b3c7b-917f-40d2-9e47-61c994362546)
+![YPSH - Your route of Programming is Starting from Here](https://github.com/user-attachments/assets/33a1198d-1ca0-411f-b98b-1b005234d8f1)
 
 # YPSH Language (formerly Pylo)
 A programming language with a simple and intuitive syntax
