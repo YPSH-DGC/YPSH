@@ -210,7 +210,6 @@ jobs:
 
   wasm-build:
     runs-on: ubuntu-latest
-    needs: exec-build
 
     steps:
       - name: Checkout code
@@ -241,8 +240,24 @@ jobs:
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
+      - name: Build Pyodide distribution
+        run: |
+          pyodide build
+
+      - name: Archive WASM artifacts
+        run: |
+          mkdir -p upload
+          cp dist/*.wasm dist/*.js dist/*.data upload/
+
+      - name: Upload WASM to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: upload/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
   after:
-    needs: wasm-build
+    needs: [exec-build, wasm-build]
     runs-on: ubuntu-latest
     if: ${{ success() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch') }}
 
