@@ -952,7 +952,7 @@ class Interpreter:
             self.ypsh_def("stdin", "all", read_stdin, desc="Read stdin (all lines)")
 
             def read_stdin_oneline():
-                return sys.stdin.read()
+                return sys.stdin.readline()
             self.ypsh_def("standard", "input.oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
             self.ypsh_def("stdin", "oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
 
