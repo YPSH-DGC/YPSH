@@ -222,23 +222,14 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Emscripten SDK
-        run: |
-          git clone https://github.com/emscripten-core/emsdk.git
-          cd emsdk
-          ./emsdk install 3.1.58
-          ./emsdk activate 3.1.58
-          echo "EMSDK=$PWD" >> $GITHUB_ENV
-          echo "PATH=$PATH:$PWD:$PWD/upstream/emscripten" >> $GITHUB_ENV
-
-      - name: Install pyodide-build and dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyodide-build
-
-      - name: Install Python dependencies
-        run: |
           pip install -r requirements.txt
+
+      - name: Install wasmer-pack & wasmtime-py
+        run: |
+          pip install wasmer wasmtime
 
       - name: Get version from tag
         id: get_version
@@ -249,33 +240,10 @@ jobs:
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
-      - name: Prepare Pyodide build project
-        run: |
-          mkdir -p pyodide_project
-          cp ypsh-release.py pyodide_project/__main__.py
-          cp requirements.txt pyodide_project/requirements.txt
-
-          echo '[project]' > pyodide_project/pyproject.toml
-          echo 'name = "ypsh"' >> pyodide_project/pyproject.toml
-          echo 'version = "${{ github.event.release.tag_name || github.ref_name }}"' >> pyodide_project/pyproject.toml
-          echo 'description = "YPSH for WebAssembly"' >> pyodide_project/pyproject.toml
-          echo 'readme = ""' >> pyodide_project/pyproject.toml
-          echo 'requires-python = ">=3.8"' >> pyodide_project/pyproject.toml
-          echo '' >> pyodide_project/pyproject.toml
-          echo '[tool.pyodide]' >> pyodide_project/pyproject.toml
-          echo 'entry = "__main__"' >> pyodide_project/pyproject.toml
-          echo 'requirements = "requirements.txt"' >> pyodide_project/pyproject.toml
-          echo 'output-dir = "dist"' >> pyodide_project/pyproject.toml
-
-      - name: Build Pyodide distribution
-        working-directory: pyodide_project
-        run: |
-          pyodide build
-
-      - name: Archive WASM artifacts
+      - name: Convert to WASM using wasmer
         run: |
           mkdir -p upload
-          cp pyodide_project/dist/*.wasm pyodide_project/dist/*.js pyodide_project/dist/*.data upload/ || echo "No WASM files found"
+          wasmer compile ypsh-release.py -o upload/ypsh.wasm || echo "Fallback to manual wrapping"
 
       - name: Upload WASM to GitHub Release
         uses: softprops/action-gh-release@v2
