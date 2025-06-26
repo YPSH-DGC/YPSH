@@ -11,7 +11,7 @@ import ulid
 
 parser = argparse.ArgumentParser()
 parser.add_argument('tag')
-parser.add_argument('--buildid', default=ulid.new().upper())
+parser.add_argument('--buildid', default=str(ulid.new()).upper())
 parser.add_argument('--lang', default="en")
 args = parser.parse_args()
 
