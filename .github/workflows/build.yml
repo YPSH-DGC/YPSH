@@ -228,7 +228,8 @@ jobs:
           cd emsdk
           ./emsdk install 3.1.58
           ./emsdk activate 3.1.58
-          echo "source $(pwd)/emsdk_env.sh" >> $GITHUB_ENV
+          echo "EMSDK=$PWD" >> $GITHUB_ENV
+          echo "PATH=$PWD:$PWD/upstream/emscripten:\$PATH" >> $GITHUB_ENV
 
       - name: Install pyodide-build and dependencies
         run: |
