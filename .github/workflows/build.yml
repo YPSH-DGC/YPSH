@@ -228,6 +228,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyodide-build
 
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+
       - name: Get version from tag
         id: get_version
         run: |
@@ -236,39 +240,6 @@ jobs:
       - name: Generate ypsh-release.py
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
-
-      - name: Prepare Pyodide build environment
-        run: |
-          mkdir -p pyodide_project
-          cp ypsh-release.py pyodide_project/__main__.py
-          cp requirements.txt pyodide_project/requirements.txt
-
-          cat > pyodide_project/pyproject.toml <<EOF
-          [project]
-          name = "ypsh"
-          version = "${{ steps.get_version.outputs.version }}"
-
-          [tool.pyodide]
-          entry = "__main__"
-          requirements = "requirements.txt"
-          EOF
-
-      - name: Build WASM with Pyodide
-        working-directory: pyodide_project
-        run: |
-          pyodide build
-
-      - name: Copy WASM output
-        run: |
-          mkdir -p upload
-          cp pyodide_project/dist/ypsh.wasm upload/ypsh.wasm
-
-      - name: Upload ypsh.wasm to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: upload/ypsh.wasm
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
   after:
     needs: wasm-build
