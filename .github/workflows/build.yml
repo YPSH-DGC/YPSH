@@ -222,24 +222,44 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Install wasmer CLI
-        run: |
-          curl https://get.wasmer.io -sSfL | sh -s "v4.2.4"
-          echo "$HOME/.wasmer/bin" >> $GITHUB_PATH
-
       - name: Generate ypsh-release.py
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
-      - name: Compile to WASM with wasmer
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config python3-pip libffi-dev cmake git wget curl
+
+      - name: Install Emscripten SDK
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install latest
+          ./emsdk activate latest
+          source ./emsdk_env.sh
+          echo "source $PWD/emsdk_env.sh" >> $GITHUB_ENV
+
+      - name: Clone Micropython
+        run: |
+          git clone https://github.com/wasm3/micropython.git
+          cd micropython
+          git submodule update --init --recursive
+
+      - name: Copy script to Micropython
+        run: |
+          cp ypsh-release.py micropython/ports/wasm3/main.py
+
+      - name: Build Micropython WebAssembly
+        run: |
+          source emsdk/emsdk_env.sh
+          make -C micropython/mpy-cross
+          make -C micropython/ports/wasm3
+
+      - name: Collect WASM output
         run: |
           mkdir -p upload
-          wasmer compile ypsh-release.py -o upload/ypsh.wasm
+          cp micropython/ports/wasm3/build/main.wasm upload/ypsh.wasm
 
       - name: Upload WASM to GitHub Release
         uses: softprops/action-gh-release@v2
