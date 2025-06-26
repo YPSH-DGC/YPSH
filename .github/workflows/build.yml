@@ -217,58 +217,26 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config python3-pip libffi-dev cmake git wget curl
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
       - name: Generate ypsh-release.py
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
-      - name: Install Emscripten SDK
+      - name: Download CPython WASM runtime
         run: |
-          git clone https://github.com/emscripten-core/emsdk.git
-          cd emsdk
-          ./emsdk install latest
-          ./emsdk activate latest
-          echo "EMSDK_PATH=$(pwd)" >> $GITHUB_ENV
+          mkdir -p python-wasi
+          curl -L https://github.com/wasix-org/wasix-apps/releases/download/python-v3.11.4/python.wasm -o python-wasi/python.wasm
 
-      - name: Source Emscripten environment
-        run: |
-          source "$EMSDK_PATH/emsdk_env.sh"
-          echo "PATH=$PATH" >> $GITHUB_ENV
-
-      - name: Clone Micropython
-        run: |
-          git clone https://github.com/wasm3/micropython.git
-          cd micropython
-          git submodule update --init --recursive
-
-      - name: Copy script to Micropython
-        run: |
-          cp ypsh-release.py micropython/ports/wasm3/main.py
-
-      - name: Build Micropython WebAssembly
-        run: |
-          source "$EMSDK_PATH/emsdk_env.sh"
-          make -C micropython/mpy-cross
-          make -C micropython/ports/wasm3
-
-      - name: Collect WASM output
+      - name: Create WASM-compatible package
         run: |
           mkdir -p upload
-          cp micropython/ports/wasm3/build/main.wasm upload/ypsh.wasm
+          mkdir -p fsroot
+          cp ypsh-release.py fsroot/main.py
+          echo '#!/python.wasm main.py' > fsroot/_start.sh
+          chmod +x fsroot/_start.sh
+          # Use wasmer pack to bundle filesystem with WASM runtime
+          curl https://get.wasmer.io -sSfL | sh -s "v4.2.4"
+          echo "$HOME/.wasmer/bin" >> $GITHUB_PATH
+          wasmer pack python-wasi/python.wasm --mapdir=.::fsroot -o upload/ypsh.wasm
 
       - name: Upload WASM to GitHub Release
         uses: softprops/action-gh-release@v2
