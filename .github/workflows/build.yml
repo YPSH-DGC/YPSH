@@ -227,28 +227,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install wasmer-pack & wasmtime-py
+      - name: Install wasmer CLI
         run: |
-          pip install wasmer wasmtime
-
-      - name: Get version from tag
-        id: get_version
-        run: |
-          echo "version=${{ github.event.release.tag_name || github.ref_name }}" >> $GITHUB_OUTPUT
+          curl https://get.wasmer.io -sSfL | sh -s "v4.2.4"
+          echo "$HOME/.wasmer/bin" >> $GITHUB_PATH
 
       - name: Generate ypsh-release.py
         run: |
           python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
 
-      - name: Convert to WASM using wasmer
+      - name: Compile to WASM with wasmer
         run: |
           mkdir -p upload
-          wasmer compile ypsh-release.py -o upload/ypsh.wasm || echo "Fallback to manual wrapping"
+          wasmer compile ypsh-release.py -o upload/ypsh.wasm
 
       - name: Upload WASM to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: upload/*
+          files: upload/ypsh.wasm
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
