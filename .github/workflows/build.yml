@@ -225,8 +225,10 @@ jobs:
       - name: Install Emscripten SDK
         run: |
           git clone https://github.com/emscripten-core/emsdk.git
-          ./emsdk/emsdk install 3.1.58
-          ./emsdk/emsdk activate 3.1.58
+          cd emsdk
+          ./emsdk install 3.1.58
+          ./emsdk activate 3.1.58
+          echo "source $(pwd)/emsdk_env.sh" >> $GITHUB_ENV
 
       - name: Install pyodide-build and dependencies
         run: |
@@ -267,7 +269,6 @@ jobs:
       - name: Build Pyodide distribution
         working-directory: pyodide_project
         run: |
-          source emsdk/emsdk_env.sh
           pyodide build
 
       - name: Archive WASM artifacts
