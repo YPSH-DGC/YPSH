@@ -21,8 +21,9 @@ print()
 stableTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/stable.txt").text.strip()
 channel = Prompt.ask("Channel", choices=["beta", "stable", "custom"], default="stable")
 if channel == "custom":
-    channel = Prompt.ask("Version", default=stableTag)
-useTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/{channel}.txt").text.strip()
+    useTag = Prompt.ask("Version", default=stableTag)
+else:
+    useTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/{channel}.txt").text.strip()
 
 print(f"Tag: {useTag}")
 print()
