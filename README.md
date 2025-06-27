@@ -42,9 +42,9 @@ AutoBuild V3 is a 6-platform build automation that uses Nuitka.
 
 ### AutoBuild V4 (YPSH v1.1 and later)
 AutoBuild V4 is a 6-platform build automation that uses PyInstaller.
-- `pylo-macos-amd64.zip`: macOS (Intel x86_64)
-- `pylo-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `pylo-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `pylo-linux-arm64.zip`: Linux (ARM arm64)
-- `pylo-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-- `pylo-windows-arm64.zip`: Windows (ARM arm64)
+- `ypsh-macos-amd64.zip`: macOS (Intel x86_64)
+- `ypsh-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
+- `ypsh-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
+- `ypsh-linux-arm64.zip`: Linux (ARM arm64)
+- `ypsh-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
+- `ypsh-windows-arm64.zip`: Windows (ARM arm64)
