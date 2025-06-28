@@ -1508,34 +1508,30 @@ def repl():
 
     while True:
         try:
-            prompt = f">>> "
-            promptlen = len(prompt.strip())
-            prompt = prompt if accumulated_code == "" else (("." * promptlen) + " ")
-
-            try:
-                line = input(prompt)
-                accumulated_code += line + "\n"
-
-                if not is_code_complete(accumulated_code):
-                    continue
-
-                tokens = tokenize(accumulated_code)
-                parser = Parser(tokens)
-                ast = parser.parse()
-                interpreter.interpret(ast)
-                accumulated_code = ""
-
-            except KeyboardInterrupt:
-                print()
-                accumulated_code = ""
-                continue
-            except Exception as e:
-                rich_print(f"[red]{str(e)}[/red]")
-                accumulated_code = ""
-
+            prompt = ">>> " if accumulated_code == "" else "... "
+            line   = input(prompt)
+        except KeyboardInterrupt:
+            print()
+            accumulated_code = ""
+            continue
         except EOFError:
             print()
             break
+
+        accumulated_code += line + "\n"
+
+        if not is_code_complete(accumulated_code):
+            continue
+
+        try:
+            tokens   = tokenize(accumulated_code)
+            parser   = Parser(tokens)
+            ast      = parser.parse()
+            interpreter.interpret(ast)
+        except Exception as e:
+            rich_print(f"[red]{e}[/red]")
+        finally:
+            accumulated_code = ""
 
 def run_text(code):
     try:
@@ -1567,7 +1563,8 @@ def run_file(path):
 ##############################
 # Main
 ##############################
-def main():
+
+if __name__ == '__main__':
     args = sys.argv[1:]
     if args:
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
@@ -1589,7 +1586,7 @@ def main():
         else:
             print(VERSION + " [REPL]")
             print()
-            repl()
-
-if __name__ == '__main__':
-    main()
+            try:
+                repl()
+            except KeyboardInterrupt:
+                pass
