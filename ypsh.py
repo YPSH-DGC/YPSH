@@ -1571,7 +1571,7 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     if args:
         if args[0].lower() in ["-version", "--version", "-v", "--v"]:
-            rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER} ({BUILDID})[/bold][/blue]")
+            print(VERSION)
 
         elif args[0].lower() in ["-c", "--c"]:
             try:
