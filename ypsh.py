@@ -1510,30 +1510,30 @@ def repl():
             promptlen = len(prompt.strip())
             prompt = prompt if accumulated_code == "" else (("." * promptlen) + " ")
 
-            line = input(prompt)
+            try:
+                line = input(prompt)
+                accumulated_code += line + "\n"
+
+                if not is_code_complete(accumulated_code):
+                    continue
+
+                tokens = tokenize(accumulated_code)
+                parser = Parser(tokens)
+                ast = parser.parse()
+                interpreter.interpret(ast)
+                accumulated_code = ""
+
+            except KeyboardInterrupt:
+                print()
+                accumulated_code = ""
+                continue
+            except Exception as e:
+                rich_print(f"[red]{str(e)}[/red]")
+                accumulated_code = ""
 
         except EOFError:
             print()
             break
-        except KeyboardInterrupt:
-            print()
-            accumulated_code = ""
-            continue
-
-        accumulated_code += line + "\n"
-
-        if not is_code_complete(accumulated_code):
-            continue
-
-        try:
-            tokens = tokenize(accumulated_code)
-            parser = Parser(tokens)
-            ast = parser.parse()
-            interpreter.interpret(ast)
-        except Exception as e:
-            rich_print(f"[red]{str(e)}[/red]")
-
-        accumulated_code = ""
 
 def run_text(code):
     try:
