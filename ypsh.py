@@ -1509,14 +1509,16 @@ def repl():
     while True:
         try:
             prompt = ">>> " if accumulated_code == "" else "... "
-            line   = input(prompt)
+            try:
+                line = input(prompt)
+            except KeyboardInterrupt:
+                print()
+                accumulated_code = ""
+                continue
         except KeyboardInterrupt:
             print()
             accumulated_code = ""
             continue
-        except EOFError:
-            print()
-            break
 
         accumulated_code += line + "\n"
 
@@ -1524,9 +1526,9 @@ def repl():
             continue
 
         try:
-            tokens   = tokenize(accumulated_code)
-            parser   = Parser(tokens)
-            ast      = parser.parse()
+            tokens = tokenize(accumulated_code)
+            parser = Parser(tokens)
+            ast    = parser.parse()
             interpreter.interpret(ast)
         except Exception as e:
             rich_print(f"[red]{e}[/red]")
