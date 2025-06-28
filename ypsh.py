@@ -1544,6 +1544,7 @@ def run_text(code):
         interpreter.interpret(ast)
     except Exception as e:
         rich_print(f"[red]{str(e)}[/red]")
+        raise
 
 def run_file(path):
     if not os.path.isfile(path):
@@ -1559,13 +1560,13 @@ def run_file(path):
         interpreter.interpret(ast)
     except Exception as e:
         rich_print(f"[red]{str(e)}[/red]")
+        raise
 
 #!checkpoint!
 
 ##############################
 # Main
 ##############################
-
 if __name__ == '__main__':
     args = sys.argv[1:]
     if args:
@@ -1573,13 +1574,22 @@ if __name__ == '__main__':
             rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER} ({BUILDID})[/bold][/blue]")
 
         elif args[0].lower() in ["-c", "--c"]:
-            run_text(args[1])
-            
+            try:
+                run_text(args[1])
+            except YPSHError as e:
+                exit(1)
+
         elif args[0].lower() in ["-stdin", "--stdin"]:
-            run_text(sys.stdin.read())
+            try:
+                run_text(sys.stdin.read())
+            except YPSHError as e:
+                exit(1)
 
         else:
-            run_file(args[0])
+            try:
+                run_file(args[0])
+            except YPSHError as e:
+                exit(1)
 
     else:
         if not sys.stdin.isatty():
