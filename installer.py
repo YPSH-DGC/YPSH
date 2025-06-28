@@ -22,6 +22,8 @@ stableTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/stable.t
 channel = Prompt.ask("Channel", choices=["beta", "stable", "custom"], default="stable")
 if channel == "custom":
     useTag = Prompt.ask("Version", default=stableTag)
+elif channel == "stable":
+    useTag = stableTag
 else:
     useTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/{channel}.txt").text.strip()
 
@@ -53,7 +55,6 @@ if system == "Darwin":
     
     finalBinaryName = "ypsh"
     isGatekeeperCommandRequire = True
-    defaultInstallDir = "~/.local/bin"
 
 elif system == "Linux":
 
@@ -73,7 +74,6 @@ elif system == "Linux":
     
     finalBinaryName = "ypsh"
     isGatekeeperCommandRequire = False
-    defaultInstallDir = "~/.local/bin"
 
 elif system == "Windows":
 
@@ -93,7 +93,6 @@ elif system == "Windows":
     
     finalBinaryName = "ypsh.exe"
     isGatekeeperCommandRequire = False
-    defaultInstallDir = "~\\.local\\bin"
 
 else:
     print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
@@ -109,6 +108,7 @@ if isGatekeeperCommandRequire:
 
 print()
 
+defaultInstallDir = os.path.join(os.path.expanduser('~'), '.ypsh', 'bin')
 installDir = os.path.expanduser(Prompt.ask("Install to", default=defaultInstallDir))
 
 print()
@@ -166,20 +166,20 @@ foundInPATH = False
 if installDir not in user_path.split(os.pathsep):
     if system == "Windows":
         print()
-        print(f"[yellow bold]WARNING: {os.path.expanduser('~')}\\.local\\bin is not in your PATH.[/yellow bold]")
+        print(f"[yellow bold]WARNING: Installation location is not in your PATH.[/yellow bold]")
         print("Please add the following to your Windows system environment variable \"Path\":")
-        print(f"{os.path.expanduser('~')}\\.local\\bin\n")
+        print(f"{installDir}\n")
     else:
         print()
-        print(f"[yellow bold]WARNING: {os.path.expanduser('~')}/.local/bin is not in your PATH.[/yellow bold]")
+        print(f"[yellow bold]WARNING: Installation location is not in your PATH.[/yellow bold]")
         print("You can add it by appending the following line to your shell config file (e.g., ~/.bashrc, ~/.zshrc):")
-        print(f'export PATH="{os.path.expanduser("~")}/.local/bin:$PATH"\n')
+        print(f"export PATH='{installDir}'\n")
 else:
     foundInPATH = True
     if system == "Windows":
-        print(f"[blue bold]Your PATH includes {os.path.expanduser('~')}\\.local\\bin. You're good to go![/blue bold]")
+        print(f"[blue bold]Your PATH includes '{installDir}'. You're good to go![/blue bold]")
     else:
-        print(f'[blue bold]Your PATH includes {os.path.expanduser("~")}/.local/bin. You\'re good to go![/blue bold]')
+        print(f"[blue bold]Your PATH includes '{installDir}'. You\'re good to go![/blue bold]")
 
 print()
 print("[green bold]Installation complete.[/green bold]")

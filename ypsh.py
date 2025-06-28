@@ -20,6 +20,7 @@ import json
 import traceback
 from os.path import expanduser
 from rich.console import Console
+from rich.markup import escape
 import subprocess
 import sys, os, inspect
 import platform
@@ -41,6 +42,19 @@ shell_cwd = os.getcwd()
 ##############################
 def unescape_string_literal(s):
     return bytes(s, "utf-8").decode("unicode_escape")
+
+def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
+    shallowest_path = None
+    shallowest_depth = float('inf')
+
+    for dirpath, _, filenames in os.walk(root_dir):
+        if target_filename in filenames:
+            depth = dirpath[len(root_dir):].count(os.sep)
+            if depth < shallowest_depth:
+                shallowest_depth = depth
+                shallowest_path = os.path.join(dirpath, target_filename)
+    
+    return shallowest_path
 
 ##############################
 # Built-in Error Documentation
@@ -1025,6 +1039,7 @@ class Interpreter:
 
         elif id == "env":
             from dotenv import load_dotenv
+            global dotenv_enabled, get_system_env
             self.ypsh_globals.set("dotenv._enabled", self.ypsh_true)
 
             def dotenv_enabled():
@@ -1034,7 +1049,7 @@ class Interpreter:
             def get_system_env(id):
                 if dotenv_enabled() == self.ypsh_true:
                     load_dotenv()
-                return os.environ[id]
+                return os.environ.get(id, None)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
             def dotenv_enable():
@@ -1090,73 +1105,9 @@ class Interpreter:
                 return base64.b64encode(input_bytes).decode('utf-8')
             self.ypsh_def("conv", "base64", convert_to_base64)
 
-        elif id == "librarys":
-            self.module_enable("https")
-            self.module_enable("import")
-            global _load_library_list, import_library
-
-            def _load_library_list():
-                global installed_packages
-                home = expanduser("~")
-                installedfile = "$HOME/.dgc/ypsh/external_modules.json".replace("$HOME", home)
-                os.makedirs(os.path.dirname(installedfile), exist_ok=True)
-                if os.path.isfile(installedfile):
-                    with open(installedfile, "r") as f:
-                        installed_packages = json.load(f)
-                else:
-                    file = open(installedfile, "w")
-                    file.write("{}\n")
-                    file.close()
-
-                    with open(installedfile, "r") as f:
-                        installed_packages = json.load(f)
-
-            def import_library(id):
-                _load_library_list()
-                global installed_packages
-                home = expanduser("~")
-                if id in installed_packages:
-                    script_url = installed_packages[id]["script_url"]
-                    r = requests.get(script_url)
-                    tokens = tokenize(r.text)
-                    parser = Parser(tokens)
-                    ast = parser.parse()
-                    self.interpret(ast)
-
-            self.ypsh_def("librarys", "import", import_library)
-
-            def add_library(id, library_script_url):
-                _load_library_list()
-                global installed_packages
-                home = expanduser("~")
-                installedfile = "$HOME/.dgc/ypsh/external_modules.json".replace("$HOME", home)
-
-                installed_packages[id] = {
-                    "script_url": library_script_url
-                }
-
-                with open(installedfile, "w", encoding="utf-8") as f:
-                    json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.ypsh_def("librarys", "install", add_library)
-
-            def remove_library(id):
-                _load_library_list()
-                global installed_packages
-                home = expanduser("~")
-                installedfile = "$HOME/.dgc/ypsh/external_modules.json".replace("$HOME", home)
-
-                if id in installed_packages:
-                    del installed_packages[id]
-                    with open(installedfile, "w", encoding="utf-8") as f:
-                        json.dump(installed_packages, f, indent=4, ensure_ascii=False)
-            self.ypsh_def("librarys", "remove", remove_library)
-
         elif id == "import":
-            
-            def import_normal(*ids):
-                for id in ids:
-                    self.module_enable(id)
-            self.ypsh_def("@", "import", import_normal)
+            self.module_enable("env")
+            global import_ypsh, import_py, import_main
 
             def import_ypsh(file_path):
                 if not os.path.isfile(file_path):
@@ -1180,6 +1131,34 @@ class Interpreter:
                     if callable(value) and not key.startswith('__'):
                         self.ypsh_globals.set(key, value)
             self.ypsh_def("@", "import.py", import_py)
+
+            def import_main(*ids):
+                find_dir = get_system_env("YPSH_DIR")
+                find_dir = os.path.join(find_dir, 'libs') if not find_dir == None else os.path.join(os.path.expanduser('~'), '.ypsh', 'libs')
+                found_libs = {}
+                not_founds = []
+                for id in ids:
+                    filepath_ypsh = find_file_shallowest(find_dir, f"{id}.ypsh")
+                    filepath_py = find_file_shallowest(find_dir, f"{id}.py")
+                    if not filepath_ypsh == None:
+                        found_libs[id] = filepath_ypsh
+                        import_ypsh(filepath_ypsh)
+                    elif not filepath_py == None:
+                        found_libs[id] = filepath_py
+                        import_py(filepath_py)
+                    else:
+                        result = self.module_enable(id)
+                        if result is False:
+                            not_founds.append(str(f"'{id}'"))
+                        else:
+                            found_libs[id] = id
+
+                if not_founds:
+                    raise YPSHError("YPSH", "E", "0017", {
+                        "en": escape(f"Cannot find this Module(s)/Library(s): [{', '.join(not_founds)}]"),
+                        "ja": escape(f"次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]")
+                    })
+            self.ypsh_def("@", "import", import_main)
 
         elif id == "exec":
 
@@ -1311,8 +1290,7 @@ class Interpreter:
                 return total % 10 == 0
             self.ypsh_def("@", "luhn", exec_luhn_algo)
         else:
-            self.module_enable("librarys")
-            import_library(id)
+            return False
 
     def setup_builtins(self):
         self.module_enable("default")
@@ -1528,7 +1506,7 @@ def repl():
 
     while True:
         try:
-            prompt = f"YPSH> "
+            prompt = f">>> "
             promptlen = len(prompt.strip())
             prompt = prompt if accumulated_code == "" else (("." * promptlen) + " ")
 
@@ -1598,30 +1576,6 @@ def main():
             
         elif args[0].lower() in ["-stdin", "--stdin"]:
             run_text(sys.stdin.read())
-
-        elif args[0] == "ypshpm":
-            rich_print(f"[blue]{VERSION_TYPE} [bold]{VERSION_NUMBER}[/bold][/blue]")
-            rich_print("[YPSHPM] Start YPSHPM - YPSH Package Manager...")
-
-            try:
-                if args[1] == "install" and (args[2] != "" and args[3] != ""):
-                    rich_print(f"Install Library: {args[2]} (from {args[3]})")
-                    run_text(f"""
-ypsh.modules.enable("librarys")
-librarys.install("{args[2]}", "{args[3]}")
-    """)
-                elif args[1] == "remove" and (args[2] != ""):
-                    rich_print(f"Remove Library: {args[2]}")
-                    run_text(f"""
-ypsh.modules.enable("librarys")
-librarys.remove("{args[2]}")
-    """)
-                else:
-                    rich_print("[YPSHPM] No Matched Command")
-            except IndexError:
-                rich_print("[YPSHPM] No Matched Command")
-
-            rich_print("[YPSHPM] Finish YPSHPM - YPSH Package Manager...")
 
         else:
             run_file(args[0])

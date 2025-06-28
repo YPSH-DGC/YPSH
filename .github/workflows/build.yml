@@ -102,7 +102,7 @@ jobs:
       - name: Generate Python Script for Release
         shell: bash
         run: |
-          python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }} --buildid ${{ github.event.release.name }}
+          python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }}
 
       - name: Notify progress 25%
         shell: bash

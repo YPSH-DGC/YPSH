@@ -7,3 +7,4 @@ aiohttp
 zstandard
 tqdm
 ulid-py
+python-dotenv
