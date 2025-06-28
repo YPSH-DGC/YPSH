@@ -1460,6 +1460,8 @@ class Interpreter:
 def is_code_complete(code):
     try:
         tokens = tokenize(code)
+    except KeyboardInterrupt:
+        raise
     except Exception:
         return False
 
