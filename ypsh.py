@@ -138,8 +138,9 @@ class Token:
     def __repr__(self):
         return f'Token({self.type}, {self.value}, line={self.line})'
 
-def tokenize(code):
+def tokenize(code, collect_errors=False):
     tokens = []
+    errors = []
     line_num = 1
     pos = 0
     while pos < len(code):
@@ -154,11 +155,11 @@ def tokenize(code):
             continue
         elif kind in ('SKIP', 'COMMENT'):
             continue
-        elif kind == 'MISMATCH':
-            raise YPSHError("YPSH", "E", "0001", {"en": f"Unexpected character {value!r} at line {line_num}.", "ja": f"予想外の文字「{value!r}」が{line_num}行目に存在します。"})
+        elif kind == 'MISMATCH' and collect_errors:
+            errors.append(YPSHError("YPSH", "E", "0001", {"en": f"Unexpected character {value!r} at line {line_num}.", "ja": f"予想外の文字「{value!r}」が{line_num}行目に存在します。"}))
         else:
             tokens.append(Token(kind, value, line_num))
-    return tokens
+    return (tokens, errors) if collect_errors else tokens
 
 ##############################
 # AST
@@ -699,17 +700,29 @@ class Function:
         self.decl = decl
         self.env = env
     def call(self, args, interpreter):
+        return_type = self.decl.return_type
         local_env = Environment(self.env)
+
         if len(args) != len(self.decl.params):
-            raise YPSHError("YPSH", "E", "0006", {"en": "Function argument count mismatch.", "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"})
+            raise YPSHError("YPSH", "E", "0006", {
+                "en": "Function argument count mismatch.",
+                "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"
+            })
+
         for (param_name, _), arg in zip(self.decl.params, args):
             local_env.set(param_name, interpreter.evaluate(arg, local_env))
+
         try:
             result = None
             for stmt in self.decl.body:
                 result = interpreter.execute(stmt, local_env)
             return result
         except ReturnException as e:
+            if return_type != "auto" and not interpreter._check_type_match(e.value, return_type):
+                raise YPSHError("TYPE", "E", "0019", {
+                    "en": f"Return type mismatch in function '{self.decl.name}': expected '{return_type}', got '{type(e.value).__name__}'",
+                    "ja": f"関数 '{self.decl.name}' の戻り値の型が一致しません: '{return_type}' を期待していましたが、'{type(e.value).__name__}' でした。"
+                })
             return e.value
 
 class Interpreter:
@@ -1295,8 +1308,26 @@ class Interpreter:
     def setup_builtins(self):
         self.module_enable("default")
 
+    def _check_type_match(self, value, expected_type: str) -> bool:
+        type_map = {
+            "int": int,
+            "float": float,
+            "str": str,
+            "bool": bool,
+            "list": list,
+            "dict": dict,
+            "none": type(None),
+            "function": Function,
+        }
+
+        if expected_type in type_map:
+            return isinstance(value, type_map[expected_type])
+        else:
+            return True
+
     def interpret(self, node):
         return self.execute(node, self.ypsh_globals)
+
     def execute(self, node, env):
         if isinstance(node, Block):
             result = None
@@ -1305,6 +1336,15 @@ class Interpreter:
             return result
         elif isinstance(node, VarDecl):
             value = self.evaluate(node.expr, env)
+            expected_type = node.var_type
+
+            if expected_type != "auto":
+                if not self._check_type_match(value, expected_type):
+                    raise YPSHError("TYPE", "E", "0018", {
+                        "en": f"Type mismatch for variable '{node.name}': expected '{expected_type}', got '{type(value).__name__}'",
+                        "ja": f"変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{type(value).__name__}' でした。"
+                    })
+
             env.set(node.name, value)
         elif isinstance(node, ExpressionStmt):
             return self.evaluate(node.expr, env)
@@ -1455,6 +1495,57 @@ class Interpreter:
             raise YPSHError("YPSH", "E", "0014", {"en": f"Cannot evaluate node {node}.", "ja": f"{node} を処理できません。"})
 
 ##############################
+# YPSH Linting System
+##############################
+
+def collect_errors(code: str) -> list[Exception]:
+    errors = []
+
+    tokens, tokenize_errors = tokenize(code, collect_errors=True)
+    errors.extend(tokenize_errors)
+
+    if not tokens:
+        return errors
+
+    try:
+        parser = Parser(tokens)
+        ast = parser.parse()
+    except Exception as e:
+        errors.append(e)
+        return errors
+
+    class ErrorCatchingInterpreter(Interpreter):
+        def __init__(self):
+            super().__init__()
+            self.errors = []
+
+        def interpret(self, node):
+            try:
+                self.execute(node, self.ypsh_globals)
+            except YPSHError as e:
+                self.errors.append(e)
+            except Exception as e:
+                self.errors.append(e)
+
+        def evaluate(self, node, env):
+            try:
+                return super().evaluate(node, env)
+            except Exception as e:
+                self.errors.append(e)
+                return None
+
+        def execute(self, node, env):
+            try:
+                return super().execute(node, env)
+            except Exception as e:
+                self.errors.append(e)
+
+    safe_interpreter = ErrorCatchingInterpreter()
+    safe_interpreter.interpret(ast)
+    errors.extend(safe_interpreter.errors)
+    return errors
+
+##############################
 # REPL / Script Executing / Other
 ##############################
 def is_code_complete(code):
@@ -1566,6 +1657,28 @@ def run_file(path):
         rich_print(f"[red]{str(e)}[/red]")
         raise
 
+def run_lint(path):
+    if not os.path.isfile(path):
+        console.print(f"[red]File not found: {path}[/red]")
+        exit(1)
+
+    with open(path, encoding='utf-8') as f:
+        code = f.read()
+
+    errors = collect_errors(code)
+
+    if not errors:
+        console.print(f"[green]Lint Passed:[/green] {path}")
+        exit(0)
+    else:
+        console.print(f"[red]Lint Failed:[/red] {path}")
+        counter = 1
+        for err in errors:
+            console.print(f"[red]{counter}. {err}[/red]")
+            counter += 1
+        console.print(f"[red]({len(errors)} Errors)[/red]")
+        exit(1)
+
 #!checkpoint!
 
 ##############################
@@ -1588,6 +1701,9 @@ if __name__ == '__main__':
                 run_text(sys.stdin.read())
             except YPSHError as e:
                 exit(1)
+
+        elif args[0].lower() in ["lint"]:
+            run_lint(args[1])
 
         else:
             try:
