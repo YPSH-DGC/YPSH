@@ -1515,10 +1515,14 @@ def repl():
                 print()
                 accumulated_code = ""
                 continue
+            except EOFError:
+                break
         except KeyboardInterrupt:
             print()
             accumulated_code = ""
             continue
+        except EOFError:
+            break
 
         accumulated_code += line + "\n"
 
@@ -1598,7 +1602,4 @@ if __name__ == '__main__':
         else:
             print(VERSION + " [REPL]")
             print()
-            try:
-                repl()
-            except KeyboardInterrupt:
-                pass
+            repl()
