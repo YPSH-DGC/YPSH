@@ -1660,7 +1660,7 @@ def run_file(path):
 def run_lint(path):
     if not os.path.isfile(path):
         console.print(f"[red]File not found: {path}[/red]")
-        exit(1)
+        raise SystemExit(1)
 
     with open(path, encoding='utf-8') as f:
         code = f.read()
@@ -1669,7 +1669,7 @@ def run_lint(path):
 
     if not errors:
         console.print(f"[green]Lint Passed:[/green] {path}")
-        exit(0)
+        raise SystemExit(0)
     else:
         console.print(f"[red]Lint Failed:[/red] {path}")
         counter = 1
@@ -1677,7 +1677,7 @@ def run_lint(path):
             console.print(f"[red]{counter}. {err}[/red]")
             counter += 1
         console.print(f"[red]({len(errors)} Errors)[/red]")
-        exit(1)
+        raise SystemExit(1)
 
 #!checkpoint!
 
@@ -1694,13 +1694,13 @@ if __name__ == '__main__':
             try:
                 run_text(args[1])
             except YPSHError as e:
-                exit(1)
+                raise SystemExit(1)
 
         elif args[0].lower() in ["-stdin", "--stdin"]:
             try:
                 run_text(sys.stdin.read())
             except YPSHError as e:
-                exit(1)
+                raise SystemExit(1)
 
         elif args[0].lower() in ["lint"]:
             run_lint(args[1])
@@ -1709,7 +1709,7 @@ if __name__ == '__main__':
             try:
                 run_file(args[0])
             except YPSHError as e:
-                exit(1)
+                raise SystemExit(1)
 
     else:
         if not sys.stdin.isatty():
