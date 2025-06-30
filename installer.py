@@ -167,19 +167,21 @@ if installDir not in user_path.split(os.pathsep):
     if system == "Windows":
         print()
         print(f"[yellow bold]WARNING: Installation location is not in your PATH.[/yellow bold]")
-        print("Please add the following to your Windows system environment variable \"Path\":")
-        print(f'{installDir}\n')
+        print(f"Please add the following to your Windows system environment variable \"Path\":")
+        print(f'    {installDir}\n')
     else:
         print()
         print(f"[yellow bold]WARNING: Installation location is not in your PATH.[/yellow bold]")
-        print("You can add it by appending the following line to your shell config file (e.g., ~/.bashrc, ~/.zshrc):")
-        print(f'export PATH="/Users/diamondgotcat/.ypsh/bin:$PATH"\n')
+        print(f"You can add it by appending the following line to your shell config file (e.g., ~/.bashrc, ~/.zshrc):")
+        print(f'    export PATH="{installDir}:$PATH"\n')
+        print(f"Then, Restart your shell or Run following command:")
+        print(f"    source <Path of Edited File>")
 else:
     foundInPATH = True
     if system == "Windows":
         print(f"[blue bold]Your PATH includes '{installDir}'. You're good to go![/blue bold]")
     else:
-        print(f"[blue bold]Your PATH includes '{installDir}'. You\'re good to go![/blue bold]")
+        print(f"[blue bold]Your PATH includes '{installDir}'. You're good to go![/blue bold]")
 
 print()
 print("[green bold]Installation complete.[/green bold]")
