@@ -1138,7 +1138,7 @@ class Interpreter:
                     raise YPSHError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
-                local_dict = {}
+                local_dict = globals()
                 exec(code, local_dict)
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
@@ -1183,7 +1183,7 @@ class Interpreter:
             self.ypsh_def("exec", "ypsh", exec_ypsh)
 
             def exec_py(code_string):
-                local_dict = {}
+                local_dict = globals()
                 exec(code_string, local_dict)
                 for key, value in local_dict.items():
                     if callable(value) and not key.startswith('__'):
