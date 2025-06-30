@@ -1498,6 +1498,124 @@ class Interpreter:
 # YPSH Linting System
 ##############################
 
+class SemanticAnalyzer:
+    def __init__(self):
+        self.errors = []
+        self.scopes = [{}]
+
+    def current_scope(self):
+        return self.scopes[-1]
+
+    def push_scope(self):
+        self.scopes.append({})
+
+    def pop_scope(self):
+        self.scopes.pop()
+
+    def declare(self, name):
+        self.current_scope()[name] = True
+
+    def is_declared(self, name):
+        return any(name in scope for scope in reversed(self.scopes))
+
+    def analyze(self, node):
+        method = f'analyze_{type(node).__name__}'
+        return getattr(self, method, self.generic_analyze)(node)
+
+    def generic_analyze(self, node):
+        if hasattr(node, '__dict__'):
+            for value in vars(node).values():
+                if isinstance(value, list):
+                    for item in value:
+                        self.analyze(item)
+                elif isinstance(value, ASTNode):
+                    self.analyze(value)
+
+    def analyze_Block(self, node):
+        self.push_scope()
+        for stmt in node.statements:
+            self.analyze(stmt)
+        self.pop_scope()
+
+    def analyze_VarDecl(self, node):
+        self.analyze(node.expr)
+        self.declare(node.name)
+
+    def analyze_FuncDecl(self, node):
+        self.declare(node.name)
+        self.push_scope()
+        for param_name, _ in node.params:
+            self.declare(param_name)
+        for stmt in node.body:
+            self.analyze(stmt)
+        self.pop_scope()
+
+    def analyze_IfStmt(self, node):
+        self.analyze(node.condition)
+        self.analyze(node.then_block)
+        if node.else_block:
+            self.analyze(node.else_block)
+
+    def analyze_WhileStmt(self, node):
+        self.analyze(node.condition)
+        self.analyze(node.body)
+
+    def analyze_ForStmt(self, node):
+        self.analyze(node.iterable)
+        self.push_scope()
+        self.declare(node.var_name)
+        self.analyze(node.body)
+        self.pop_scope()
+
+    def analyze_ReturnStmt(self, node):
+        self.analyze(node.value)
+
+    def analyze_ExpressionStmt(self, node):
+        self.analyze(node.expr)
+
+    def analyze_BinOp(self, node):
+        self.analyze(node.left)
+        self.analyze(node.right)
+
+    def analyze_UnaryOp(self, node):
+        self.analyze(node.operand)
+
+    def analyze_TernaryOp(self, node):
+        self.analyze(node.condition)
+        self.analyze(node.if_true)
+        self.analyze(node.if_false)
+
+    def analyze_FuncCall(self, node):
+        if not self.is_declared(node.name):
+            self.errors.append(YPSHError("YPSH", "E", "0005", {
+                "en": f"Cannot find function '{node.name}' in scope.",
+                "ja": f"関数 '{node.name}' がスコープ内に存在しません。"
+            }))
+        for arg in node.args:
+            self.analyze(arg)
+
+    def analyze_str(self, node):
+        if not self.is_declared(node):
+            self.errors.append(YPSHError("YPSH", "E", "0005", {
+                "en": f"Cannot find '{node}' in scope.",
+                "ja": f"'{node}' がスコープ内に存在しません。"
+            }))
+
+    def analyze_ListLiteral(self, node):
+        for elem in node.elements:
+            self.analyze(elem)
+
+    def analyze_DictLiteral(self, node):
+        for _, value in node.pairs:
+            self.analyze(value)
+
+    def analyze_TryCatchStmt(self, node):
+        self.analyze(node.try_block)
+        self.push_scope()
+        self.declare(node.catch_var)
+        self.analyze(node.catch_block)
+        self.pop_scope()
+
 def collect_errors(code: str) -> list[Exception]:
     errors = []
 
@@ -1514,35 +1632,30 @@ def collect_errors(code: str) -> list[Exception]:
         errors.append(e)
         return errors
 
-    class ErrorCatchingInterpreter(Interpreter):
-        def __init__(self):
-            super().__init__()
-            self.errors = []
+    try:
+        interpreter = Interpreter()
+        interpreter.setup_builtins()
 
-        def interpret(self, node):
-            try:
-                self.execute(node, self.ypsh_globals)
-            except YPSHError as e:
-                self.errors.append(e)
-            except Exception as e:
-                self.errors.append(e)
+        for stmt in ast.statements:
+            if isinstance(stmt, ExpressionStmt) and isinstance(stmt.expr, FuncCall):
+                if stmt.expr.name == "import":
+                    try:
+                        interpreter.evaluate(stmt.expr, interpreter.ypsh_globals)
+                    except Exception as e:
+                        errors.append(e)
 
-        def evaluate(self, node, env):
-            try:
-                return super().evaluate(node, env)
-            except Exception as e:
-                self.errors.append(e)
-                return None
+        analyzer = SemanticAnalyzer()
+        builtin_env = interpreter.ypsh_globals
+        while builtin_env:
+            for key in builtin_env.vars.keys():
+                analyzer.declare(key)
+            builtin_env = builtin_env.parent
 
-        def execute(self, node, env):
-            try:
-                return super().execute(node, env)
-            except Exception as e:
-                self.errors.append(e)
+        analyzer.analyze(ast)
+        errors.extend(analyzer.errors)
+    except Exception as e:
+        errors.append(e)
 
-    safe_interpreter = ErrorCatchingInterpreter()
-    safe_interpreter.interpret(ast)
-    errors.extend(safe_interpreter.errors)
     return errors
 
 ##############################
@@ -1657,26 +1770,18 @@ def run_file(path):
         rich_print(f"[red]{str(e)}[/red]")
         raise
 
-def run_lint(path):
-    if not os.path.isfile(path):
-        console.print(f"[red]File not found: {path}[/red]")
-        raise SystemExit(1)
-
-    with open(path, encoding='utf-8') as f:
-        code = f.read()
-
+def run_lint(code):
     errors = collect_errors(code)
 
     if not errors:
-        console.print(f"[green]Lint Passed:[/green] {path}")
+        console.print(f"[green]Lint Passed[/green]")
         raise SystemExit(0)
     else:
-        console.print(f"[red]Lint Failed:[/red] {path}")
+        console.print(f"[red]Lint Failed ({len(errors)} Errors)[/red]")
         counter = 1
         for err in errors:
             console.print(f"[red]{counter}. {err}[/red]")
             counter += 1
-        console.print(f"[red]({len(errors)} Errors)[/red]")
         raise SystemExit(1)
 
 #!checkpoint!
@@ -1703,7 +1808,31 @@ if __name__ == '__main__':
                 raise SystemExit(1)
 
         elif args[0].lower() in ["lint"]:
-            run_lint(args[1])
+            if not sys.stdin.isatty():
+                code = sys.stdin.read()
+                run_lint(code)
+
+            else:
+                if len(args) >= 3:
+                    if args[1].lower() in ["-c", "--c"]:
+                        code = args[2]
+
+                else:
+                    if len(args) >= 2:
+                        path = args[1]
+
+                        if not os.path.isfile(path):
+                            console.print(f"[red]File not found: {path}[/red]")
+                            raise SystemExit(1)
+
+                        with open(path, encoding='utf-8') as f:
+                            code = f.read()
+
+                    else:
+                        console.print(f"[red]No file path specified.[/red]")
+                        raise SystemExit(1)
+
+                run_lint(code)
 
         else:
             try:
