@@ -1,5 +1,5 @@
 
-![YPSH-v22-Full-Rounded](https://github.com/user-attachments/assets/e24a2b91-c019-4a59-bdea-a92ebae94d88)
+![YPSH-v22-Full-Rounded](https://github.com/user-attachments/assets/b23dd1e3-919b-4e65-970b-807c80670b15)
 
 # YPSH Language (formerly Pylo)
 A programming language with a simple and intuitive syntax
