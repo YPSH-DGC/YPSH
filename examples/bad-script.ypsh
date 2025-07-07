@@ -1,0 +1,10 @@
+#!/usr/bin/env ypsh
+##################################
+# YPSH Script Example
+# MIT License
+# Copyright (c) 2025 DiamondGotCat
+##################################
+
+pront(a)
+var b = "hello"
+prant(5/0)
