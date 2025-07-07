@@ -26,8 +26,8 @@ func add(x, y) -> int { # Define Input Args, and Return Contents.
 # Call Function named "add"
 add(5, 7)
 
-# Execute Python from Pylo
+# Execute Python from YPSH
 exec.py("print(\"Hello, World!\")")
 
-# Shell Integration (Added in v11.1)
+# Shell Integration (Added in Pylo v11.1)
 $ echo "Hello from Shell"

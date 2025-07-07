@@ -1,9 +1,16 @@
+#!/usr/bin/env ypsh
+##################################
+# YPSH Script Example
+# MIT License
+# Copyright (c) 2025 DiamondGotCat
+##################################
+
 var limit = 5
 var current = 0
 
 while current < limit {
 
     var current = current + 1
-    show(current)
+    print(current)
 
 }

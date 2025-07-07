@@ -1791,60 +1791,70 @@ def run_lint(code):
 ##############################
 if __name__ == '__main__':
     args = sys.argv[1:]
-    if args:
-        if args[0].lower() in ["-version", "--version", "-v", "--v"]:
-            print(VERSION)
+    options = {}
+    readNextArg = None
+    isReceivedFromStdin = not sys.stdin.isatty()
+    isReceivedGoodOption = False
+    isReceivedCode = False
 
-        elif args[0].lower() in ["-c", "--c"]:
-            try:
-                run_text(args[1])
-            except YPSHError as e:
-                raise SystemExit(1)
-
-        elif args[0].lower() in ["-stdin", "--stdin"]:
-            try:
-                run_text(sys.stdin.read())
-            except YPSHError as e:
-                raise SystemExit(1)
-
-        elif args[0].lower() in ["lint"]:
-            if not sys.stdin.isatty():
-                code = sys.stdin.read()
-                run_lint(code)
-
-            else:
-                if len(args) >= 3:
-                    if args[1].lower() in ["-c", "--c"]:
-                        code = args[2]
-
-                else:
-                    if len(args) >= 2:
-                        path = args[1]
-
-                        if not os.path.isfile(path):
-                            console.print(f"[red]File not found: {path}[/red]")
-                            raise SystemExit(1)
-
-                        with open(path, encoding='utf-8') as f:
-                            code = f.read()
-
-                    else:
-                        console.print(f"[red]No file path specified.[/red]")
-                        raise SystemExit(1)
-
-                run_lint(code)
-
-        else:
-            try:
-                run_file(args[0])
-            except YPSHError as e:
-                raise SystemExit(1)
-
+    if isReceivedFromStdin:
+        options["main"] = sys.stdin.read()
+        isReceivedCode = True
     else:
-        if not sys.stdin.isatty():
-            code = sys.stdin.read()
-            run_text(code)
+        options["main"] = None
+
+    for arg in args:
+        arg2 = arg.replace("-", "").lower()
+
+        if arg2 in ["version", "v"]:
+            isReceivedGoodOption = True
+            options["version"] = True
+
+        elif arg2 in ["s", "stdin"]:
+            if isReceivedFromStdin:
+                isReceivedCode = True
+                options["main"] = sys.stdin.read()
+
+        elif arg2 in ["l", "lint"]:
+            options["lint"] = True
+
+        elif arg2 in ["c", "code"]:
+            options["code"] = True
+
         else:
-            print(VERSION + " [REPL]")
-            print()
-            repl()
+            if "code" in options:
+                isReceivedGoodOption = True
+                isReceivedCode = True
+                options["main"] = arg
+            else:
+                if not os.path.isfile(arg):
+                    console.print(f"[red]File not found: {arg}[/red]")
+                    raise SystemExit(1)
+
+                with open(arg, encoding='utf-8') as f:
+                    code = f.read()
+
+                isReceivedGoodOption = True
+                isReceivedCode = True
+                options["main"] = code
+
+    if "version" in options:
+        print(VERSION)
+
+    if "lint" in options:
+        if isReceivedCode:
+            try:
+                run_lint(options["main"])
+            except YPSHError as e:
+                raise SystemExit(1)
+        else:
+            console.print("[red]No Code Received.[/red]")
+            raise SystemExit(1)
+
+    if isReceivedCode:
+        run_text(options["main"])
+
+    elif not isReceivedGoodOption:
+        print(VERSION + " [REPL]")
+        print()
+        repl()
