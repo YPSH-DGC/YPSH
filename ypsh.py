@@ -235,6 +235,24 @@ class FuncDecl(ASTNode):
     def __repr__(self):
         return f'FuncDecl({self.name}, {self.params}, {self.return_type}, {self.body})'
 
+class TemplateDecl(ASTNode):
+    def __init__(self, name: str, body: list[ASTNode]):
+        self.name, self.body = name, body
+    def __repr__(self):
+        return f'TemplateDecl({self.name})'
+
+class ClassDecl(ASTNode):
+    def __init__(self, name: str, base: str | None, body: list[ASTNode]):
+        self.name, self.base, self.body = name, base, body
+    def __repr__(self):
+        return f'ClassDecl({self.name}, base={self.base})'
+
+class Attribute(ASTNode):
+    def __init__(self, obj, name: str):
+        self.obj, self.name = obj, name
+    def __repr__(self):
+        return f'Attribute({self.obj}, {self.name})'
+
 class FuncCall(ASTNode):
     def __init__(self, name, args):
         self.name = name
@@ -373,7 +391,11 @@ class Parser:
     def statement(self):
         token = self.current()
         
-        if token and token.type == 'ID' and token.value == 'do':
+        if token.type == 'ID' and token.value == 'template':
+            return self.template_decl()
+        elif token.type == 'ID' and token.value == 'class':
+            return self.class_decl()
+        elif token and token.type == 'ID' and token.value == 'do':
             return self.try_catch_stmt()
         elif token.type == 'SHELL':
             self.eat('SHELL')
@@ -439,6 +461,22 @@ class Parser:
             return_type = self.eat('ID').value
         body = self.block()
         return FuncDecl(name, params, return_type, body.statements)
+
+    def template_decl(self):
+        self.eat('ID')
+        name = self.eat('ID').value
+        body = self.block().statements
+        return TemplateDecl(name, body)
+
+    def class_decl(self):
+        self.eat('ID')
+        name = self.eat('ID').value
+        base = None
+        if self.current() and self.current().type == 'COLON':
+            self.eat('COLON')
+            base = self.eat('ID').value
+        body = self.block().statements
+        return ClassDecl(name, base, body)
 
     def block(self):
         self.eat('LBRACE')
@@ -592,8 +630,8 @@ class Parser:
             while True:
                 if self.current() and self.current().type == 'DOT':
                     self.eat('DOT')
-                    next_id = self.eat('ID').value
-                    expr += '.' + next_id
+                    attr = self.eat('ID').value
+                    expr = Attribute(expr, attr)
 
                 elif self.current() and self.current().type == 'LPAREN':
                     self.eat('LPAREN')
@@ -710,7 +748,8 @@ class Function:
             })
 
         for (param_name, _), arg in zip(self.decl.params, args):
-            local_env.set(param_name, interpreter.evaluate(arg, local_env))
+            value = interpreter.evaluate(arg, local_env) if isinstance(arg, ASTNode) else arg
+            local_env.set(param_name, value)
 
         try:
             result = None
@@ -724,6 +763,60 @@ class Function:
                     "ja": f"関数 '{self.decl.name}' の戻り値の型が一致しません: '{return_type}' を期待していましたが、'{type(e.value).__name__}' でした。"
                 })
             return e.value
+
+class Template:
+    def __init__(self, env: dict[str, object]):
+        self.env = dict(env)
+
+class Class:
+    def __init__(self, name: str, template: Template | None, body: list[ASTNode], interpreter: "Interpreter"):
+        self.name = name
+        base_env = template.env.copy() if template else {}
+        tmp_env = Environment(interpreter.ypsh_globals)
+        for stmt in body:
+            interpreter.execute(stmt, tmp_env)
+        base_env.update(tmp_env.vars)
+        self.env = base_env
+        self.interpreter = interpreter
+
+    def __call__(self, *args):
+        inst = Instance(self)
+        init_func = self.env.get('__init__')
+        if isinstance(init_func, Function):
+            params = init_func.decl.params
+            if len(args) != len(params) - 1:
+                raise YPSHError("CLASS", "E", "0102",
+                    {"en": f"__init__ expects {len(params)-1} arg(s)",
+                     "ja": f"__init__ は {len(params)-1} 個の引数を要求します"})
+            local_env = Environment(init_func.env)
+            local_env.set(params[0][0], inst)
+            for (p, _), v in zip(params[1:], args):
+                local_env.set(p, v)
+            try:
+                for stmt in init_func.decl.body:
+                    self.interpreter.execute(stmt, local_env)
+            except ReturnException:
+                pass
+        elif callable(init_func):
+            bound = lambda *a: init_func(inst, *a)
+            bound(*args)
+        return inst
+
+class Instance:
+    def __init__(self, cls: Class):
+        self.__dict__['_cls'] = cls
+        self.__dict__['_props'] = dict(cls.env)
+
+    def __getattr__(self, item):
+        val = self._props.get(item)
+        if isinstance(val, Function):
+            return lambda *a, **kw: val.call([self, *a], self._cls.interpreter)
+        if callable(val):
+            return lambda *a, **kw: val(self, *a, **kw)
+        return val
+
+    def __setattr__(self, key, value):
+        self._props[key] = value
 
 class Interpreter:
     modules = []
@@ -1346,6 +1439,18 @@ class Interpreter:
                     })
 
             env.set(node.name, value)
+        elif isinstance(node, TemplateDecl):
+            tmpl_env = Environment(env)
+            for stmt in node.body:
+                self.execute(stmt, tmpl_env)
+            env.set(node.name, Template(tmpl_env.vars))
+        elif isinstance(node, ClassDecl):
+            base_obj = env.get(node.base) if node.base else None
+            if base_obj and not isinstance(base_obj, Template):
+                raise YPSHError("CLASS", "E", "0100",
+                        {"en": f"Base {node.base} is not template", "ja": f"基底 {node.base} は template ではありません"})
+            cls_obj = Class(node.name, base_obj, node.body, self)
+            env.set(node.name, cls_obj)
         elif isinstance(node, ExpressionStmt):
             return self.evaluate(node.expr, env)
         elif isinstance(node, FuncDecl):
@@ -1411,7 +1516,21 @@ class Interpreter:
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
-        if isinstance(node, Number):
+        if isinstance(node, Attribute):
+            if isinstance(node.obj, str):
+                dotted = f"{node.obj}.{node.name}"
+                try:
+                    return env.get(dotted)
+                except YPSHError:
+                    pass
+            base = self.evaluate(node.obj, env)
+            try:
+                return getattr(base, node.name)
+            except AttributeError:
+                raise YPSHError("YPSH", "E", "0101",
+                    {"en": f"Object has no attribute '{node.name}'",
+                     "ja": f"属性 '{node.name}' は存在しません"})
+        elif isinstance(node, Number):
             return node.value
         elif isinstance(node, String):
             return node.value
@@ -1466,14 +1585,19 @@ class Interpreter:
             else:
                 raise YPSHError("YPSH", "E", "0012", {"en": f"Unknown unary operator {node.op}.", "ja": f"未知の単項演算子: {node.op}"})
         elif isinstance(node, FuncCall):
-            func_obj = env.get(node.name)
-            if callable(func_obj):
+            if isinstance(node.name, (Attribute, BinOp, UnaryOp, TernaryOp)):
+                func_obj = self.evaluate(node.name, env)
+            else:
+                func_obj = env.get(node.name)
+            if isinstance(func_obj, Function):
+                return func_obj.call(node.args, self)
+            elif callable(func_obj):
                 args = [self.evaluate(arg, env) for arg in node.args]
                 return func_obj(*args)
-            elif isinstance(func_obj, Function):
-                return func_obj.call(node.args, self)
             else:
-                raise YPSHError("YPSH", "E", "0013", {"en": f"Attempting to call a non-callable {node.name}.", "ja": f"呼び出し不可能なオブジェクト {node.name} に対して呼び出そうとしました。"})
+                raise YPSHError("YPSH", "E", "0013",
+                    {"en": f"Attempting to call a non-callable object.",
+                     "ja": f"呼び出し不可能なオブジェクトを呼び出そうとしました。"})
         elif isinstance(node, str):
             value = env.get(node)
             if value == self.ypsh_false:
