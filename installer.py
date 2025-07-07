@@ -18,12 +18,9 @@ import sys
 print("[blue bold]Welcome to YPSH Installer.[/blue bold]")
 print()
 
-stableTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/stable.txt").text.strip()
 channel = Prompt.ask("Channel", choices=["beta", "stable", "custom"], default="stable")
 if channel == "custom":
-    useTag = Prompt.ask("Version", default=stableTag)
-elif channel == "stable":
-    useTag = stableTag
+    useTag = Prompt.ask("Version", default="v3.1")
 else:
     useTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/{channel}.txt").text.strip()
 
