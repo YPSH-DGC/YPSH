@@ -1517,19 +1517,39 @@ class Interpreter:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
         if isinstance(node, Attribute):
+            def build_full_key(attr_node):
+                parts = []
+                cur = attr_node
+                while isinstance(cur, Attribute):
+                    parts.append(cur.name)
+                    cur = cur.obj
+                if isinstance(cur, str):
+                    parts.append(cur)
+                    return ".".join(reversed(parts))
+                return None
+
+            full_key = build_full_key(node)
+            if full_key:
+                try:
+                    return env.get(full_key)
+                except YPSHError:
+                    pass
+
             if isinstance(node.obj, str):
                 dotted = f"{node.obj}.{node.name}"
                 try:
                     return env.get(dotted)
                 except YPSHError:
                     pass
+
             base = self.evaluate(node.obj, env)
             try:
                 return getattr(base, node.name)
             except AttributeError:
-                raise YPSHError("YPSH", "E", "0101",
-                    {"en": f"Object has no attribute '{node.name}'",
-                     "ja": f"属性 '{node.name}' は存在しません"})
+                raise YPSHError("YPSH", "E", "0101", {
+                    "en": f"Object has no attribute '{node.name}'",
+                    "ja": f"属性 '{node.name}' は存在しません"
+                })
         elif isinstance(node, Number):
             return node.value
         elif isinstance(node, String):
