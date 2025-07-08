@@ -1694,6 +1694,16 @@ class SemanticAnalyzer:
             self.analyze(stmt)
         self.pop_scope()
 
+    def analyze_ClassDecl(self, node):
+        self.declare(node.name)
+        self.push_scope()
+        for stmt in node.body:
+            self.analyze(stmt)
+        self.pop_scope()
+
+    def analyze_TemplateDecl(self, node):
+        self.declare(node.name)
+
     def analyze_IfStmt(self, node):
         self.analyze(node.condition)
         self.analyze(node.then_block)
@@ -1730,11 +1740,14 @@ class SemanticAnalyzer:
         self.analyze(node.if_false)
 
     def analyze_FuncCall(self, node):
-        if not self.is_declared(node.name):
-            self.errors.append(YPSHError("YPSH", "E", "0005", {
-                "en": f"Cannot find function '{node.name}' in scope.",
-                "ja": f"関数 '{node.name}' がスコープ内に存在しません。"
-            }))
+        if isinstance(node.name, Attribute):
+            self.analyze(node.name.obj)
+        else:
+            if not self.is_declared(node.name):
+                self.errors.append(YPSHError("YPSH", "E", "0005", {
+                    "en": f"Cannot find function '{node.name}' in scope.",
+                    "ja": f"関数 '{node.name}' がスコープ内に存在しません。"
+                }))
         for arg in node.args:
             self.analyze(arg)
 
