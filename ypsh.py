@@ -1016,6 +1016,16 @@ class Interpreter:
             self.module_enable("import")
             self.module_enable("type")
 
+        elif id == "knowledge":
+            print("""
+Words exist to express and communicate something.
+A programming language is a syntax used to convey something to a computer.
+Words can sometimes hurt people.
+Of course, there are also commands that can damage a computer.
+Those who use them wisely, without abuse, are the true users of computers.
+- 2025 DiamondGotCat
+                  """.strip())
+
         elif id == "ypsh":
             self.ypsh_def("@", "false", "<false>")
             self.ypsh_def("@", "true", "<true>")

@@ -1,0 +1,18 @@
+import("knowledge")
+var name = "YPSH"
+print("Hello, \(name)!")
+
+var animals = ["var-tiger", "str-dog", "print-cat"]
+print("Animals: " + ", ".join(animals))
+
+print("Checking Node.js Version...")
+var version = %("node -v").strip()
+var version_parts = version.replace("v", "").split(".")
+var major = version_parts[0]
+var minor = version_parts[1]
+var fix = version_parts[2]
+if int(major) < 22 {
+    print("Not Supported Node.js Version")
+} else {
+    print("Node.js \(version)")
+}
