@@ -17,6 +17,7 @@ import re
 import sys
 import os
 import json
+import warnings
 import traceback
 from os.path import expanduser
 from rich.console import Console
@@ -40,8 +41,14 @@ shell_cwd = os.getcwd()
 ##############################
 # Helper
 ##############################
-def unescape_string_literal(s):
-    return bytes(s, "utf-8").decode("unicode_escape")
+def unescape_string_literal(s: str) -> str:
+     with warnings.catch_warnings():
+         warnings.filterwarnings(
+             "ignore",
+             category=DeprecationWarning,
+             message=r"invalid escape sequence .*",
+         )
+         return bytes(s, "utf-8").decode("unicode_escape")
 
 def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
     shallowest_path = None
@@ -616,55 +623,64 @@ class Parser:
 
     def expr_atom(self):
         token = self.current()
+
         if token.type == 'NUMBER':
             self.eat('NUMBER')
-            return Number(token.value)
+            node = Number(token.value)
+
         elif token.type in ('STRING', 'MLSTRING'):
             self.eat(token.type)
-            return String(token.value)
+            node = String(token.value)
+
         elif token.type == 'LBRACKET':
-            return self.list_literal()
+            node = self.list_literal()
+
+        elif token.type == 'LBRACE':
+            node = self.dict_literal()
+
         elif token.type == 'ID':
-            expr = self.eat('ID').value
-
-            while True:
-                if self.current() and self.current().type == 'DOT':
-                    self.eat('DOT')
-                    attr = self.eat('ID').value
-                    expr = Attribute(expr, attr)
-
-                elif self.current() and self.current().type == 'LPAREN':
-                    self.eat('LPAREN')
-                    args = []
-                    if self.current() and self.current().type != 'RPAREN':
-                        while True:
-                            args.append(self.expr())
-                            if self.current() and self.current().type == 'COMMA':
-                                self.eat('COMMA')
-                            else:
-                                break
-                    self.eat('RPAREN')
-                    return FuncCall(expr, args)
-
-                elif self.current() and self.current().type == 'LBRACKET':
-                    self.eat('LBRACKET')
-                    index_expr = self.expr()
-                    self.eat('RBRACKET')
-                    expr = BinOp(expr, '[]', index_expr)  # Special index access op
-                else:
-                    break
-
-            return expr
+            node = self.eat('ID').value
 
         elif token.type == 'LPAREN':
             self.eat('LPAREN')
             node = self.expr()
             self.eat('RPAREN')
-            return node
-        elif token.type == 'LBRACE':
-            return self.dict_literal()
+
         else:
-            raise YPSHError("YPSH", "E", "0004", {"en": f"Unexpected token {token}.", "ja": f"予想外のトークン: {token}"})
+            raise YPSHError("YPSH", "E", "0004",
+                {"en": f"Unexpected token {token}.",
+                 "ja": f"予想外のトークン: {token}"})
+
+        while True:
+            tok = self.current()
+            if tok and tok.type == 'DOT':
+                self.eat('DOT')
+                attr_name = self.eat('ID').value
+                node = Attribute(node, attr_name)
+
+            elif tok and tok.type == 'LPAREN':
+                self.eat('LPAREN')
+                args = []
+                if self.current() and self.current().type != 'RPAREN':
+                    while True:
+                        args.append(self.expr())
+                        if self.current() and self.current().type == 'COMMA':
+                            self.eat('COMMA')
+                        else:
+                            break
+                self.eat('RPAREN')
+                node = FuncCall(node, args)
+
+            elif tok and tok.type == 'LBRACKET':
+                self.eat('LBRACKET')
+                index_expr = self.expr()
+                self.eat('RBRACKET')
+                node = BinOp(node, '[]', index_expr)
+
+            else:
+                break
+
+        return node
 
     def list_literal(self):
         self.eat('LBRACKET')
@@ -831,9 +847,31 @@ class Interpreter:
     ypsh_true = "__true__"
     ypsh_none = "__none__"
 
+    _interp_pat = re.compile(r'\\\((.*?)\)')
+
     def __init__(self):
         self.ypsh_globals = Environment()
         self.setup_builtins()
+
+    def _interpolate(self, raw: str, env: Environment) -> str:
+        def repl(m):
+            expr_src = m.group(1).strip()
+            try:
+                tokens = tokenize(expr_src)
+                p      = Parser(tokens)
+                expr   = p.expr()
+                
+                if p.current() is not None:
+                    raise YPSHError("STR", "E", "0200",
+                                    {"en": f"Invalid embedded expression: {expr_src}",
+                                     "ja": f"埋め込み式が不正です: {expr_src}"})
+                val = self.evaluate(expr, env)
+                return str(val)
+            except Exception as e:
+                raise YPSHError("STR", "E", "0201",
+                                {"en": f"String interpolation failed: {e}",
+                                 "ja": f"文字列埋め込みの評価に失敗しました: {e}"})
+        return self._interp_pat.sub(repl, raw)
 
     def append_global_env_var_list(self, id, content):
         if id not in self.modules:
@@ -1553,7 +1591,7 @@ class Interpreter:
         elif isinstance(node, Number):
             return node.value
         elif isinstance(node, String):
-            return node.value
+            return self._interpolate(node.value, env)
         elif isinstance(node, ListLiteral):
             return [self.evaluate(elem, env) for elem in node.elements]
         elif isinstance(node, BinOp):
@@ -1978,6 +2016,10 @@ if __name__ == '__main__':
         elif arg2 in ["c", "code"]:
             options["code"] = True
 
+        elif arg2 in ["r", "repl"]:
+            isReceivedGoodOption = True
+            options["repl"] = True
+
         else:
             if "code" in options:
                 isReceivedGoodOption = True
@@ -2008,10 +2050,12 @@ if __name__ == '__main__':
             console.print("[red]No Code Received.[/red]")
             raise SystemExit(1)
 
+    if "repl" in options:
+        repl()
+
     if isReceivedCode:
         run_text(options["main"])
 
     elif not isReceivedGoodOption:
-        print(VERSION + " [REPL]")
-        print()
+        print(VERSION)
         repl()
