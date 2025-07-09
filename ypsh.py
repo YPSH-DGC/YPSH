@@ -17,6 +17,7 @@ import re
 import sys
 import os
 import json
+import importlib
 import warnings
 import traceback
 from os.path import expanduser
@@ -1013,6 +1014,7 @@ class Interpreter:
             self.module_enable("standard")
             self.module_enable("docs")
             self.module_enable("import")
+            self.module_enable("type")
 
         elif id == "ypsh":
             self.ypsh_def("@", "false", "<false>")
@@ -1204,10 +1206,71 @@ class Interpreter:
                 self.ypsh_globals.set("dotenv._enabled", self.ypsh_false)
             self.ypsh_def("dotenv", "disable", dotenv_disable, desc="Disable Dotenv for 'env' module")
 
-        elif id == "conv":
-            self.ypsh_def("conv", "str", str)
-            self.ypsh_def("conv", "int", int)
+        elif id == "type":
+            self.ypsh_def("@", "str", str)
+            self.ypsh_def("@", "int", int)
+            self.ypsh_def("@", "float", float)
+            self.ypsh_def("@", "list", list)
+            self.ypsh_def("@", "dict", dict)
 
+        elif id == "python":
+            global import_py
+
+            self.ypsh_def("python", "str", str)
+            self.ypsh_def("python", "int", int)
+            self.ypsh_def("python", "float", float)
+            self.ypsh_def("python", "list", list)
+            self.ypsh_def("python", "dict", dict)
+
+            def import_py(file_path):
+                if not os.path.isfile(file_path):
+                    raise YPSHError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
+                with open(file_path, encoding='utf-8') as f:
+                    code = f.read()
+                local_dict = globals()
+                exec(code, local_dict)
+                for key, value in local_dict.items():
+                    if callable(value) and not key.startswith('_'):
+                        self.ypsh_globals.set(key, value)
+            self.ypsh_def("python", "import", import_py)
+
+            def python_exec(code_string):
+                local_dict = globals()
+                exec(code_string, local_dict)
+                for key, value in local_dict.items():
+                    if callable(value) and not key.startswith('_'):
+                        self.ypsh_globals.set(key, value)
+            self.ypsh_def("python", "exec", python_exec)
+
+            def import_main_python(*ids):
+                find_dir = get_system_env("YPSH_DIR")
+                find_dir = os.path.join(find_dir, 'libs') if not find_dir == None else os.path.join(os.path.expanduser('~'), '.ypsh', 'libs')
+                found_libs = {}
+                not_founds = []
+                for id in ids:
+                    filepath_ypsh = find_file_shallowest(find_dir, f"{id}.ypsh")
+                    filepath_py = find_file_shallowest(find_dir, f"{id}.py")
+                    if not filepath_ypsh == None:
+                        found_libs[id] = filepath_ypsh
+                        import_ypsh(filepath_ypsh)
+                    elif not filepath_py == None:
+                        found_libs[id] = filepath_py
+                        import_py(filepath_py)
+                    else:
+                        result = self.module_enable(id)
+                        if result is False:
+                            not_founds.append(str(f"'{id}'"))
+                        else:
+                            found_libs[id] = id
+
+                if not_founds:
+                    raise YPSHError("YPSH", "E", "0017", {
+                        "en": escape(f"Cannot find this Module(s)/Library(s): [{', '.join(not_founds)}]"),
+                        "ja": escape(f"次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]")
+                    })
+            self.ypsh_def("@", "import", import_main_python)
+
+        elif id == "conv":
             def convert_to_decimal(value) -> str:
                 if isinstance(value, str):
                     value = int(value)
@@ -1251,7 +1314,7 @@ class Interpreter:
 
         elif id == "import":
             self.module_enable("env")
-            global import_ypsh, import_py, import_main
+            global import_ypsh, import_main
 
             def import_ypsh(file_path):
                 if not os.path.isfile(file_path):
@@ -1262,19 +1325,6 @@ class Interpreter:
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.ypsh_def("@", "import.ypsh", import_ypsh)
-
-            def import_py(file_path):
-                if not os.path.isfile(file_path):
-                    raise YPSHError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
-                with open(file_path, encoding='utf-8') as f:
-                    code = f.read()
-                local_dict = globals()
-                exec(code, local_dict)
-                for key, value in local_dict.items():
-                    if callable(value) and not key.startswith('__'):
-                        self.ypsh_globals.set(key, value)
-            self.ypsh_def("@", "import.py", import_py)
 
             def import_main(*ids):
                 find_dir = get_system_env("YPSH_DIR")
@@ -1283,13 +1333,9 @@ class Interpreter:
                 not_founds = []
                 for id in ids:
                     filepath_ypsh = find_file_shallowest(find_dir, f"{id}.ypsh")
-                    filepath_py = find_file_shallowest(find_dir, f"{id}.py")
                     if not filepath_ypsh == None:
                         found_libs[id] = filepath_ypsh
                         import_ypsh(filepath_ypsh)
-                    elif not filepath_py == None:
-                        found_libs[id] = filepath_py
-                        import_py(filepath_py)
                     else:
                         result = self.module_enable(id)
                         if result is False:
@@ -1306,20 +1352,12 @@ class Interpreter:
 
         elif id == "exec":
 
-            def exec_ypsh(code_string):
+            def ypsh_exec(code_string):
                 tokens = tokenize(code_string)
                 parser = Parser(tokens)
                 ast = parser.parse()
                 self.interpret(ast)
-            self.ypsh_def("exec", "ypsh", exec_ypsh)
-
-            def exec_py(code_string):
-                local_dict = globals()
-                exec(code_string, local_dict)
-                for key, value in local_dict.items():
-                    if callable(value) and not key.startswith('__'):
-                        self.ypsh_globals.set(key, value)
-            self.ypsh_def("exec", "py", exec_py)
+            self.ypsh_def("@", "exec", ypsh_exec)
 
         elif id == "https":
             global requests
