@@ -26,6 +26,7 @@ from rich.markup import escape
 import subprocess
 import sys, os, inspect
 import platform
+from dotenv import load_dotenv
 try:
     import readline
 except ImportError:
@@ -35,9 +36,14 @@ import asyncio
 import threading
 from next_drop_lib import FileSender, FileReceiver
 
+load_dotenv()
 console = Console()
 rich_print = console.print
 shell_cwd = os.getcwd()
+
+YPSH_DIR = os.environ.get("YPSH_DIR", None) if not os.environ.get("YPSH_DIR", None) == None else os.path.join(os.path.expanduser('~'), '.ypsh')
+YPSH_LIBS_DIR = os.environ.get("YPSH_LIBS_DIR", None) if not os.environ.get("YPSH_LIBS_DIR", None) == None else os.path.join(YPSH_DIR, 'libs')
+YPSH_PM_DIR = os.environ.get("YPSH_PM_DIR", None) if not os.environ.get("YPSH_PM_DIR", None) == None else os.path.join(YPSH_DIR, 'pm')
 
 ##############################
 # Helper
@@ -1194,27 +1200,11 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "range", ypsh_range)
 
         elif id == "env":
-            from dotenv import load_dotenv
-            global dotenv_enabled, get_system_env
-            self.ypsh_globals.set("dotenv._enabled", self.ypsh_true)
-
-            def dotenv_enabled():
-                return self.ypsh_globals.get("dotenv._enabled")
-            self.ypsh_def("dotenv", "enabled", dotenv_enabled)
-
+            global get_system_env
             def get_system_env(id):
-                if dotenv_enabled() == self.ypsh_true:
-                    load_dotenv()
-                return os.environ.get(id, None)
+                load_dotenv()
+                return os.environ.get(id, Interpreter.ypsh_none)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
-
-            def dotenv_enable():
-                self.ypsh_globals.set("dotenv._enabled", self.ypsh_true)
-            self.ypsh_def("dotenv", "enable", dotenv_enable, desc="Enable Dotenv for 'env' module")
-
-            def dotenv_disable():
-                self.ypsh_globals.set("dotenv._enabled", self.ypsh_false)
-            self.ypsh_def("dotenv", "disable", dotenv_disable, desc="Disable Dotenv for 'env' module")
 
         elif id == "type":
             self.ypsh_def("@", "str", str)
@@ -1253,13 +1243,11 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("python", "exec", python_exec)
 
             def import_main_python(*ids):
-                find_dir = get_system_env("YPSH_DIR")
-                find_dir = os.path.join(find_dir, 'libs') if not find_dir == None else os.path.join(os.path.expanduser('~'), '.ypsh', 'libs')
                 found_libs = {}
                 not_founds = []
                 for id in ids:
-                    filepath_ypsh = find_file_shallowest(find_dir, f"{id}.ypsh")
-                    filepath_py = find_file_shallowest(find_dir, f"{id}.py")
+                    filepath_ypsh = find_file_shallowest(YPSH_LIBS_DIR, f"{id}.ypsh")
+                    filepath_py = find_file_shallowest(YPSH_LIBS_DIR, f"{id}.py")
                     if not filepath_ypsh == None:
                         found_libs[id] = filepath_ypsh
                         import_ypsh(filepath_ypsh)
@@ -1337,12 +1325,10 @@ Those who use them wisely, without abuse, are the true users of computers.
                 self.interpret(ast)
 
             def import_main(*ids):
-                find_dir = get_system_env("YPSH_DIR")
-                find_dir = os.path.join(find_dir, 'libs') if not find_dir == None else os.path.join(os.path.expanduser('~'), '.ypsh', 'libs')
                 found_libs = {}
                 not_founds = []
                 for id in ids:
-                    filepath_ypsh = find_file_shallowest(find_dir, f"{id}.ypsh")
+                    filepath_ypsh = find_file_shallowest(YPSH_LIBS_DIR, f"{id}.ypsh")
                     if not filepath_ypsh == None:
                         found_libs[id] = filepath_ypsh
                         import_ypsh(filepath_ypsh)
@@ -1995,23 +1981,7 @@ def run_text(code):
         interpreter.interpret(ast)
     except Exception as e:
         rich_print(f"[red]{str(e)}[/red]")
-        raise
-
-def run_file(path):
-    if not os.path.isfile(path):
-        console.print(f"[red]File not found: {path}[/red]")
-        return
-    with open(path, encoding='utf-8') as f:
-        code = f.read()
-    try:
-        tokens = tokenize(code)
-        parser = Parser(tokens)
-        ast = parser.parse()
-        interpreter = Interpreter()
-        interpreter.interpret(ast)
-    except Exception as e:
-        rich_print(f"[red]{str(e)}[/red]")
-        raise
+        raise SystemExit(1)
 
 def run_lint(code):
     errors = collect_errors(code)
