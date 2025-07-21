@@ -1,5 +1,5 @@
 
-![YPSH Programming Language](https://github.com/user-attachments/assets/7919eabe-bc29-4d18-9429-4ac78526082b)
+<img width="1920" height="1080" alt="YPSH Header Rounded" src="https://github.com/user-attachments/assets/0ab2fd48-e379-46ad-b659-ed5132b25690" />
 
 # YPSH Language (formerly Pylo)
 A programming language with a simple and intuitive syntax
