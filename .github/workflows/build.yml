@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  build:
+  build-AMD64-ARM64:
     continue-on-error: true
     strategy:
       matrix:
@@ -102,7 +102,7 @@ jobs:
       - name: Generate Python Script for Release
         shell: bash
         run: |
-          python create-ypsh-release.py ${{ github.event.release.tag_name || github.ref }}
+          python for-autobuild.py ${{ github.event.release.tag_name || github.ref }}
 
       - name: Notify progress 25%
         shell: bash
@@ -117,7 +117,7 @@ jobs:
               "product": "YPSH"
             }'
 
-      - name: Build
+      - name: Build with PyInstaller
         shell: bash
         run: |
           pyinstaller --onefile --distpath dist --name ypsh-release ypsh-release.py
@@ -208,9 +208,76 @@ jobs:
               "product": "YPSH"
             }'
 
+  build-RISCV:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-linux-gnu build-essential \
+            make wget gawk libffi-dev libssl-dev zlib1g-dev \
+            libbz2-dev libsqlite3-dev libncurses5-dev libgdbm-dev \
+            libreadline-dev liblzma-dev tk-dev uuid-dev
+
+      - name: Download and extract Python source
+        run: |
+          wget https://www.python.org/ftp/python/3.12.0/Python-3.12.0.tgz
+          tar xzf Python-3.12.0.tgz
+
+      - name: Cross-compile Python for RISC-V (static)
+        working-directory: Python-3.12.0
+        run: |
+          mkdir -p ../python-static
+          ./configure --prefix=$PWD/../python-static \
+            --host=riscv64-linux-gnu \
+            --build=x86_64-linux-gnu \
+            --disable-shared \
+            --without-ensurepip \
+            --enable-optimizations \
+            ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no
+          make -j$(nproc)
+          make install
+
+      - name: Set up Python (for script generation)
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate embedded script
+        run: |
+          python for-autobuild-riscv.py ${{ github.event.release.tag_name }}
+
+      - name: Compile RISC-V binary with static libpython
+        run: |
+          mkdir -p upload
+          riscv64-linux-gnu-gcc -static ypsh-release.py \
+            -Ipython-static/include/python3.12 \
+            -Lpython-static/lib \
+            -lpython3.12 \
+            -lm -lz -ldl -lutil -lpthread -o upload/YPSH-linux-riscv
+
+          zip upload/YPSH-linux-riscv.zip upload/YPSH-linux-riscv
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: upload/YPSH-linux-riscv.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
   after:
-    needs: build
-    runs-on: ubuntu-latest
+    needs: build-AMD64-ARM64
+    runs-on: ubuntu-22.04
     if: ${{ success() && github.event_name == 'release' }}
 
     steps:

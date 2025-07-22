@@ -28,7 +28,7 @@ with open(inte_path, encoding='utf-8') as f:
 inte_script_nomain = inte_script.split("#!checkpoint!")[1].strip()
 inte_script_main = inte_script.split("#!checkpoint!")[2].strip()
 
-result = f"""
+result_py = f"""
 #!/usr/bin/env python3
 # YPSH
 # MIT License
@@ -43,9 +43,18 @@ LANG = \"{args.lang}\"
 {inte_script_nomain}
 
 {inte_script_main}
-"""
+""".strip()
 
-result = result.strip()
+result = """
+#include <Python.h>
+
+int main(int argc, char *argv[]) {
+    Py_Initialize();
+    PyRun_SimpleString(\"""" + result_py.replace("\n", "\\n") + """\");
+    Py_Finalize();
+    return 0;
+}
+"""
 
 epath = "ypsh-release.py"
 with open(epath, mode='w', encoding='utf-8') as f:

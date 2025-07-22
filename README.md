@@ -20,14 +20,29 @@ YPSH builds are automated using GitHub Actions.
 ### Dashboard
 You can view the build status at [build.diamondgotcat.net](https://build.diamondgotcat.net/)
 
+### AutoBuild V4.5 (YPSH v6.1 and later)
+AutoBuild V4.5 is a 6-platform (and 1 Experimental platform) build automation that uses PyInstaller.
+- `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
+- `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
+- `YPSH-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
+- `YPSH-windows-arm64.zip`: Windows (ARM arm64)
+- `YPSH-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
+- `YPSH-linux-arm64.zip`: Linux (ARM arm64)
+- `YPSH-linux-riscv.zip`: Linux (RISC-V) **[Experimental, Not Using PyInstaller, Not Supported on Dashboard]**
+
+**NOTE:**
+Currently, I do not have a RISC-V computer.
+Therefore, I may not be able to identify issues related to RISC-V builds.
+If possible, please submit any issues that occur on RISC-V as an issue.
+
 ### AutoBuild V4 (YPSH v1.1 and later)
 AutoBuild V4 is a 6-platform build automation that uses PyInstaller.
-- `ypsh-macos-amd64.zip`: macOS (Intel x86_64)
-- `ypsh-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `ypsh-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `ypsh-linux-arm64.zip`: Linux (ARM arm64)
-- `ypsh-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-- `ypsh-windows-arm64.zip`: Windows (ARM arm64)
+- `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
+- `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
+- `YPSH-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
+- `YPSH-linux-arm64.zip`: Linux (ARM arm64)
+- `YPSH-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
+- `YPSH-windows-arm64.zip`: Windows (ARM arm64)
 
 ### AutoBuild V3 (Pylo 16.1 and later, YPSH v1.0 and earlier)
 AutoBuild V3 is a 6-platform build automation that uses Nuitka.
@@ -41,12 +56,12 @@ AutoBuild V3 is a 6-platform build automation that uses Nuitka.
 - `pylo-windows-arm64.zip`: Windows (ARM arm64)
 
 **YPSH**
-- `ypsh-macos-amd64.zip`: macOS (Intel x86_64)
-- `ypsh-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `ypsh-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `ypsh-linux-arm64.zip`: Linux (ARM arm64)
-- `ypsh-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-- `ypsh-windows-arm64.zip`: Windows (ARM arm64)
+- `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
+- `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
+- `YPSH-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
+- `YPSH-linux-arm64.zip`: Linux (ARM arm64)
+- `YPSH-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
+- `YPSH-windows-arm64.zip`: Windows (ARM arm64)
 
 ### AutoBuild V2 (Pylo 14.3 R2 and later, Pylo 16.0 and earlier)
 AutoBuild V2 is a 4-platform build automation that uses Nuitka.
