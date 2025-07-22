@@ -22,7 +22,7 @@ channel = Prompt.ask("Channel", choices=["beta", "stable", "custom"], default="s
 if channel == "custom":
     useTag = Prompt.ask("Version", default="v3.1")
 else:
-    useTag = requests.get(f"http://diamondgotcat.github.io/YPSH/channels/{channel}.txt").text.strip()
+    useTag = requests.get(f"http://ypsh-dgc.github.io/YPSH/channels/{channel}.txt").text.strip()
 
 print(f"Tag: {useTag}")
 print()
