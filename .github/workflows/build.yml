@@ -5,6 +5,41 @@ on:
     types: [published]
 
 jobs:
+  non-built-PY:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate ypsh-release.py
+        shell: bash
+        run: |
+          python for-autobuild.py ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Rename Python Script
+        shell: bash
+        run: |
+          mv ypsh-release.py YPSH-python-3.py
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: YPSH-python-3.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
   build-AMD64:
     continue-on-error: true
     strategy:
@@ -90,7 +125,7 @@ jobs:
               "product": "YPSH"
             }'
 
-      - name: Generate Python Script for Release
+      - name: Generate ypsh-release.py
         shell: bash
         run: |
           python for-autobuild.py ${{ github.event.release.tag_name || github.ref }}
@@ -284,7 +319,7 @@ jobs:
               "product": "YPSH"
             }'
 
-      - name: Generate Python Script for Release
+      - name: Generate ypsh-release.py
         shell: bash
         run: |
           python for-autobuild.py ${{ github.event.release.tag_name || github.ref }}
@@ -439,7 +474,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Generate embedded script
+      - name: Generate ypsh-release.py
         run: |
           python for-autobuild-riscv.py ${{ github.event.release.tag_name }}
 
