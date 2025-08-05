@@ -2005,8 +2005,10 @@ def _spawn_detached(argv: list[str]) -> None:
             creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
             close_fds=True
         )
+        os._exit(0)
     else:
         subprocess.Popen(argv, start_new_session=True, close_fds=True)
+        os._exit(0)
 
 def self_update(
     channel: str = "stable",
