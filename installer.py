@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #################################################################
 # YPSH Language - Your route of Programming is Starting from Here
+# Installer / Updater
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 #################################################################
@@ -14,188 +15,166 @@ import shutil
 from rich import print
 from rich.prompt import Prompt
 import sys
+from typing import Literal
 
-print("[blue bold]Welcome to YPSH Installer.[/blue bold]")
-print()
+Channel = Literal["stable", "beta", "custom"]
 
-channel = Prompt.ask("Channel", choices=["beta", "stable", "custom"], default="stable")
-if channel == "custom":
-    useTag = Prompt.ask("Version", default="v3.1")
-else:
-    useTag = requests.get(f"http://ypsh-dgc.github.io/YPSH/channels/{channel}.txt").text.strip()
-
-print(f"Tag: {useTag}")
-print()
-
-def gatekeeperDisable(path: str):
+def passingGatekeeper(path: str):
     os.system(f"xattr -d com.apple.quarantine '{path}'")
 
-isGatekeeperCommandRequire = False
-system = platform.system()
-arch = platform.machine()
+def debugIt(content, show: bool = True):
+    if show: print(f"[DEBUG] {content}")
 
-if system == "Darwin":
+def getTagFromChannel(id: str, url_prefix: str = "http://ypsh-dgc.github.io/YPSH/channels/", url_suffix: str = ".txt") -> str:
+    return requests.get(f"{url_prefix.strip()}{id.strip()}{url_suffix.strip()}").text.strip()
 
-    if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{useTag}/YPSH-macos-amd64.zip"
-        originalBinaryName = "YPSH-macos-amd64"
-        systemFriendly = "macOS Intel"
-
-    elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{useTag}/YPSH-macos-arm64.zip"
-        originalBinaryName = "YPSH-macos-arm64"
-        systemFriendly = "macOS Apple Silicon"
-
-    else:
-        print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
-        sys.exit(1)
-    
-    finalBinaryName = "ypsh"
-    isGatekeeperCommandRequire = True
-
-elif system == "Linux":
-
-    if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{useTag}/YPSH-linux-amd64.zip"
-        originalBinaryName = "YPSH-linux-amd64"
-        systemFriendly = "Linux Intel/AMD"
-
-    elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{useTag}/YPSH-linux-arm64.zip"
-        originalBinaryName = "YPSH-linux-arm64"
-        systemFriendly = "Linux ARM"
-
-    else:
-        print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
-        sys.exit(1)
-    
-    finalBinaryName = "ypsh"
+def getAutoBuildInfomation(tag: str) -> dict:
+    system = platform.system()
+    arch = platform.machine()
     isGatekeeperCommandRequire = False
-
-elif system == "Windows":
-
-    if arch.lower() in ["x86_64", "amd64"]:
-        downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{useTag}/YPSH-windows-amd64.zip"
-        originalBinaryName = "YPSH-windows-amd64.exe"
-        systemFriendly = "Windows Intel/AMD"
-
-    elif arch.lower() in ["arm64", "aarch64"]:
-        downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{useTag}/YPSH-windows-arm64.zip"
-        originalBinaryName = "YPSH-windows-arm64.exe"
-        systemFriendly = "Windows ARM"
-
-    else:
-        print(f"[red][bold]Unsupported architecture:[/bold] {arch}[/red]")
-        sys.exit(1)
     
-    finalBinaryName = "ypsh.exe"
-    isGatekeeperCommandRequire = False
+    if system == "Darwin":
 
-else:
-    print(f"[red][bold]Unsupported platform:[/bold] {system}[/red]")
-    sys.exit(1)
+        if arch.lower() in ["x86_64", "amd64"]:
+            downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{tag}/YPSH-macos-amd64.zip"
+            originalBinaryName = "YPSH-macos-amd64"
+            systemFriendly = "macOS Intel"
 
-print()
+        elif arch.lower() in ["arm64", "aarch64"]:
+            downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{tag}/YPSH-macos-arm64.zip"
+            originalBinaryName = "YPSH-macos-arm64"
+            systemFriendly = "macOS Apple Silicon"
 
-if isGatekeeperCommandRequire:
-    print("[yellow bold]You might need to disable Gatekeeper for this program to work.[/yellow bold]")
-    gatekeeperConfirm = Prompt.ask("Disable Gatekeeper for This Program?", default="Y", choices=["Y", "n"])
-    if gatekeeperConfirm == "n":
+        else:
+            return {"status": "error", "desc": f"Not Supported CPU Architecture: {arch}"}
+        
+        finalBinaryName = "ypsh"
+        isGatekeeperCommandRequire = True
+
+    elif system == "Linux":
+
+        if arch.lower() in ["x86_64", "amd64"]:
+            downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{tag}/YPSH-linux-amd64.zip"
+            originalBinaryName = "YPSH-linux-amd64"
+            systemFriendly = "Linux Intel/AMD"
+
+        elif arch.lower() in ["arm64", "aarch64"]:
+            downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{tag}/YPSH-linux-arm64.zip"
+            originalBinaryName = "YPSH-linux-arm64"
+            systemFriendly = "Linux ARM"
+
+        else:
+            return {"status": "error", "desc": f"Not Supported CPU Architecture: {arch}"}
+        
+        finalBinaryName = "ypsh"
         isGatekeeperCommandRequire = False
 
-print()
+    elif system == "Windows":
 
-defaultInstallDir = os.path.join(os.path.expanduser('~'), '.ypsh', 'bin')
-installDir = os.path.expanduser(Prompt.ask("Install to", default=defaultInstallDir))
+        if arch.lower() in ["x86_64", "amd64"]:
+            downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{tag}/YPSH-windows-amd64.zip"
+            originalBinaryName = "YPSH-windows-amd64.exe"
+            systemFriendly = "Windows Intel/AMD"
 
-print()
-print("[blue bold]Install Infomation[/blue bold]")
-print("[blue]Platform:[/blue] " + systemFriendly)
-print("[blue]Version:[/blue] " + useTag)
-print("[blue]Download URL:[/blue] " + downloadURL)
+        elif arch.lower() in ["arm64", "aarch64"]:
+            downloadURL = f"https://github.com/YPSH-DGC/YPSH/releases/download/{tag}/YPSH-windows-arm64.zip"
+            originalBinaryName = "YPSH-windows-arm64.exe"
+            systemFriendly = "Windows ARM"
 
-if system == "Darwin" and (isGatekeeperCommandRequire):
-    print("[blue]Automatically Disable Gatekeeper for YPSH:[/blue] Yes")
-elif system == "Darwin" and (not isGatekeeperCommandRequire):
-    print("[blue]Automatically Disable Gatekeeper for YPSH:[/blue] No")
+        else:
+            return {"status": "error", "desc": f"Not Supported CPU Architecture: {arch}"}
+        
+        finalBinaryName = "ypsh.exe"
+        isGatekeeperCommandRequire = False
 
-print("[blue]Install to[/blue] " + installDir)
-confirm = Prompt.ask("Continue?", default="Y", choices=["Y", "n"])
-
-if confirm != "Y":
-    print("[red bold]Aborted[/red bold]")
-
-print()
-
-with tempfile.TemporaryDirectory() as tmp_dir:
-    zipPath = os.path.join(tmp_dir, "ypsh.zip")
-
-    print(f"(TASK) {downloadURL} -> {zipPath}")
-    response = requests.get(downloadURL)
-    response.raise_for_status()
-    with open(zipPath, 'wb') as f:
-        f.write(response.content)
-
-    print(f"(TASK) {zipPath} -> {tmp_dir}/{originalBinaryName}")
-    with zipfile.ZipFile(zipPath, 'r') as zip_ref:
-        zip_ref.extract(originalBinaryName, tmp_dir)
-    extractedBinaryPath = os.path.join(tmp_dir, originalBinaryName)
-    os.makedirs(installDir, exist_ok=True)
-    finalBinaryPath = os.path.join(installDir, finalBinaryName)
-
-    print(f"(TASK) {extractedBinaryPath} -> {finalBinaryPath}")
-    shutil.copy2(extractedBinaryPath, finalBinaryPath)
-
-    print(f"(TASK) {finalBinaryPath} (Non-Executable) -> {finalBinaryPath} (Executable)")
-    os.chmod(finalBinaryPath, 0o755)
-
-    if isGatekeeperCommandRequire:
-        print(f"(TASK) DELETE {finalBinaryPath} FROM com.apple.quarantine")
-        gatekeeperDisable(finalBinaryPath)
-        print("[blue]You might see a \"No such xattr: com.apple.quarantine\" error, but don't worry. It just means the quarantine has already been disabled.[/blue]")
-
-    print(f"(TASK) Installed binary to: {finalBinaryPath}")
-
-print()
-
-user_path = os.environ.get("PATH", "")
-foundInPATH = False
-if installDir not in user_path.split(os.pathsep):
-    if system == "Windows":
-        print()
-        print(f"[yellow bold]WARNING: Installation location is not in your PATH.[/yellow bold]")
-        print(f"Please add the following to your Windows system environment variable \"Path\":")
-        print(f'    {installDir}\n')
     else:
-        print()
-        print(f"[yellow bold]WARNING: Installation location is not in your PATH.[/yellow bold]")
-        print(f"You can add it by appending the following line to your shell config file (e.g., ~/.bashrc, ~/.zshrc):")
-        print(f'    export PATH="{installDir}:$PATH"\n')
-        print(f"Then, Restart your shell or Run following command:")
-        print(f"    source <Path of Edited File>")
-else:
-    foundInPATH = True
-    if system == "Windows":
-        print(f"[blue bold]Your PATH includes '{installDir}'. You're good to go![/blue bold]")
+        return {"status": "error", "desc": f"Not Supported OS/Kernel: {system}"}
+
+    return {"status": "ok", "platform": systemFriendly, "url": downloadURL, "origin_filename": originalBinaryName, "recommended_filename": finalBinaryName, "isGatekeeperCommandRequire": isGatekeeperCommandRequire}
+
+def pathCheck(path: str) -> bool:
+    path_var = os.environ.get("PATH", "")
+    return path in path_var.split(os.pathsep)
+
+def install(to: str = os.path.join(os.path.expanduser('~'), '.ypsh', 'bin'), channel: Channel = "stable", custom_tag: str = None, ignoreGatekeeper: bool = False, debug: bool = False):
+    if channel == "custom":
+        if custom_tag == None:
+            return {"status": "error", "desc": "Tag Not Selected"}
+        tag = custom_tag
     else:
-        print(f"[blue bold]Your PATH includes '{installDir}'. You're good to go![/blue bold]")
+        tag = getTagFromChannel(channel)
+    debugIt(f"Installing YPSH {tag} (channel: {channel})", debug)
 
-print()
-print("[green bold]Installation complete.[/green bold]")
-if foundInPATH:
-    print(f"You can now run YPSH by typing: {finalBinaryName}")
-else:
-    print(f"You can now run YPSH by typing: {finalBinaryPath}")
+    infomation = getAutoBuildInfomation(tag)
+    if infomation.get("status", "error") == "error":
+        desc = infomation.get("desc", "Unknown Error")
+        debugIt(f"Installation Failed: {desc}", debug)
+        return {"status": "error", "desc": desc}
 
-print()
-print("[blue bold]Final Installation Infomation[/blue bold]")
-print("[blue]Platform:[/blue] " + systemFriendly)
-print("[blue]Version:[/blue] " + useTag)
-print("[blue]Download URL:[/blue] " + downloadURL)
-if system == "Darwin" and (isGatekeeperCommandRequire):
-    print("[blue]Automatically Disabled Gatekeeper for YPSH:[/blue] Yes")
-elif system == "Darwin" and (not isGatekeeperCommandRequire):
-    print("[blue]Automatically Disabled Gatekeeper for YPSH:[/blue] No")
-print("[blue]Temporary Downloaded to[/blue] " + zipPath)
-print("[blue]Binary File Path:[/blue] " + finalBinaryPath)
-print("[blue]Binary Dir Path:[/blue] " + installDir)
+    if ignoreGatekeeper:
+        isGatekeeperCommandRequire = False
+    else:
+        isGatekeeperCommandRequire = infomation.get("isGatekeeperCommandRequire", False)
+
+    downloadURL = infomation.get("url")
+    originalBinaryName = infomation.get("origin_filename")
+    finalBinaryName = infomation.get("recommended_filename")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        zipPath = os.path.join(tmp_dir, "ypsh.zip")
+
+        debugIt(f"{downloadURL} -> {zipPath}", debug)
+        response = requests.get(downloadURL)
+        response.raise_for_status()
+        with open(zipPath, 'wb') as f:
+            f.write(response.content)
+
+        debugIt(f"{zipPath} -> {tmp_dir}/{originalBinaryName}", debug)
+        with zipfile.ZipFile(zipPath, 'r') as zip_ref:
+            zip_ref.extract(originalBinaryName, tmp_dir)
+        extractedBinaryPath = os.path.join(tmp_dir, originalBinaryName)
+        os.makedirs(to, exist_ok=True)
+        finalBinaryPath = os.path.join(to, finalBinaryName)
+
+        debugIt(f"{extractedBinaryPath} -> {finalBinaryPath}", debug)
+        shutil.copy2(extractedBinaryPath, finalBinaryPath)
+
+        debugIt(f"{finalBinaryPath} (Non-Executable) -> {finalBinaryPath} (Executable)", debug)
+        os.chmod(finalBinaryPath, 0o755)
+
+        if isGatekeeperCommandRequire:
+            debugIt(f"DELETE {finalBinaryPath} FROM com.apple.quarantine", debug)
+            passingGatekeeper(finalBinaryPath)
+            debugIt("[blue]You might see a \"No such xattr: com.apple.quarantine\" error, but don't worry. It just means the quarantine has already been disabled.[/blue]", debug)
+
+        debugIt(f"Installed binary to: {finalBinaryPath}", debug)
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    options = {}
+    readNextArg = None
+
+    for arg in args:
+        arg2 = arg.replace("-", "").lower()
+
+        if arg2 in ["c", "ch", "channel"]:
+            readNextArg = "channel"
+
+        elif arg2 in ["tag", "t", "version", "v"]:
+            readNextArg = "tag"
+
+        elif arg2 in ["to", "dest"]:
+            readNextArg = "to"
+        
+        elif arg2 in ["d", "debug", "ve", "verbose"]:
+            options["debug"] = True
+
+        elif arg2 in ["ig", "ignoregatekeeper"]:
+            options["ignoreGatekeeper"] = True
+
+        else:
+            if readNextArg != None:
+                options[readNextArg] = arg
+                readNextArg = None
+
+    install(to=options.get("to", os.path.join(os.path.expanduser('~'), '.ypsh', 'bin')), channel=options.get("channel", "stable"), custom_tag=options.get("tag", None), ignoreGatekeeper=options.get("ignoreGatekeeper", False), debug=options.get("debug", False))

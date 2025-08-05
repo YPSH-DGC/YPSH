@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #################################################################
 # YPSH Language - Your route of Programming is Starting from Here
+# Main
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 #################################################################
@@ -13,28 +14,16 @@ LANG = "en"
 
 #!checkpoint!
 
-import re
-import sys
-import os
-import json
-import importlib
-import warnings
-import traceback
 from os.path import expanduser
 from rich.console import Console
 from rich.markup import escape
-import subprocess
-import sys, os, inspect
-import platform
 from dotenv import load_dotenv
+from next_drop_lib import FileSender, FileReceiver
 try:
     import readline
 except ImportError:
     import pyreadline as readline
-import rlcompleter
-import asyncio
-import threading
-from next_drop_lib import FileSender, FileReceiver
+import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex
 
 load_dotenv()
 console = Console()
@@ -1997,6 +1986,101 @@ def run_lint(code):
             counter += 1
         raise SystemExit(1)
 
+##############################
+# Self Updater
+##############################
+def _download(url: str, dest: str, timeout: int = 30):
+    with urllib.request.urlopen(url, timeout=timeout) as r, open(dest, "wb") as f:
+        f.write(r.read())
+    return dest
+
+def _spawn_detached(argv: list[str]) -> None:
+    if platform.system() == "Windows":
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        subprocess.Popen(
+            argv,
+            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+            close_fds=True
+        )
+    else:
+        subprocess.Popen(argv, start_new_session=True, close_fds=True)
+
+def self_update(
+    channel: str = "stable",
+    tag: str | None = None,
+    to_dir: str | None = None,
+    ignore_gatekeeper: bool = False,
+    debug: bool = False,
+    relaunch: bool = True,
+    installer_url: str = "https://ypsh-dgc.github.io/YPSH/installer.py"
+):
+    pyexe = sys.executable or "python3"
+    tmp = tempfile.mkdtemp(prefix="ypsh-update-")
+    installer_path = os.path.join(tmp, "installer.py")
+    bootstrap_path = os.path.join(tmp, "bootstrap_update.py")
+
+    _download(installer_url, installer_path)
+
+    installer_args = []
+    if to_dir:
+        installer_args += ["--to", to_dir]
+    if channel:
+        installer_args += ["--channel", channel]
+    if tag:
+        installer_args += ["--tag", tag]
+    if ignore_gatekeeper:
+        installer_args += ["--ig"]
+    if debug:
+        installer_args += ["--debug"]
+
+    default_bin_dir = os.path.join(os.path.expanduser('~'), '.ypsh', 'bin')
+    exe_name = "ypsh.exe" if platform.system() == "Windows" else "ypsh"
+    installed_binary = os.path.join(to_dir or default_bin_dir, exe_name)
+
+    bootstrap_code = f"""#!/usr/bin/env python3
+import os, sys, time, subprocess, shutil
+
+py = {repr(sys.executable or "python3")}
+installer = {repr(installer_path)}
+args = {repr(installer_args)}
+installed_binary = {repr(installed_binary)}
+relaunch = {repr(relaunch)}
+
+# Give parent a moment to exit & release any handles (Windows)
+time.sleep(0.8)
+
+# Run installer
+code = subprocess.call([py, installer] + args)
+
+# Optionally relaunch new binary (best-effort)
+if code == 0 and relaunch:
+    try:
+        if os.path.isfile(installed_binary) and os.access(installed_binary, os.X_OK):
+            if os.name == "nt":
+                subprocess.Popen([installed_binary], creationflags=0x00000008|0x00000200, close_fds=True)
+            else:
+                subprocess.Popen([installed_binary], start_new_session=True, close_fds=True)
+    except Exception:
+        pass
+
+# cleanup temp dir on success (best-effort)
+try:
+    import tempfile
+    tmp_root = os.path.dirname(installer)
+    shutil.rmtree(tmp_root, ignore_errors=True)
+except Exception:
+    pass
+
+sys.exit(code)
+"""
+    with open(bootstrap_path, "w", encoding="utf-8") as f:
+        f.write(bootstrap_code)
+
+    _spawn_detached([pyexe, bootstrap_path])
+
+    raise SystemExit(0)
+
 #!checkpoint!
 
 ##############################
@@ -2038,6 +2122,25 @@ if __name__ == '__main__':
             isReceivedGoodOption = True
             options["repl"] = True
 
+        elif arg2 in ["u", "update"]:
+            isReceivedGoodOption = True
+            options["update"] = True
+
+        elif arg2 in ["uch", "uchannel"]:
+            readNextArg = "update_channel"
+
+        elif arg2 in ["utag"]:
+            readNextArg = "update_tag"
+
+        elif arg2 in ["uto", "udest", "udir"]:
+            readNextArg = "update_dir"
+
+        elif arg2 in ["uig"]:
+            options["update_ig"] = True
+
+        elif arg2 in ["ud", "udebug"]:
+            options["update_debug"] = True
+
         else:
             if "code" in options:
                 isReceivedGoodOption = True
@@ -2057,6 +2160,16 @@ if __name__ == '__main__':
 
     if "version" in options:
         print(VERSION)
+
+    if options.get("update"):
+        self_update(
+            channel = options.get("update_channel", "stable"),
+            tag = options.get("update_tag"),
+            to_dir = options.get("update_dir"),
+            ignore_gatekeeper = options.get("update_ig", False),
+            debug = options.get("update_debug", False),
+            relaunch = True
+        )
 
     if "lint" in options:
         if isReceivedCode:
