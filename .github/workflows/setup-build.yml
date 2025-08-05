@@ -12,13 +12,13 @@ jobs:
         include:
           - os: macos-13
             platform: macOS Intel
-            filename: YPSH-SETUP-macos-amd64
+            filename: SETUP-macos-amd64
           - os: ubuntu-22.04
             platform: Linux Intel/AMD
-            filename: YPSH-SETUP-linux-amd64
+            filename: SETUP-linux-amd64
           - os: windows-2022
             platform: Windows Intel/AMD
-            filename: YPSH-SETUP-windows-amd64
+            filename: SETUP-windows-amd64
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -183,13 +183,13 @@ jobs:
         include:
           - os: macos-14
             platform: macOS Apple Silicon
-            filename: YPSH-SETUP-macos-arm64
+            filename: SETUP-macos-arm64
           - os: ubuntu-22.04-arm
             platform: Linux ARM
-            filename: YPSH-SETUP-linux-arm64
+            filename: SETUP-linux-arm64
           - os: windows-11-arm
             platform: Windows ARM
-            filename: YPSH-SETUP-windows-arm64
+            filename: SETUP-windows-arm64
     runs-on: ${{ matrix.os }}
 
     steps:
