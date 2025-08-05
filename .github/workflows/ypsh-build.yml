@@ -1,4 +1,4 @@
-name: DGC-AutoBuild
+name: DGC-AutoBuild (YPSH)
 
 on:
   release:
