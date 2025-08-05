@@ -9,3 +9,4 @@ tqdm
 ulid-py
 python-dotenv
 certifi
+PySide6

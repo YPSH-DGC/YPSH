@@ -4,6 +4,7 @@
 # Main
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
+# Writed by DiamondGotCat
 #################################################################
 
 VERSION_TYPE = "YPSH"
