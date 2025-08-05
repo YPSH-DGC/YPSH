@@ -2105,7 +2105,13 @@ if __name__ == '__main__':
     for arg in args:
         arg2 = arg.replace("-", "").lower()
 
-        if arg2 in ["version", "v"]:
+        if readNextArg is not None:
+            options[readNextArg] = arg
+            readNextArg = None
+            isReceivedGoodOption = True
+            continue
+
+        elif arg2 in ["version", "v"]:
             isReceivedGoodOption = True
             options["version"] = True
 

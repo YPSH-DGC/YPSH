@@ -157,7 +157,13 @@ if __name__ == "__main__":
     for arg in args:
         arg2 = arg.replace("-", "").lower()
 
-        if arg2 in ["c", "ch", "channel"]:
+        if readNextArg is not None:
+            options[readNextArg] = arg
+            readNextArg = None
+            isReceivedGoodOption = True
+            continue
+
+        elif arg2 in ["c", "ch", "channel"]:
             readNextArg = "channel"
 
         elif arg2 in ["tag", "t", "version", "v"]:
@@ -171,10 +177,5 @@ if __name__ == "__main__":
 
         elif arg2 in ["ig", "ignoregatekeeper"]:
             options["ignoreGatekeeper"] = True
-
-        else:
-            if readNextArg != None:
-                options[readNextArg] = arg
-                readNextArg = None
 
     install(to=options.get("to", os.path.join(os.path.expanduser('~'), '.ypsh', 'bin')), channel=options.get("channel", "stable"), custom_tag=options.get("tag", None), ignoreGatekeeper=options.get("ignoreGatekeeper", False), debug=options.get("debug", False))
