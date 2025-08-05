@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  non-built-PY:
+  build-PY:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout source
