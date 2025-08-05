@@ -8,3 +8,4 @@ zstandard
 tqdm
 ulid-py
 python-dotenv
+certifi

@@ -25,7 +25,7 @@ def passingGatekeeper(path: str):
 def debugIt(content, show: bool = True):
     if show: print(f"[DEBUG] {content}")
 
-def getTagFromChannel(id: str, url_prefix: str = "http://ypsh-dgc.github.io/YPSH/channels/", url_suffix: str = ".txt") -> str:
+def getTagFromChannel(id: str, url_prefix: str = "https://ypsh-dgc.github.io/YPSH/channels/", url_suffix: str = ".txt") -> str:
     return requests.get(f"{url_prefix.strip()}{id.strip()}{url_suffix.strip()}").text.strip()
 
 def getAutoBuildInfomation(tag: str) -> dict:

@@ -23,7 +23,7 @@ try:
     import readline
 except ImportError:
     import pyreadline as readline
-import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex
+import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex, ssl, certifi
 
 load_dotenv()
 console = Console()
@@ -1990,7 +1990,9 @@ def run_lint(code):
 # Self Updater
 ##############################
 def _download(url: str, dest: str, timeout: int = 30):
-    with urllib.request.urlopen(url, timeout=timeout) as r, open(dest, "wb") as f:
+    ctx = ssl.create_default_context(cafile=certifi.where())
+    req = urllib.request.Request(url, headers={"User-Agent": "ypsh-updater/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r, open(dest, "wb") as f:
         f.write(r.read())
     return dest
 

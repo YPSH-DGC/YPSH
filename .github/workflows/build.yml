@@ -41,6 +41,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
   build-AMD64:
+    needs: build-PY
     continue-on-error: true
     strategy:
       matrix:
@@ -235,6 +236,7 @@ jobs:
             }'
 
   build-ARM64:
+    needs: build-PY
     continue-on-error: true
     strategy:
       matrix:
@@ -429,6 +431,7 @@ jobs:
             }'
 
   build-RISCV:
+    needs: build-PY
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout source
