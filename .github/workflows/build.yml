@@ -439,6 +439,11 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -466,11 +471,6 @@ jobs:
             ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no
           make -j$(nproc)
           make install
-
-      - name: Set up Python (for script generation)
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
 
       - name: Install Python dependencies
         run: |
