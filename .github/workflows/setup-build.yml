@@ -1,4 +1,4 @@
-name: DGC-AutoBuild (YPSH Installer)
+name: DGC-AutoBuild (YPSH Setup)
 
 on:
   release:
