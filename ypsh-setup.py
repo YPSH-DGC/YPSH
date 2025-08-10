@@ -17,7 +17,7 @@ import tempfile
 import shutil
 import sys
 import traceback
-from typing import Literal, Dict, Any
+from typing import Literal, Dict, Any, Callable, Optional
 
 from rich import print
 
@@ -25,8 +25,9 @@ from rich import print
 # Optional GUI dependencies
 # ─────────────────────────────────────────────────────────────────────────────
 try:
-    from PySide6.QtCore import QThread, Signal, Qt  # type: ignore
-    from PySide6.QtWidgets import (  # type: ignore
+    from PySide6.QtCore import QThread, Signal, Qt
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtWidgets import (
         QApplication,
         QWizard,
         QWizardPage,
@@ -51,15 +52,15 @@ except ModuleNotFoundError:
 # Shared installer logic
 # ─────────────────────────────────────────────────────────────────────────────
 Channel = Literal["stable", "beta", "custom"]
+DEFAULT_DEST = os.path.join(os.path.expanduser("~"), ".ypsh", "bin")
 
 
 def passingGatekeeper(path: str):
-    os.system(f"xattr -d com.apple.quarantine '{path}'")
-
-
-def debugIt(content: str, show: bool = True):
-    if show:
-        print(f"[DEBUG] {content}")
+    # Best-effort; ignore failures if not quarantined or not macOS
+    try:
+        os.system(f"xattr -d com.apple.quarantine '{path}'")
+    except Exception:
+        pass
 
 
 def getTagFromChannel(id: str) -> str:
@@ -80,7 +81,7 @@ def getAutoBuildInfomation(tag: str) -> Dict[str, Any]:
             origin, friendly = "YPSH-macos-amd64", "macOS Intel"
         elif arch.lower() in ("arm64", "aarch64"):
             dl = f"https://github.com/YPSH-DGC/YPSH/releases/download/{tag}/YPSH-macos-arm64.zip"
-            origin, friendly = "YPSH-macos-arm64", "macOS Apple Silicon"
+            origin, friendly = "YPSH-macos-arm64", "macOS Apple Silicon"
         else:
             return err(f"Unsupported CPU: {arch}")
         final, gate = "ypsh", True
@@ -117,30 +118,201 @@ def getAutoBuildInfomation(tag: str) -> Dict[str, Any]:
     }
 
 
-def install(*, to: str, channel: Channel, custom_tag: str | None, ignoreGatekeeper: bool, debug: bool) -> Dict[str, Any]:
+def _add_to_path_posix(path_dir: str) -> list[str]:
+    """
+    Add path_dir to exactly ONE shell init file based on the current shell.
+    If path_dir is already present in ANY known file, do nothing (idempotent).
+    Returns [target_file] if updated, [] if no change needed.
+    """
+    import os
+    home = os.path.expanduser("~")
+    shell = os.path.basename(os.environ.get("SHELL", "")).lower()
+
+    def contains(p: str) -> bool:
+        try:
+            with open(p, "r", encoding="utf-8", errors="ignore") as fh:
+                txt = fh.read()
+            return path_dir in txt
+        except FileNotFoundError:
+            return False
+        except Exception:
+            return False
+
+    # Check all known files first — if already present anywhere, bail out cleanly.
+    all_known = [
+        os.path.join(home, ".zprofile"),
+        os.path.join(home, ".zshrc"),
+        os.path.join(home, ".bash_profile"),
+        os.path.join(home, ".bashrc"),
+        os.path.join(home, ".profile"),
+    ]
+    if any(contains(f) for f in all_known):
+        return []  # already present → no fallback creation
+
+    # Prefer a single target based on the user's shell
+    if "zsh" in shell:
+        preferred = [os.path.join(home, ".zprofile"), os.path.join(home, ".zshrc")]
+    elif "bash" in shell:
+        preferred = [os.path.join(home, ".bash_profile"), os.path.join(home, ".bashrc")]
+    else:
+        preferred = [os.path.join(home, ".profile")]
+
+    # Pick the first existing, otherwise create the first preferred
+    target = next((f for f in preferred if os.path.exists(f)), preferred[0])
+
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, "a", encoding="utf-8") as fh:
+        fh.write(f'\n# Added by YPSH installer\nexport PATH="{path_dir}:$PATH"\n')
+
+    return [target]
+
+
+def _add_to_path_windows(path_dir: str) -> bool:
+    """
+    Add path_dir to current user's PATH in registry.
+    Returns True if changed.
+    """
+    try:
+        import winreg  # type: ignore
+        import ctypes
+
+        key_path = r"Environment"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+            try:
+                existing, regtype = winreg.QueryValueEx(key, "Path")
+            except FileNotFoundError:
+                existing, regtype = "", winreg.REG_EXPAND_SZ
+            parts = [p for p in existing.split(";") if p]
+            lower = [p.lower() for p in parts]
+            if path_dir.lower() in lower:
+                changed = False
+            else:
+                new_val = (existing + (";" if existing and not existing.endswith(";") else "") + path_dir)
+                winreg.SetValueEx(key, "Path", 0, winreg.REG_EXPAND_SZ, new_val)
+                changed = True
+
+        # Broadcast environment change so new terminals pick it up
+        if changed:
+            HWND_BROADCAST = 0xFFFF
+            WM_SETTINGCHANGE = 0x001A
+            SMTO_ABORTIFHUNG = 0x0002
+            ctypes.windll.user32.SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                0,
+                "Environment",
+                SMTO_ABORTIFHUNG,
+                5000,
+                None,
+            )
+        return changed
+    except Exception:
+        return False
+
+
+def add_to_user_path(path_dir: str) -> str:
+    """
+    Cross-platform wrapper. Returns a short human-readable result message.
+    """
+    system = platform.system()
+    if system in ("Darwin", "Linux"):
+        updated = _add_to_path_posix(path_dir)
+        if updated:
+            return "PATH updated in: " + ", ".join(os.path.basename(u) for u in updated)
+        return "PATH already contained install dir (or update not needed)."
+    elif system == "Windows":
+        ok = _add_to_path_windows(path_dir)
+        return "PATH updated for current user." if ok else "PATH already contained install dir (or update failed)."
+    else:
+        return "PATH update not supported on this OS."
+
+
+def install(
+    *,
+    to: str,
+    channel: Channel,
+    custom_tag: str | None,
+    ignoreGatekeeper: bool,
+    debug: bool,
+    add_to_path_flag: bool = True,
+    log_cb: Optional[Callable[[str], None]] = None,
+    progress_cb: Optional[Callable[[int], None]] = None,
+) -> Dict[str, Any]:
+    """
+    Main installer. Uses callbacks to report logs/progress to GUI.
+    """
+    def log(msg: str):
+        if log_cb:
+            log_cb(msg)
+        if debug:
+            print(f"{msg}")
+
+    def setprog(v: int):
+        if progress_cb:
+            try:
+                progress_cb(max(0, min(100, int(v))))
+            except Exception:
+                pass
+
+    setprog(1)
+    log("Resolving release tag…")
     tag = custom_tag if channel == "custom" else getTagFromChannel(channel)
+
     info = getAutoBuildInfomation(tag)
     if info.get("status") == "error":
         return info
 
     gate = False if ignoreGatekeeper else info["isGatekeeperCommandRequire"]
+
     with tempfile.TemporaryDirectory() as tmp:
         zpath = os.path.join(tmp, "ypsh.zip")
-        debugIt(f"Downloading {info['url']}", debug)
-        with requests.get(info["url"], timeout=60) as r:
+        url = info["url"]
+        log(f"Downloading: {url}")
+
+        setprog(5)
+        with requests.get(url, timeout=60, stream=True) as r:
             r.raise_for_status()
-            open(zpath, "wb").write(r.content)
-        debugIt("Extracting…", debug)
+            total = int(r.headers.get("Content-Length", "0")) or None
+            got = 0
+            chunk = 1024 * 128
+            with open(zpath, "wb") as fp:
+                for data in r.iter_content(chunk_size=chunk):
+                    if not data:
+                        continue
+                    fp.write(data)
+                    got += len(data)
+                    if total:
+                        # Map download 5→70%
+                        setprog(5 + int(65 * (got / total)))
+
+        log("Extracting archive…")
+        setprog(75)
         with zipfile.ZipFile(zpath) as zf:
             zf.extract(info["origin_filename"], tmp)
+
         src = os.path.join(tmp, info["origin_filename"])
         os.makedirs(to, exist_ok=True)
         dst = os.path.join(to, info["recommended_filename"])
+
+        log(f"Installing to: {dst}")
         shutil.copy2(src, dst)
         os.chmod(dst, 0o755)
+        setprog(88)
+
         if gate:
+            log("Clearing macOS quarantine flag (Gatekeeper)…")
             passingGatekeeper(dst)
-    return {"status": "ok"}
+
+        setprog(92)
+
+        if add_to_path_flag:
+            log("Adding install directory to PATH for future sessions…")
+            outcome = add_to_user_path(to)
+            log(f"{outcome}")
+
+        setprog(100)
+
+    return {"status": "ok", "dest": to, "binary": info["recommended_filename"]}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI mode
@@ -165,37 +337,51 @@ def run_cli(argv: list[str]):
             opts["debug"] = True
         elif k in ("ig", "ignoregatekeeper"):
             opts["ignoreGatekeeper"] = True
+        elif k in ("noaddpath", "no-path", "no-path-add"):
+            opts["add_to_path_flag"] = False
+        elif k in ("addpath", "path"):
+            opts["add_to_path_flag"] = True
+
     res = install(
-        to=opts.get("to", os.path.join(os.path.expanduser("~"), ".ypsh", "bin")),
+        to=opts.get("to", DEFAULT_DEST),
         channel=opts.get("channel", "stable"),
         custom_tag=opts.get("custom_tag"),
         ignoreGatekeeper=opts.get("ignoreGatekeeper", False),
         debug=opts.get("debug", False),
+        add_to_path_flag=opts.get("add_to_path_flag", True),
+        log_cb=lambda s: print(s),
+        progress_cb=None,
     )
     if res.get("status") == "ok":
-        print("[green]Installation successful[/green]")
+        print(f"[green]Installation successful[/green] → {res.get('dest')}")
     else:
         print(f"[red]Failed:[/red] {res.get('desc')}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Wizard‑style GUI (only if PySide6 present)
+# Wizard-style GUI (only if PySide6 present)
 # ─────────────────────────────────────────────────────────────────────────────
-DEFAULT_DEST = os.path.join(os.path.expanduser("~"), ".ypsh", "bin")
 
 if PYSIDE_AVAILABLE:
 
     class InstallerThread(QThread):
         log = Signal(str)
+        progress = Signal(int)
         finished = Signal(dict)
+
         def __init__(self, kwargs: Dict[str, Any]):
             super().__init__()
             self.kwargs = kwargs
+
         def run(self):
-            self.log.emit("[INFO] Installation started…")
+            self.log.emit("Installation started…")
             try:
-                out = install(**self.kwargs)
+                out = install(
+                    **self.kwargs,
+                    log_cb=self.log.emit,
+                    progress_cb=self.progress.emit,
+                )
                 ok = out.get("status") == "ok"
-                self.log.emit("[INFO] Finished: " + ("SUCCESS" if ok else "FAIL"))
+                self.log.emit("Finished: " + ("SUCCESS" if ok else "FAIL"))
             except Exception:
                 out = {"status": "error", "desc": "Unhandled"}
                 self.log.emit(traceback.format_exc())
@@ -206,10 +392,15 @@ if PYSIDE_AVAILABLE:
         def __init__(self):
             super().__init__()
             self.setTitle("Welcome to the YPSH Installer")
-            self.setSubTitle("This wizard will guide you through the installation.")
-
+            self.setSubTitle("This wizard will guide you through the setup.")
             vbox = QVBoxLayout(self)
-            vbox.addWidget(QLabel("Press *Next* to continue, or *Cancel* to exit the setup."))
+            banner = QLabel("YPSH")
+            banner.setObjectName("Brand")
+            banner.setAlignment(Qt.AlignCenter)
+            vbox.addWidget(banner)
+            intro = QLabel("Press “Next” to continue, or “Cancel” to exit.")
+            intro.setWordWrap(True)
+            vbox.addWidget(intro)
 
     class ChannelPage(QWizardPage):
         def __init__(self):
@@ -227,16 +418,17 @@ if PYSIDE_AVAILABLE:
             self._holder.hide()
             self.registerField("channel", self._holder)
 
-            # Emit completion changed on selection change
             self.grp.idClicked.connect(lambda _id: self.completeChanged.emit())
             self.setLayout(lay)
-        # Allow *Next* whenever any radio is selected (always true)
+
         def isComplete(self):
             return True
+
         def validatePage(self):
             ch = "stable" if self.rad_stable.isChecked() else "beta" if self.rad_beta.isChecked() else "custom"
             self.wizard().setField("channel", ch)
             return True
+
         def nextId(self):
             return InstallerWizard.Page_CustomTag if self.wizard().field("channel") == "custom" else InstallerWizard.Page_Destination
 
@@ -244,8 +436,14 @@ if PYSIDE_AVAILABLE:
         def __init__(self):
             super().__init__()
             self.setTitle("Specify Custom Version Tag")
-            lay = QVBoxLayout(); self.edit = QLineEdit(); lay.addWidget(self.edit); self.setLayout(lay)
+            lay = QVBoxLayout()
+            tip = QLabel("Enter an exact release tag (e.g., v1.2.3).")
+            lay.addWidget(tip)
+            self.edit = QLineEdit()
+            lay.addWidget(self.edit)
+            self.setLayout(lay)
             self.registerField("custom_tag", self.edit)
+
         def nextId(self):
             return InstallerWizard.Page_Destination
 
@@ -253,13 +451,21 @@ if PYSIDE_AVAILABLE:
         def __init__(self):
             super().__init__()
             self.setTitle("Choose Installation Directory")
-            layH = QHBoxLayout(); self.edit = QLineEdit(DEFAULT_DEST); btn = QPushButton("Browse…")
-            btn.clicked.connect(self._browse); layH.addWidget(self.edit, 1); layH.addWidget(btn)
-            lay = QVBoxLayout(); lay.addLayout(layH); self.setLayout(lay)
+            layH = QHBoxLayout()
+            self.edit = QLineEdit(DEFAULT_DEST)
+            btn = QPushButton("Browse…")
+            btn.clicked.connect(self._browse)
+            layH.addWidget(self.edit, 1); layH.addWidget(btn)
+            lay = QVBoxLayout()
+            lay.addLayout(layH)
+            self.setLayout(lay)
             self.registerField("dest", self.edit)
+
         def _browse(self):
-            d = QFileDialog.getExistingDirectory(self, "Select Directory", self.edit.text());
-            if d: self.edit.setText(d)
+            d = QFileDialog.getExistingDirectory(self, "Select Directory", self.edit.text())
+            if d:
+                self.edit.setText(d)
+
         def nextId(self):
             return InstallerWizard.Page_Advanced
 
@@ -267,46 +473,112 @@ if PYSIDE_AVAILABLE:
         def __init__(self):
             super().__init__()
             self.setTitle("Advanced Options")
-            lay = QVBoxLayout(); self.chk_gate = QCheckBox("Ignore Gatekeeper (macOS)"); self.chk_dbg = QCheckBox("Verbose Debug")
-            lay.addWidget(self.chk_gate); lay.addWidget(self.chk_dbg); self.setLayout(lay)
-            self.registerField("ignoreGatekeeper", self.chk_gate); self.registerField("debug", self.chk_dbg)
+            lay = QVBoxLayout()
+            self.chk_path = QCheckBox("Add YPSH to PATH (for Current User)")
+            self.chk_path.setChecked(True)
+            self.chk_gate = QCheckBox("Ignore Gatekeeper (for macOS)")
+            self.chk_dbg = QCheckBox("Debug to stdout")
+            lay.addWidget(self.chk_path)
+            lay.addWidget(self.chk_gate)
+            lay.addWidget(self.chk_dbg)
+            self.setLayout(lay)
+            self.registerField("addPATH", self.chk_path)
+            self.registerField("ignoreGatekeeper", self.chk_gate)
+            self.registerField("debug", self.chk_dbg)
+
         def nextId(self):
             return InstallerWizard.Page_Install
 
     class InstallPage(QWizardPage):
         def __init__(self):
-            super().__init__(); self.setTitle("Installing…"); self.setFinalPage(False)
-            lay = QVBoxLayout(); self.prg = QProgressBar(); self.prg.setRange(0,0); self.log = QTextEdit(); self.log.setReadOnly(True)
-            lay.addWidget(self.prg); lay.addWidget(self.log, 1); self.setLayout(lay)
+            super().__init__()
+            self.setTitle("Installing…")
+            self.setFinalPage(False)
+            lay = QVBoxLayout()
+            self.prg = QProgressBar()
+            self.prg.setRange(0, 100)
+            self.log = QTextEdit()
+            self.log.setReadOnly(True)
+            self.log.setPlaceholderText("Logs will appear here…")
+            lay.addWidget(self.prg)
+            lay.addWidget(self.log, 1)
+            self.setLayout(lay)
             self.thread: InstallerThread | None = None
+
         def initializePage(self):
-            wiz = self.wizard(); kwargs = {
+            wiz = self.wizard()
+            kwargs = {
                 "to": wiz.field("dest") or DEFAULT_DEST,
                 "channel": wiz.field("channel") or "stable",
                 "custom_tag": wiz.field("custom_tag") or None,
                 "ignoreGatekeeper": bool(wiz.field("ignoreGatekeeper")),
                 "debug": bool(wiz.field("debug")),
+                "add_to_path_flag": bool(wiz.field("addPATH")),
             }
-            self.thread = InstallerThread(kwargs); self.thread.log.connect(self.log.append); self.thread.finished.connect(self._done); self.thread.start()
-            wiz.button(QWizard.BackButton).setEnabled(False); wiz.button(QWizard.NextButton).setEnabled(False)
+            self.thread = InstallerThread(kwargs)
+            self.thread.log.connect(self.log.append)
+            self.thread.progress.connect(self.prg.setValue)
+            self.thread.finished.connect(self._done)
+            self.thread.start()
+
+            wiz.button(QWizard.BackButton).setEnabled(False)
+            wiz.button(QWizard.NextButton).setEnabled(False)
+
         def _done(self, res):
-            self.prg.setRange(0,1); self.wizard().button(QWizard.NextButton).setEnabled(True)
-            self.wizard().button(QWizard.NextButton).click()
+            self.prg.setValue(100)
+            wiz = self.wizard()
+
+            if res.get("status") == "ok":
+                # 成功時は従来通り自動で完了ページへ
+                wiz.button(QWizard.NextButton).setEnabled(True)
+                wiz.button(QWizard.NextButton).click()
+            else:
+                # 失敗時: 見出しを変更してページに留まる
+                self.setTitle("Sorry, Installation Failed.")
+
+                # ユーザー操作のために戻る/キャンセルを有効化（任意だが実用的）
+                back_btn = wiz.button(QWizard.BackButton)
+                if back_btn:
+                    back_btn.setEnabled(True)
+
+                cancel_btn = wiz.button(QWizard.CancelButton)
+                if cancel_btn:
+                    cancel_btn.setVisible(True)   # Welcome以外でも見えるように
+                    cancel_btn.setEnabled(True)
+
+                # 「次へ」は無効のまま（Finishへは進ませない）
+                next_btn = wiz.button(QWizard.NextButton)
+                if next_btn:
+                    next_btn.setEnabled(False)
+
         def nextId(self):
             return InstallerWizard.Page_Finish
 
     class FinishPage(QWizardPage):
         def __init__(self):
-            super().__init__(); self.setTitle("Completed"); lay = QVBoxLayout(); lay.addWidget(QLabel("YPSH has been installed.")); self.setLayout(lay); self.setFinalPage(True)
+            super().__init__()
+            self.setTitle("Completed")
+            lay = QVBoxLayout()
+            done = QLabel("YPSH has been installed successfully.")
+            done.setWordWrap(True)
+            lay.addWidget(done)
+            hint = QLabel("Open a new terminal to use updated PATH (if enabled).")
+            hint.setWordWrap(True)
+            lay.addWidget(hint)
+            self.setLayout(lay)
+            self.setFinalPage(True)
 
     class InstallerWizard(QWizard):
         Page_Welcome, Page_Channel, Page_CustomTag, Page_Destination, Page_Advanced, Page_Install, Page_Finish = range(7)
 
         def __init__(self):
             super().__init__()
-
-            self.setWindowTitle("YPSH Setup Wizard")
+            self.setWindowTitle("YPSH Setup")
             self.setWizardStyle(QWizard.ModernStyle)
+
+            # Optional: banner/watermark area (blank pixmaps, styled by CSS)
+            self.setPixmap(QWizard.WatermarkPixmap, QPixmap())
+            self.setPixmap(QWizard.LogoPixmap, QPixmap())
 
             self.setPage(self.Page_Welcome, WelcomePage())
             self.setPage(self.Page_Channel, ChannelPage())
@@ -326,8 +598,10 @@ if PYSIDE_AVAILABLE:
 
             self.currentIdChanged.connect(self._update_cancel_visibility)
             self._update_cancel_visibility(self.currentId())
-
             self.setOption(QWizard.NoBackButtonOnStartPage, True)
+
+            # Modern, rich styling
+            self._apply_styles()
 
         def _update_cancel_visibility(self, page_id: int):
             cancel_btn = self.button(QWizard.CancelButton)
@@ -335,8 +609,74 @@ if PYSIDE_AVAILABLE:
                 return
             cancel_btn.setVisible(page_id == self.Page_Welcome)
 
+        def _apply_styles(self):
+            self.setStyleSheet("""
+                QWizard {
+                    background: #0e1116;
+                }
+                QWizard QLabel#Brand {
+                    font-size: 40px;
+                    font-weight: 800;
+                    color: #e6edf3;
+                    letter-spacing: 1px;
+                    margin: 8px 0 16px 0;
+                }
+                QWizard QWidget {
+                    color: #e6edf3;
+                    font-size: 14px;
+                }
+                QWizardPage {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                                stop:0 #11151c, stop:1 #0e1116);
+                    border: 1px solid #232936;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 12px;
+                }
+                QLineEdit, QTextEdit {
+                    background: #0b0e14;
+                    border: 1px solid #2b3343;
+                    border-radius: 8px;
+                    padding: 8px;
+                    selection-background-color: #2f81f7;
+                }
+                QRadioButton, QCheckBox {
+                    spacing: 8px;
+                }
+                QPushButton {
+                    border-radius: 10px;
+                    padding: 8px 14px;
+                    background: #1f6feb;
+                    color: white;
+                    border: none;
+                }
+                QPushButton:hover {
+                    background: #2b80ff;
+                }
+                QPushButton:disabled {
+                    background: #2b3343;
+                    color: #9aa4b2;
+                }
+                QProgressBar {
+                    background: #0b0e14;
+                    border: 1px solid #2b3343;
+                    border-radius: 8px;
+                    text-align: center;
+                }
+                QProgressBar::chunk {
+                    background-color: #2f81f7;
+                    border-radius: 8px;
+                    margin: 1px;
+                }
+            """)
+
     def launch_gui():
-        app = QApplication(sys.argv); w = InstallerWizard(); w.resize(600,500); w.show(); sys.exit(app.exec())
+        app = QApplication(sys.argv)
+        w = InstallerWizard()
+        w.resize(720, 520)
+        w.show()
+        sys.exit(app.exec())
+
 else:
     def launch_gui():
         print("[yellow]PySide6 not installed; using CLI.")
@@ -348,7 +688,8 @@ else:
 if __name__ == "__main__":
     argv = sys.argv[1:]
     if "cli" in argv or not PYSIDE_AVAILABLE:
-        if "cli" in argv: argv.remove("cli")
+        if "cli" in argv:
+            argv.remove("cli")
         run_cli(argv)
     else:
         launch_gui()
