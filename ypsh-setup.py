@@ -8,7 +8,6 @@
 #################################################################
 
 from __future__ import annotations
-
 import os
 import platform
 import requests
@@ -18,7 +17,6 @@ import shutil
 import sys
 import traceback
 from typing import Literal, Dict, Any, Callable, Optional
-
 from rich import print
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -363,6 +361,27 @@ def run_cli(argv: list[str]):
 
 if PYSIDE_AVAILABLE:
 
+    class LicenseFetchThread(QThread):
+        done = Signal(int, str, bool)  # (seq, text, ok)
+
+        def __init__(self, url: str, seq: int, parent=None):
+            super().__init__(parent)
+            self.url = url
+            self.seq = seq
+
+        def run(self):
+            try:
+                r = requests.get(self.url, timeout=10)
+                r.raise_for_status()
+                self.done.emit(self.seq, r.text, True)
+            except Exception as e:
+                msg = (
+                    "Failed to fetch license.\n\n"
+                    f"{e}\n\n"
+                    "Click “Reload” to try again."
+                )
+                self.done.emit(self.seq, msg, False)
+
     class InstallerThread(QThread):
         log = Signal(str)
         progress = Signal(int)
@@ -399,6 +418,99 @@ if PYSIDE_AVAILABLE:
             intro = QLabel("Press “Next” to continue, or “Cancel” to exit.")
             intro.setWordWrap(True)
             vbox.addWidget(intro)
+
+    class LicensePage(QWizardPage):
+        LICENSE_URL = "https://ypsh-dgc.github.io/YPSH/LICENSE"
+
+        def __init__(self):
+            super().__init__()
+            self.setTitle("License Agreement")
+            self.setButtonText(QWizard.NextButton, "Accept")
+
+            self._fetcher: Optional[LicenseFetchThread] = None
+            self._load_seq: int = 0
+            self._busy_cursor: bool = False
+
+            lay = QVBoxLayout()
+            tip = QLabel("Please review the license below. Click “Accept” to continue or “Cancel” to exit.")
+            tip.setWordWrap(True)
+            lay.addWidget(tip)
+
+            reload_row = QHBoxLayout()
+            reload_row.addStretch(1)
+            reload_btn = QPushButton("Reload")
+            reload_btn.clicked.connect(self.load_license)
+            reload_row.addWidget(reload_btn)
+            lay.addLayout(reload_row)
+
+            self.view = QTextEdit()
+            self.view.setReadOnly(True)
+            self.view.setPlaceholderText("Fetching license text…")
+            lay.addWidget(self.view, 1)
+
+            self.setLayout(lay)
+
+        def _set_next_enabled(self, enabled: bool):
+            wiz = self.wizard()
+            if not wiz:
+                return
+            next_btn = wiz.button(QWizard.NextButton)
+            if next_btn:
+                next_btn.setEnabled(enabled)
+
+        def _start_busy(self):
+            if not self._busy_cursor:
+                QApplication.setOverrideCursor(Qt.WaitCursor)
+                self._busy_cursor = True
+
+        def _end_busy(self):
+            if self._busy_cursor:
+                QApplication.restoreOverrideCursor()
+                self._busy_cursor = False
+
+        def initializePage(self):
+            wiz = self.wizard()
+            next_btn = wiz.button(QWizard.NextButton)
+            if next_btn:
+                next_btn.setEnabled(False)
+
+            # ページ入場時に毎回取得
+            self.load_license()
+            wiz = self.wizard()
+
+            # Cancelはこのページでも見せたい（_update_cancel_visibilityでも制御するが保険で）
+            cancel_btn = wiz.button(QWizard.CancelButton)
+            if cancel_btn:
+                cancel_btn.setVisible(True)
+
+        def load_license(self):
+            if not hasattr(self, "_load_seq"):
+                self._load_seq = 0
+            if not hasattr(self, "_busy_cursor"):
+                self._busy_cursor = False
+
+            # 既存結果を無効化するための連番を更新
+            self._load_seq += 1
+            seq = self._load_seq
+
+            # UIをリセット
+            self.view.setPlainText("Fetching license text…")
+            self._set_next_enabled(False)
+            self._start_busy()
+
+            # 既存スレッドは放置（結果はseq不一致で無視）
+            self._fetcher = LicenseFetchThread(self.LICENSE_URL, seq, self)
+            self._fetcher.done.connect(self._on_fetch_done)
+            self._fetcher.start()
+
+        def _on_fetch_done(self, seq: int, text: str, ok: bool):
+            # 古い要求の結果なら無視
+            if seq != self._load_seq:
+                return
+
+            self._end_busy()
+            self.view.setPlainText(text)
+            self._set_next_enabled(ok)
 
     class ChannelPage(QWizardPage):
         def __init__(self):
@@ -474,7 +586,7 @@ if PYSIDE_AVAILABLE:
             lay = QVBoxLayout()
             self.chk_path = QCheckBox("Add YPSH to PATH (for Current User)")
             self.chk_path.setChecked(True)
-            self.chk_gate = QCheckBox("Ignore Gatekeeper (for macOS)")
+            self.chk_gate = QCheckBox("Do not disable Gatekeeper (for macOS)")
             self.chk_dbg = QCheckBox("Debug to stdout")
             lay.addWidget(self.chk_path)
             lay.addWidget(self.chk_gate)
@@ -527,7 +639,7 @@ if PYSIDE_AVAILABLE:
             wiz = self.wizard()
 
             if res.get("status") == "ok":
-                # 成功時は従来通り自動で完了ページへ
+                self.setTitle("Installed!")
                 wiz.button(QWizard.NextButton).setEnabled(True)
                 wiz.button(QWizard.NextButton).click()
             else:
@@ -567,7 +679,7 @@ if PYSIDE_AVAILABLE:
             self.setFinalPage(True)
 
     class InstallerWizard(QWizard):
-        Page_Welcome, Page_Channel, Page_CustomTag, Page_Destination, Page_Advanced, Page_Install, Page_Finish = range(7)
+        Page_Welcome, Page_License, Page_Channel, Page_CustomTag, Page_Destination, Page_Advanced, Page_Install, Page_Finish = range(8)
 
         def __init__(self):
             super().__init__()
@@ -579,6 +691,7 @@ if PYSIDE_AVAILABLE:
             self.setPixmap(QWizard.LogoPixmap, QPixmap())
 
             self.setPage(self.Page_Welcome, WelcomePage())
+            self.setPage(self.Page_License, LicensePage())
             self.setPage(self.Page_Channel, ChannelPage())
             self.setPage(self.Page_CustomTag, CustomTagPage())
             self.setPage(self.Page_Destination, DestinationPage())
@@ -605,7 +718,7 @@ if PYSIDE_AVAILABLE:
             cancel_btn = self.button(QWizard.CancelButton)
             if cancel_btn is None:
                 return
-            cancel_btn.setVisible(page_id == self.Page_Welcome)
+            cancel_btn.setVisible(page_id in (self.Page_Welcome, self.Page_License))
 
         def _apply_styles(self):
             self.setStyleSheet("""
