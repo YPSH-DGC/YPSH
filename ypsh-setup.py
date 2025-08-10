@@ -391,8 +391,6 @@ if PYSIDE_AVAILABLE:
     class WelcomePage(QWizardPage):
         def __init__(self):
             super().__init__()
-            self.setTitle("Welcome to the YPSH Installer")
-            self.setSubTitle("This wizard will guide you through the setup.")
             vbox = QVBoxLayout(self)
             banner = QLabel("YPSH")
             banner.setObjectName("Brand")
