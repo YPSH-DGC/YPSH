@@ -40,6 +40,7 @@ try:
         QCheckBox,
         QFileDialog,
         QProgressBar,
+        QStackedWidget,
     )
 
     PYSIDE_AVAILABLE = True
@@ -713,8 +714,14 @@ if PYSIDE_AVAILABLE:
             self._update_cancel_visibility(self.currentId())
             self.setOption(QWizard.NoBackButtonOnStartPage, True)
 
-            # Modern, rich styling
             self._apply_styles()
+
+            stack = self.findChild(QStackedWidget, "qt_wizard_stack")
+            if stack:
+                stack.setObjectName("qt_wizard_stack")      # 念のため
+                stack.setAutoFillBackground(True)
+                stack.setAttribute(Qt.WA_StyledBackground, True)
+                stack.setStyleSheet("QStackedWidget#qt_wizard_stack { background: #0e1116; }")
 
         def paintEvent(self, e):
             p = QPainter(self)
@@ -791,6 +798,9 @@ if PYSIDE_AVAILABLE:
                     background-color: #2f81f7;
                     border-radius: 8px;
                     margin: 1px;
+                }
+                QStackedWidget#qt_wizard_stack {
+                    background: #0e1116;
                 }
             """)
 
