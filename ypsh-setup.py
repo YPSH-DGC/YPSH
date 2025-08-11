@@ -8,54 +8,29 @@
 #################################################################
 
 from __future__ import annotations
+
 import os
+import sys
 import platform
-import requests
-import zipfile
 import tempfile
 import shutil
-import sys
+import zipfile
 import traceback
+from dataclasses import dataclass
 from typing import Literal, Dict, Any, Callable, Optional
+
+import requests
 from rich import print
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Optional GUI dependencies
+# Shared install logic (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
-try:
-    from PySide6.QtCore import QThread, Signal, Qt
-    from PySide6.QtGui import QPixmap, QPainter, QColor
-    from PySide6.QtWidgets import (
-        QApplication,
-        QWizard,
-        QWizardPage,
-        QVBoxLayout,
-        QHBoxLayout,
-        QLabel,
-        QLineEdit,
-        QPushButton,
-        QRadioButton,
-        QButtonGroup,
-        QTextEdit,
-        QCheckBox,
-        QFileDialog,
-        QProgressBar,
-        QStackedWidget,
-    )
 
-    PYSIDE_AVAILABLE = True
-except ModuleNotFoundError:
-    PYSIDE_AVAILABLE = False
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared installer logic
-# ─────────────────────────────────────────────────────────────────────────────
 Channel = Literal["stable", "beta", "custom"]
 DEFAULT_DEST = os.path.join(os.path.expanduser("~"), ".ypsh", "bin")
 
 
-def passingGatekeeper(path: str):
-    # Best-effort; ignore failures if not quarantined or not macOS
+def passingGatekeeper(path: str) -> None:
     try:
         os.system(f"xattr -d com.apple.quarantine '{path}'")
     except Exception:
@@ -118,12 +93,6 @@ def getAutoBuildInfomation(tag: str) -> Dict[str, Any]:
 
 
 def _add_to_path_posix(path_dir: str) -> list[str]:
-    """
-    Add path_dir to exactly ONE shell init file based on the current shell.
-    If path_dir is already present in ANY known file, do nothing (idempotent).
-    Returns [target_file] if updated, [] if no change needed.
-    """
-    import os
     home = os.path.expanduser("~")
     shell = os.path.basename(os.environ.get("SHELL", "")).lower()
 
@@ -137,7 +106,6 @@ def _add_to_path_posix(path_dir: str) -> list[str]:
         except Exception:
             return False
 
-    # Check all known files first — if already present anywhere, bail out cleanly.
     all_known = [
         os.path.join(home, ".zprofile"),
         os.path.join(home, ".zshrc"),
@@ -146,9 +114,8 @@ def _add_to_path_posix(path_dir: str) -> list[str]:
         os.path.join(home, ".profile"),
     ]
     if any(contains(f) for f in all_known):
-        return []  # already present → no fallback creation
+        return []
 
-    # Prefer a single target based on the user's shell
     if "zsh" in shell:
         preferred = [os.path.join(home, ".zprofile"), os.path.join(home, ".zshrc")]
     elif "bash" in shell:
@@ -156,9 +123,7 @@ def _add_to_path_posix(path_dir: str) -> list[str]:
     else:
         preferred = [os.path.join(home, ".profile")]
 
-    # Pick the first existing, otherwise create the first preferred
     target = next((f for f in preferred if os.path.exists(f)), preferred[0])
-
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with open(target, "a", encoding="utf-8") as fh:
         fh.write(f'\n# Added by YPSH installer\nexport PATH="{path_dir}:$PATH"\n')
@@ -167,10 +132,6 @@ def _add_to_path_posix(path_dir: str) -> list[str]:
 
 
 def _add_to_path_windows(path_dir: str) -> bool:
-    """
-    Add path_dir to current user's PATH in registry.
-    Returns True if changed.
-    """
     try:
         import winreg  # type: ignore
         import ctypes
@@ -178,9 +139,9 @@ def _add_to_path_windows(path_dir: str) -> bool:
         key_path = r"Environment"
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
             try:
-                existing, regtype = winreg.QueryValueEx(key, "Path")
+                existing, _ = winreg.QueryValueEx(key, "Path")
             except FileNotFoundError:
-                existing, regtype = "", winreg.REG_EXPAND_SZ
+                existing = ""
             parts = [p for p in existing.split(";") if p]
             lower = [p.lower() for p in parts]
             if path_dir.lower() in lower:
@@ -190,19 +151,12 @@ def _add_to_path_windows(path_dir: str) -> bool:
                 winreg.SetValueEx(key, "Path", 0, winreg.REG_EXPAND_SZ, new_val)
                 changed = True
 
-        # Broadcast environment change so new terminals pick it up
         if changed:
             HWND_BROADCAST = 0xFFFF
             WM_SETTINGCHANGE = 0x001A
             SMTO_ABORTIFHUNG = 0x0002
             ctypes.windll.user32.SendMessageTimeoutW(
-                HWND_BROADCAST,
-                WM_SETTINGCHANGE,
-                0,
-                "Environment",
-                SMTO_ABORTIFHUNG,
-                5000,
-                None,
+                HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 5000, None
             )
         return changed
     except Exception:
@@ -210,9 +164,6 @@ def _add_to_path_windows(path_dir: str) -> bool:
 
 
 def add_to_user_path(path_dir: str) -> str:
-    """
-    Cross-platform wrapper. Returns a short human-readable result message.
-    """
     system = platform.system()
     if system in ("Darwin", "Linux"):
         updated = _add_to_path_posix(path_dir)
@@ -237,16 +188,13 @@ def install(
     log_cb: Optional[Callable[[str], None]] = None,
     progress_cb: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
-    """
-    Main installer. Uses callbacks to report logs/progress to GUI.
-    """
-    def log(msg: str):
+    def log(msg: str) -> None:
         if log_cb:
             log_cb(msg)
         if debug:
             print(f"{msg}")
 
-    def setprog(v: int):
+    def setprog(v: int) -> None:
         if progress_cb:
             try:
                 progress_cb(max(0, min(100, int(v))))
@@ -281,7 +229,6 @@ def install(
                     fp.write(data)
                     got += len(data)
                     if total:
-                        # Map download 5→70%
                         setprog(5 + int(65 * (got / total)))
 
         log("Extracting archive…")
@@ -313,11 +260,12 @@ def install(
 
     return {"status": "ok", "dest": to, "binary": info["recommended_filename"]}
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# CLI mode
+# CLI
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_cli(argv: list[str]):
+def run_cli(argv: list[str]) -> None:
     opts: Dict[str, Any] = {}
     nxt: str | None = None
     for a in argv:
@@ -356,47 +304,264 @@ def run_cli(argv: list[str]):
     else:
         print(f"[red]Failed:[/red] {res.get('desc')}")
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Wizard-style GUI (only if PySide6 present)
+# GUI with i18n
 # ─────────────────────────────────────────────────────────────────────────────
+
+try:
+    from PySide6.QtCore import Qt, QThread, Signal, Slot
+    from PySide6.QtGui import QPalette, QColor, QPixmap, QIcon
+    from PySide6.QtWidgets import (
+        QApplication,
+        QWizard,
+        QWizardPage,
+        QLabel,
+        QTextEdit,
+        QLineEdit,
+        QVBoxLayout,
+        QHBoxLayout,
+        QPushButton,
+        QRadioButton,
+        QButtonGroup,
+        QFileDialog,
+        QProgressBar,
+        QCheckBox,
+        QWidget,
+        QSpacerItem,
+        QSizePolicy,
+        QStyleFactory,
+        QMessageBox,
+        QListWidget,
+        QListWidgetItem,
+        QFormLayout,
+        QFrame,
+        QComboBox,
+    )
+
+    PYSIDE_AVAILABLE = True
+except ModuleNotFoundError:
+    PYSIDE_AVAILABLE = False
+
+
+# ── i18n ────────────────────────────────────────────────────────────────────
+
+from PySide6.QtCore import QObject
+
+
+class I18n(QObject):
+    languageChanged = Signal()
+
+    def __init__(self, lang: str = "en"):
+        super().__init__()
+        self.lang = lang
+        self._s: dict[str, dict[str, str]] = {
+            "en": {
+                "app_title": "YPSH Setup",
+                "brand": "YPSH",
+                "language": "Language",
+                "lang_en": "English",
+                "lang_ja": "日本語",
+
+                "welcome_title": "Welcome to YPSH Setup",
+                "welcome_msg": "This wizard will install YPSH on your system. Click “Next” to continue.",
+                "tip_1": "No admin privileges required (installs to your user directory)",
+                "tip_2": "Adding to PATH is optional",
+                "tip_3": "On macOS, quarantine (Gatekeeper) can be cleared",
+
+                "license_title": "License Agreement",
+                "license_reload": "Reload",
+                "license_accept": "I accept the license terms",
+                "license_loading": "Fetching license text…",
+                "license_error": "Failed to fetch license.\nClick “Reload” to try again.\n\n{err}",
+
+                "channel_title": "Choose a Release Channel",
+                "stable": "Stable (recommended)",
+                "beta": "Beta (early features)",
+                "custom": "Custom (specify tag)",
+                "channel_hint": "If you choose Custom, you will enter an exact release tag (e.g., v1.2.3) on the next page.",
+
+                "custom_title": "Specify Custom Tag",
+                "custom_label": "Tag:",
+                "custom_placeholder": "e.g., v1.2.3",
+                "custom_note": "Enter an exact release tag.",
+
+                "dest_title": "Choose Installation Directory",
+                "browse": "Browse…",
+                "dest_note": "If the folder does not exist, it will be created. Installing under your home directory is recommended.",
+
+                "options_title": "Advanced Options",
+                "opt_path": "Add YPSH folder to PATH (recommended)",
+                "opt_gate": "Do not clear Gatekeeper quarantine (macOS)",
+                "opt_debug": "Enable verbose logging (debug)",
+                "options_hint": "Click “Next” to review your choices.",
+
+                "summary_title": "Review",
+                "summary_intro": "The installer will run with the following settings:",
+                "summary_channel": "• Channel: {channel}",
+                "summary_tag": "• Tag: {tag}",
+                "summary_dest": "• Destination: {dest}",
+                "summary_addpath": "• Add to PATH: {yn}",
+                "summary_gate": "• Gatekeeper quarantine removal: {gate}",
+                "summary_debug": "• Debug: {dbg}",
+                "yes": "Yes",
+                "no": "No",
+                "gate_do": "Remove when needed",
+                "gate_dont": "Do not remove",
+
+                "install_title": "Installing…",
+                "install_logs_ph": "Logs will appear here…",
+                "install_failed": "Installation failed",
+                "error_unknown": "Unknown error",
+
+                "finish_title": "Completed",
+                "finish_msg": "YPSH has been installed.\nDestination: {dest}",
+                "finish_open": "Open install folder",
+                "finish_copy": "Copy launch command",
+                "finish_hint": "Open a new terminal to pick up PATH changes.",
+                "copied_title": "Copied",
+                "copied_body": "Copied the following command to clipboard:\n{cmd}",
+
+                "btn_next": "Next",
+                "btn_back": "Back",
+                "btn_cancel": "Cancel",
+                "btn_finish": "Finish",
+            },
+            "ja": {
+                "app_title": "YPSH セットアップ",
+                "brand": "YPSH",
+                "language": "言語",
+                "lang_en": "English",
+                "lang_ja": "日本語",
+
+                "welcome_title": "YPSH セットアップへようこそ",
+                "welcome_msg": "このウィザードは YPSH をシステムにインストールします。“次へ”を押して進みます。",
+                "tip_1": "管理者権限は不要です（ユーザーディレクトリへ展開）",
+                "tip_2": "PATH への追加は任意です",
+                "tip_3": "macOS では Gatekeeper の隔離属性を解除可能",
+
+                "license_title": "ライセンスに同意",
+                "license_reload": "再読み込み",
+                "license_accept": "ライセンスに同意します",
+                "license_loading": "ライセンス文を取得中…",
+                "license_error": "ライセンスの取得に失敗しました。“再読み込み”で再試行してください。\n\n{err}",
+
+                "channel_title": "リリースチャンネルを選択",
+                "stable": "Stable（安定版・推奨）",
+                "beta": "Beta（新機能の早期提供）",
+                "custom": "Custom（タグを指定）",
+                "channel_hint": "Custom を選ぶと次ページで正確なタグ（例: v1.2.3）を入力します。",
+
+                "custom_title": "カスタムタグの指定",
+                "custom_label": "タグ:",
+                "custom_placeholder": "例: v1.2.3",
+                "custom_note": "正確なリリースタグを入力してください。",
+
+                "dest_title": "インストール先を選択",
+                "browse": "参照…",
+                "dest_note": "存在しない場合はフォルダを作成します。ホーム配下を推奨します。",
+
+                "options_title": "オプション",
+                "opt_path": "YPSH フォルダを PATH に追加（推奨）",
+                "opt_gate": "Gatekeeper の隔離属性を解除しない（macOS）",
+                "opt_debug": "詳細ログ（デバッグ）を有効化",
+                "options_hint": "“次へ”で内容を確認できます。",
+
+                "summary_title": "内容の確認",
+                "summary_intro": "以下の設定でインストールを実行します。",
+                "summary_channel": "• チャンネル: {channel}",
+                "summary_tag": "• タグ: {tag}",
+                "summary_dest": "• インストール先: {dest}",
+                "summary_addpath": "• PATH に追加: {yn}",
+                "summary_gate": "• Gatekeeper 解除: {gate}",
+                "summary_debug": "• デバッグ: {dbg}",
+                "yes": "はい",
+                "no": "いいえ",
+                "gate_do": "する（必要時）",
+                "gate_dont": "しない",
+
+                "install_title": "インストールの進行状況",
+                "install_logs_ph": "ここにログが表示されます…",
+                "install_failed": "インストール失敗",
+                "error_unknown": "不明なエラー",
+
+                "finish_title": "完了",
+                "finish_msg": "YPSH のインストールが完了しました。\nインストール先: {dest}",
+                "finish_open": "インストール先を開く",
+                "finish_copy": "起動コマンドをコピー",
+                "finish_hint": "新しいターミナルを開くと PATH の更新が反映されます。",
+                "copied_title": "コピーしました",
+                "copied_body": "次のコマンドをクリップボードにコピーしました:\n{cmd}",
+
+                "btn_next": "次へ",
+                "btn_back": "戻る",
+                "btn_cancel": "キャンセル",
+                "btn_finish": "完了",
+            },
+        }
+
+    def t(self, key: str, **kw) -> str:
+        s = self._s.get(self.lang, {}).get(key, key)
+        return s.format(**kw)
+
+    def set_lang(self, lang: str) -> None:
+        if lang not in self._s:
+            return
+        if lang != self.lang:
+            self.lang = lang
+            self.languageChanged.emit()
+
+
+# ── GUI State ───────────────────────────────────────────────────────────────
+
+@dataclass
+class WizardState:
+    channel: Channel = "stable"
+    custom_tag: str | None = None
+    dest: str = DEFAULT_DEST
+    add_path: bool = True
+    ignore_gatekeeper: bool = False
+    debug: bool = False
+
 
 if PYSIDE_AVAILABLE:
 
-    class LicenseFetchThread(QThread):
-        done = Signal(int, str, bool)  # (seq, text, ok)
+    # ── Workers ────────────────────────────────────────────────────────────
 
-        def __init__(self, url: str, seq: int, parent=None):
-            super().__init__(parent)
+    class LicenseWorker(QThread):
+        done = Signal(str, bool, str)  # text, ok, error
+
+        def __init__(self, url: str):
+            super().__init__()
             self.url = url
-            self.seq = seq
 
-        def run(self):
+        def run(self) -> None:
             try:
                 r = requests.get(self.url, timeout=10)
                 r.raise_for_status()
-                self.done.emit(self.seq, r.text, True)
+                self.done.emit(r.text, True, "")
             except Exception as e:
-                msg = (
-                    "Failed to fetch license.\n\n"
-                    f"{e}\n\n"
-                    "Click “Reload” to try again."
-                )
-                self.done.emit(self.seq, msg, False)
+                self.done.emit("", False, str(e))
 
-    class InstallerThread(QThread):
+    class InstallWorker(QThread):
         log = Signal(str)
         progress = Signal(int)
         finished = Signal(dict)
 
-        def __init__(self, kwargs: Dict[str, Any]):
+        def __init__(self, state: WizardState):
             super().__init__()
-            self.kwargs = kwargs
+            self.state = state
 
-        def run(self):
+        def run(self) -> None:
             self.log.emit("Installation started…")
             try:
                 out = install(
-                    **self.kwargs,
+                    to=self.state.dest,
+                    channel=self.state.channel,
+                    custom_tag=self.state.custom_tag,
+                    ignoreGatekeeper=self.state.ignore_gatekeeper,
+                    debug=self.state.debug,
+                    add_to_path_flag=self.state.add_path,
                     log_cb=self.log.emit,
                     progress_cb=self.progress.emit,
                 )
@@ -407,300 +572,549 @@ if PYSIDE_AVAILABLE:
                 self.log.emit(traceback.format_exc())
             self.finished.emit(out)
 
-    # ── Pages ────────────────────────────────────────────────────────────
-    class WelcomePage(QWizardPage):
-        def __init__(self):
-            super().__init__()
-            vbox = QVBoxLayout(self)
-            banner = QLabel("YPSH")
-            banner.setObjectName("Brand")
-            banner.setAlignment(Qt.AlignCenter)
-            vbox.addWidget(banner)
-            intro = QLabel("Press “Next” to continue, or “Cancel” to exit.")
-            intro.setWordWrap(True)
-            vbox.addWidget(intro)
+    # ── UI Utils ───────────────────────────────────────────────────────────
 
-    class LicensePage(QWizardPage):
+    def apply_dark_palette(app: QApplication) -> None:
+        try:
+            app.setStyle(QStyleFactory.create("Fusion"))
+        except Exception:
+            pass
+
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor("#0e1116"))
+        palette.setColor(QPalette.Base, QColor("#0b0e14"))
+        palette.setColor(QPalette.AlternateBase, QColor("#11151c"))
+        palette.setColor(QPalette.ToolTipBase, QColor("#11151c"))
+        palette.setColor(QPalette.ToolTipText, QColor("#e6edf3"))
+        palette.setColor(QPalette.Text, QColor("#e6edf3"))
+        palette.setColor(QPalette.WindowText, QColor("#e6edf3"))
+        palette.setColor(QPalette.Button, QColor("#1f6feb"))
+        palette.setColor(QPalette.ButtonText, QColor("#ffffff"))
+        palette.setColor(QPalette.Highlight, QColor("#2f81f7"))
+        palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+        palette.setColor(QPalette.PlaceholderText, QColor("#9aa4b2"))
+        app.setPalette(palette)
+
+    BASE_QSS = """
+    QWizard { background: #0e1116; }
+    QWizard QWidget { color: #e6edf3; font-size: 14px; }
+    QWizard QLabel#Brand {
+        font-size: 40px; font-weight: 800; color: #e6edf3;
+        letter-spacing: 1px; margin: 8px 0 16px 0;
+    }
+    QWizardPage {
+        background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #11151c, stop:1 #0e1116);
+        border: 1px solid #232936; border-radius: 12px;
+        padding: 16px; margin: 12px;
+    }
+    QLineEdit, QTextEdit {
+        background: #0b0e14; border: 1px solid #2b3343; border-radius: 8px;
+        padding: 8px; selection-background-color: #2f81f7;
+    }
+    QCheckBox, QRadioButton { spacing: 8px; }
+    QPushButton {
+        border-radius: 10px; padding: 8px 14px; background: #1f6feb; color: white; border: none;
+    }
+    QPushButton:hover { background: #2b80ff; }
+    QPushButton:disabled { background: #2b3343; color: #9aa4b2; }
+    QProgressBar {
+        background: #0b0e14; border: 1px solid #2b3343; border-radius: 8px; text-align: center;
+    }
+    QProgressBar::chunk { background-color: #2f81f7; border-radius: 8px; margin: 1px; }
+    QFrame#line { background: #232936; min-height: 1px; max-height: 1px; }
+    """
+
+    class LanguageSwitcher(QWidget):
+        def __init__(self, i18n: I18n, parent=None):
+            super().__init__(parent)
+            self.i18n = i18n
+            lay = QHBoxLayout(self)
+            lay.setContentsMargins(0, 0, 0, 0)
+            self.lbl = QLabel()
+            self.cmb = QComboBox()
+            self.cmb.addItem("English", "en")
+            self.cmb.addItem("日本語", "ja")
+            self.cmb.setCurrentIndex(0)  # default: English
+            self.cmb.currentIndexChanged.connect(self._on_changed)
+            lay.addStretch(1)
+            lay.addWidget(self.lbl)
+            lay.addWidget(self.cmb)
+            self.i18n.languageChanged.connect(self._apply)
+            self._apply()
+
+        def _on_changed(self, idx: int):
+            lang = self.cmb.currentData()
+            self.i18n.set_lang(lang)
+
+        def _apply(self):
+            self.lbl.setText(self.i18n.t("language"))
+
+            # Keep combo labels localized too
+            self.cmb.blockSignals(True)
+            self.cmb.setItemText(0, self.i18n.t("lang_en"))
+            self.cmb.setItemText(1, self.i18n.t("lang_ja"))
+            # Keep selection as is
+            self.cmb.blockSignals(False)
+
+    class StyledPage(QWizardPage):
+        def __init__(self, i18n: I18n, title_key: str = ""):
+            super().__init__()
+            self.i18n = i18n
+            self._title_key = title_key
+            self.i18n.languageChanged.connect(self._apply_title)
+            self._apply_title()
+
+        def _apply_title(self):
+            if self._title_key:
+                self.setTitle(self.i18n.t(self._title_key))
+
+        # For pages to override and update their texts
+        def apply_texts(self):
+            pass
+
+    # ── Pages ───────────────────────────────────────────────────────────────
+
+    class WelcomePage(StyledPage):
+        def __init__(self, i18n: I18n):
+            super().__init__(i18n, "welcome_title")
+            v = QVBoxLayout(self)
+
+            # Top-right language switcher
+            v.addWidget(LanguageSwitcher(i18n))
+
+            brand = QLabel()
+            brand.setObjectName("Brand")
+            brand.setAlignment(Qt.AlignCenter)
+
+            self.msg = QLabel()
+            self.msg.setWordWrap(True)
+            self.msg.setAlignment(Qt.AlignCenter)
+
+            v.addWidget(brand)
+            v.addWidget(self.msg)
+            v.addItem(QSpacerItem(0, 8, QSizePolicy.Minimum, QSizePolicy.Fixed))
+
+            tips = QListWidget()
+            tips.setFrameShape(QListWidget.NoFrame)
+            tips.setSpacing(4)
+            self._tips = tips
+            v.addWidget(tips)
+
+            self._brand = brand
+            self.i18n.languageChanged.connect(self.apply_texts)
+            self.apply_texts()
+
+        def apply_texts(self):
+            self._brand.setText(self.i18n.t("brand"))
+            self.msg.setText(self.i18n.t("welcome_msg"))
+            self._tips.clear()
+            for t in ["tip_1", "tip_2", "tip_3"]:
+                QListWidgetItem(f"• {self.i18n.t(t)}", self._tips)
+
+    class LicensePage(StyledPage):
         LICENSE_URL = "https://ypsh-dgc.github.io/YPSH/LICENSE"
 
-        def __init__(self):
-            super().__init__()
-            self.setTitle("License Agreement")
-            self.setButtonText(QWizard.NextButton, "Accept")
+        def __init__(self, i18n: I18n):
+            super().__init__(i18n, "license_title")
+            self.worker: Optional[LicenseWorker] = None
 
-            self._fetcher: Optional[LicenseFetchThread] = None
-            self._load_seq: int = 0
-            self._busy_cursor: bool = False
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
 
-            lay = QVBoxLayout()
-            tip = QLabel("Please review the license below. Click “Accept” to continue or “Cancel” to exit.")
-            tip.setWordWrap(True)
-            lay.addWidget(tip)
+            self.reload_btn = QPushButton()
+            self.reload_btn.clicked.connect(self._reload)
 
-            reload_row = QHBoxLayout()
-            reload_row.addStretch(1)
-            reload_btn = QPushButton("Reload")
-            reload_btn.clicked.connect(self.load_license)
-            reload_row.addWidget(reload_btn)
-            lay.addLayout(reload_row)
+            top = QHBoxLayout()
+            top.addStretch(1)
+            top.addWidget(self.reload_btn)
+            v.addLayout(top)
 
             self.view = QTextEdit()
             self.view.setReadOnly(True)
-            self.view.setPlaceholderText("Fetching license text…")
-            lay.addWidget(self.view, 1)
+            v.addWidget(self.view, 1)
 
-            self.setLayout(lay)
+            self.chk_accept = QCheckBox()
+            self.chk_accept.stateChanged.connect(self.completeChanged)
+            v.addWidget(self.chk_accept)
 
-        def _set_next_enabled(self, enabled: bool):
-            wiz = self.wizard()
-            if not wiz:
-                return
-            next_btn = wiz.button(QWizard.NextButton)
-            if next_btn:
-                next_btn.setEnabled(enabled)
+            self.i18n.languageChanged.connect(self.apply_texts)
+            self.apply_texts()
 
-        def _start_busy(self):
-            if not self._busy_cursor:
-                QApplication.setOverrideCursor(Qt.WaitCursor)
-                self._busy_cursor = True
+        def initializePage(self) -> None:
+            self._reload()
 
-        def _end_busy(self):
-            if self._busy_cursor:
-                QApplication.restoreOverrideCursor()
-                self._busy_cursor = False
+        def isComplete(self) -> bool:
+            return self.chk_accept.isChecked() and bool(self.view.toPlainText().strip())
 
-        def initializePage(self):
-            wiz = self.wizard()
-            next_btn = wiz.button(QWizard.NextButton)
-            if next_btn:
-                next_btn.setEnabled(False)
+        @Slot()
+        def _reload(self) -> None:
+            self.setEnabled(False)
+            self.view.setPlainText(self.i18n.t("license_loading"))
+            self.worker = LicenseWorker(self.LICENSE_URL)
+            self.worker.done.connect(self._on_done)
+            self.worker.start()
 
-            # ページ入場時に毎回取得
-            self.load_license()
-            wiz = self.wizard()
+        @Slot(str, bool, str)
+        def _on_done(self, text: str, ok: bool, err: str) -> None:
+            self.setEnabled(True)
+            if ok:
+                self.view.setPlainText(text)
+            else:
+                self.view.setPlainText(self.i18n.t("license_error", err=err))
+                QMessageBox.warning(self, self.i18n.t("license_title"), self.i18n.t("license_error", err=err))
+            self.completeChanged.emit()
 
-            # Cancelはこのページでも見せたい（_update_cancel_visibilityでも制御するが保険で）
-            cancel_btn = wiz.button(QWizard.CancelButton)
-            if cancel_btn:
-                cancel_btn.setVisible(True)
+        def apply_texts(self):
+            self.reload_btn.setText(self.i18n.t("license_reload"))
+            self.chk_accept.setText(self.i18n.t("license_accept"))
+            if self.view.toPlainText().strip() == "" or "Fetching" in self.view.toPlainText() or "取得中" in self.view.toPlainText():
+                self.view.setPlaceholderText(self.i18n.t("license_loading"))
 
-        def load_license(self):
-            if not hasattr(self, "_load_seq"):
-                self._load_seq = 0
-            if not hasattr(self, "_busy_cursor"):
-                self._busy_cursor = False
+    class ChannelPage(StyledPage):
+        def __init__(self, i18n: I18n, state: WizardState):
+            super().__init__(i18n, "channel_title")
+            self.state = state
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
 
-            # 既存結果を無効化するための連番を更新
-            self._load_seq += 1
-            seq = self._load_seq
-
-            # UIをリセット
-            self.view.setPlainText("Fetching license text…")
-            self._set_next_enabled(False)
-            self._start_busy()
-
-            # 既存スレッドは放置（結果はseq不一致で無視）
-            self._fetcher = LicenseFetchThread(self.LICENSE_URL, seq, self)
-            self._fetcher.done.connect(self._on_fetch_done)
-            self._fetcher.start()
-
-        def _on_fetch_done(self, seq: int, text: str, ok: bool):
-            # 古い要求の結果なら無視
-            if seq != self._load_seq:
-                return
-
-            self._end_busy()
-            self.view.setPlainText(text)
-            self._set_next_enabled(ok)
-
-    class ChannelPage(QWizardPage):
-        def __init__(self):
-            super().__init__()
-            self.setTitle("Choose a Release Channel")
-            lay = QVBoxLayout()
             self.grp = QButtonGroup(self)
-            self.rad_stable = QRadioButton("Stable"); self.rad_stable.setChecked(True)
-            self.rad_beta = QRadioButton("Beta")
-            self.rad_custom = QRadioButton("Custom")
+
+            self.rad_stable = QRadioButton()
+            self.rad_beta = QRadioButton()
+            self.rad_custom = QRadioButton()
+            self.rad_stable.setChecked(True)
+
             for i, w in enumerate([self.rad_stable, self.rad_beta, self.rad_custom]):
-                self.grp.addButton(w, i); lay.addWidget(w)
+                self.grp.addButton(w, i)
+                v.addWidget(w)
 
-            self._holder = QLineEdit("stable")
-            self._holder.hide()
-            self.registerField("channel", self._holder)
+            self.hint = QLabel()
+            self.hint.setWordWrap(True)
+            v.addWidget(self.hint)
 
-            self.grp.idClicked.connect(lambda _id: self.completeChanged.emit())
-            self.setLayout(lay)
+            self.i18n.languageChanged.connect(self.apply_texts)
+            self.apply_texts()
 
-        def isComplete(self):
+        def validatePage(self) -> bool:
+            if self.rad_stable.isChecked():
+                self.state.channel = "stable"
+            elif self.rad_beta.isChecked():
+                self.state.channel = "beta"
+            else:
+                self.state.channel = "custom"
             return True
 
-        def validatePage(self):
-            ch = "stable" if self.rad_stable.isChecked() else "beta" if self.rad_beta.isChecked() else "custom"
-            self.wizard().setField("channel", ch)
-            return True
+        def nextId(self) -> int:
+            wiz: InstallerWizard = self.wizard()  # type: ignore
+            return wiz.Page_CustomTag if self.rad_custom.isChecked() else wiz.Page_Destination
 
-        def nextId(self):
-            return InstallerWizard.Page_CustomTag if self.wizard().field("channel") == "custom" else InstallerWizard.Page_Destination
+        def apply_texts(self):
+            self.rad_stable.setText(self.i18n.t("stable"))
+            self.rad_beta.setText(self.i18n.t("beta"))
+            self.rad_custom.setText(self.i18n.t("custom"))
+            self.hint.setText(self.i18n.t("channel_hint"))
 
-    class CustomTagPage(QWizardPage):
-        def __init__(self):
-            super().__init__()
-            self.setTitle("Specify Custom Version Tag")
-            lay = QVBoxLayout()
-            tip = QLabel("Enter an exact release tag (e.g., v1.2.3).")
-            lay.addWidget(tip)
+    class CustomTagPage(StyledPage):
+        def __init__(self, i18n: I18n, state: WizardState):
+            super().__init__(i18n, "custom_title")
+            self.state = state
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
+
+            form = QFormLayout()
+            self.lbl = QLabel()
             self.edit = QLineEdit()
-            lay.addWidget(self.edit)
-            self.setLayout(lay)
-            self.registerField("custom_tag", self.edit)
+            form.addRow(self.lbl, self.edit)
+            v.addLayout(form)
 
-        def nextId(self):
-            return InstallerWizard.Page_Destination
+            self.note = QLabel()
+            self.note.setWordWrap(True)
+            v.addWidget(self.note)
 
-    class DestinationPage(QWizardPage):
-        def __init__(self):
-            super().__init__()
-            self.setTitle("Choose Installation Directory")
-            layH = QHBoxLayout()
+            self.i18n.languageChanged.connect(self.apply_texts)
+            self.apply_texts()
+
+            self.edit.textChanged.connect(self.completeChanged)
+
+        def isComplete(self) -> bool:
+            return bool(self.edit.text().strip())
+
+        def validatePage(self) -> bool:
+            self.state.custom_tag = self.edit.text().strip()
+            return True
+
+        def apply_texts(self):
+            self.lbl.setText(self.i18n.t("custom_label"))
+            self.edit.setPlaceholderText(self.i18n.t("custom_placeholder"))
+            self.note.setText(self.i18n.t("custom_note"))
+
+    class DestinationPage(StyledPage):
+        def __init__(self, i18n: I18n, state: WizardState):
+            super().__init__(i18n, "dest_title")
+            self.state = state
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
+
+            row = QHBoxLayout()
             self.edit = QLineEdit(DEFAULT_DEST)
-            btn = QPushButton("Browse…")
-            btn.clicked.connect(self._browse)
-            layH.addWidget(self.edit, 1); layH.addWidget(btn)
-            lay = QVBoxLayout()
-            lay.addLayout(layH)
-            self.setLayout(lay)
-            self.registerField("dest", self.edit)
+            self.btn = QPushButton()
+            self.btn.clicked.connect(self._browse)
+            row.addWidget(self.edit, 1)
+            row.addWidget(self.btn)
+            v.addLayout(row)
 
-        def _browse(self):
-            d = QFileDialog.getExistingDirectory(self, "Select Directory", self.edit.text())
+            self.note = QLabel()
+            self.note.setWordWrap(True)
+            v.addWidget(self.note)
+
+            self.i18n.languageChanged.connect(self.apply_texts)
+            self.apply_texts()
+
+        @Slot()
+        def _browse(self) -> None:
+            d = QFileDialog.getExistingDirectory(self, self.i18n.t("dest_title"), self.edit.text())
             if d:
                 self.edit.setText(d)
 
-        def nextId(self):
-            return InstallerWizard.Page_Advanced
+        def validatePage(self) -> bool:
+            path = self.edit.text().strip() or DEFAULT_DEST
+            self.state.dest = path
+            return True
 
-    class AdvancedPage(QWizardPage):
-        def __init__(self):
-            super().__init__()
-            self.setTitle("Advanced Options")
-            lay = QVBoxLayout()
-            self.chk_path = QCheckBox("Add YPSH to PATH (for Current User)")
+        def apply_texts(self):
+            self.btn.setText(self.i18n.t("browse"))
+            self.note.setText(self.i18n.t("dest_note"))
+
+    class OptionsPage(StyledPage):
+        def __init__(self, i18n: I18n, state: WizardState):
+            super().__init__(i18n, "options_title")
+            self.state = state
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
+
+            self.chk_path = QCheckBox()
             self.chk_path.setChecked(True)
-            self.chk_gate = QCheckBox("Do not disable Gatekeeper (for macOS)")
-            self.chk_dbg = QCheckBox("Debug to stdout")
-            lay.addWidget(self.chk_path)
-            lay.addWidget(self.chk_gate)
-            lay.addWidget(self.chk_dbg)
-            self.setLayout(lay)
-            self.registerField("addPATH", self.chk_path)
-            self.registerField("ignoreGatekeeper", self.chk_gate)
-            self.registerField("debug", self.chk_dbg)
+            self.chk_gate = QCheckBox()
+            self.chk_gate.setChecked(False)
+            self.chk_dbg = QCheckBox()
+            self.chk_dbg.setChecked(False)
 
-        def nextId(self):
-            return InstallerWizard.Page_Install
+            v.addWidget(self.chk_path)
+            v.addWidget(self.chk_gate)
+            v.addWidget(self.chk_dbg)
 
-    class InstallPage(QWizardPage):
-        def __init__(self):
-            super().__init__()
-            self.setTitle("Installing…")
-            self.setFinalPage(False)
-            lay = QVBoxLayout()
+            v.addWidget(self._hline())
+            self.hint = QLabel()
+            self.hint.setWordWrap(True)
+            v.addWidget(self.hint)
+
+            self.i18n.languageChanged.connect(self.apply_texts)
+            self.apply_texts()
+
+        def _hline(self) -> QFrame:
+            line = QFrame()
+            line.setObjectName("line")
+            line.setFrameShape(QFrame.HLine)
+            line.setFrameShadow(QFrame.Sunken)
+            return line
+
+        def validatePage(self) -> bool:
+            self.state.add_path = self.chk_path.isChecked()
+            self.state.ignore_gatekeeper = self.chk_gate.isChecked()
+            self.state.debug = self.chk_dbg.isChecked()
+            return True
+
+        def apply_texts(self):
+            self.chk_path.setText(self.i18n.t("opt_path"))
+            self.chk_gate.setText(self.i18n.t("opt_gate"))
+            self.chk_dbg.setText(self.i18n.t("opt_debug"))
+            self.hint.setText(self.i18n.t("options_hint"))
+
+    class SummaryPage(StyledPage):
+        def __init__(self, i18n: I18n, state: WizardState):
+            super().__init__(i18n, "summary_title")
+            self.state = state
+            self.view = QTextEdit()
+            self.view.setReadOnly(True)
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
+            v.addWidget(self.view)
+            self.i18n.languageChanged.connect(self.apply_texts)
+
+        def initializePage(self) -> None:
+            self.apply_texts()
+
+        def nextId(self) -> int:
+            return self.wizard().Page_Install  # type: ignore
+
+        def apply_texts(self):
+            lines = [self.i18n.t("summary_intro"), ""]
+            lines.append(self.i18n.t("summary_channel", channel=self.state.channel))
+            if self.state.channel == "custom" and self.state.custom_tag:
+                lines.append(self.i18n.t("summary_tag", tag=self.state.custom_tag))
+            lines.append(self.i18n.t("summary_dest", dest=self.state.dest))
+            lines.append(self.i18n.t("summary_addpath", yn=self.i18n.t("yes") if self.state.add_path else self.i18n.t("no")))
+            gate_txt = self.i18n.t("gate_dont") if self.state.ignore_gatekeeper else self.i18n.t("gate_do")
+            lines.append(self.i18n.t("summary_gate", gate=gate_txt))
+            lines.append(self.i18n.t("summary_debug", dbg=self.i18n.t("yes") if self.state.debug else self.i18n.t("no")))
+            self.view.setPlainText("\n".join(lines))
+
+    class InstallPage(StyledPage):
+        def __init__(self, i18n: I18n, state: WizardState):
+            super().__init__(i18n, "install_title")
+            self.state = state
+            self.worker: Optional[InstallWorker] = None
+
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
+
             self.prg = QProgressBar()
             self.prg.setRange(0, 100)
             self.log = QTextEdit()
             self.log.setReadOnly(True)
-            self.log.setPlaceholderText("Logs will appear here…")
-            lay.addWidget(self.prg)
-            lay.addWidget(self.log, 1)
-            self.setLayout(lay)
-            self.thread: InstallerThread | None = None
 
-        def initializePage(self):
-            wiz = self.wizard()
-            kwargs = {
-                "to": wiz.field("dest") or DEFAULT_DEST,
-                "channel": wiz.field("channel") or "stable",
-                "custom_tag": wiz.field("custom_tag") or None,
-                "ignoreGatekeeper": bool(wiz.field("ignoreGatekeeper")),
-                "debug": bool(wiz.field("debug")),
-                "add_to_path_flag": bool(wiz.field("addPATH")),
-            }
-            self.thread = InstallerThread(kwargs)
-            self.thread.log.connect(self.log.append)
-            self.thread.progress.connect(self.prg.setValue)
-            self.thread.finished.connect(self._done)
-            self.thread.start()
+            v.addWidget(self.prg)
+            v.addWidget(self.log, 1)
 
-            wiz.button(QWizard.BackButton).setEnabled(False)
-            wiz.button(QWizard.NextButton).setEnabled(False)
+            self.i18n.languageChanged.connect(self.apply_texts)
+            self.apply_texts()
 
-        def _done(self, res):
+        def initializePage(self) -> None:
+            wiz: InstallerWizard = self.wizard()  # type: ignore
+            for btn in (QWizard.BackButton, QWizard.NextButton):
+                w = wiz.button(btn)
+                if w:
+                    w.setEnabled(False)
+
+            self.worker = InstallWorker(self.state)
+            self.worker.log.connect(self.log.append)
+            self.worker.progress.connect(self.prg.setValue)
+            self.worker.finished.connect(self._done)
+            self.worker.start()
+
+        @Slot(dict)
+        def _done(self, res: Dict[str, Any]) -> None:
+            wiz: InstallerWizard = self.wizard()  # type: ignore
+            ok = res.get("status") == "ok"
             self.prg.setValue(100)
-            wiz = self.wizard()
-
-            if res.get("status") == "ok":
-                self.setTitle("Installed!")
-                wiz.button(QWizard.NextButton).setEnabled(True)
-                wiz.button(QWizard.NextButton).click()
+            if ok:
+                wiz.setProperty("result", res)
+                nxt = wiz.button(QWizard.NextButton)
+                if nxt:
+                    nxt.setEnabled(True)
+                    nxt.click()
             else:
-                # 失敗時: 見出しを変更してページに留まる
-                self.setTitle("Sorry, Installation Failed.")
+                back = wiz.button(QWizard.BackButton)
+                if back:
+                    back.setEnabled(True)
+                cancel = wiz.button(QWizard.CancelButton)
+                if cancel:
+                    cancel.setEnabled(True)
+                    cancel.setVisible(True)
+                QMessageBox.critical(self, self.i18n.t("install_failed"), res.get("desc", self.i18n.t("error_unknown")))
 
-                # ユーザー操作のために戻る/キャンセルを有効化（任意だが実用的）
-                back_btn = wiz.button(QWizard.BackButton)
-                if back_btn:
-                    back_btn.setEnabled(True)
+        def nextId(self) -> int:
+            return self.wizard().Page_Finish  # type: ignore
 
-                cancel_btn = wiz.button(QWizard.CancelButton)
-                if cancel_btn:
-                    cancel_btn.setVisible(True)   # Welcome以外でも見えるように
-                    cancel_btn.setEnabled(True)
+        def apply_texts(self):
+            self.log.setPlaceholderText(self.i18n.t("install_logs_ph"))
 
-                # 「次へ」は無効のまま（Finishへは進ませない）
-                next_btn = wiz.button(QWizard.NextButton)
-                if next_btn:
-                    next_btn.setEnabled(False)
+    class FinishPage(StyledPage):
+        def __init__(self, i18n: I18n, state: WizardState):
+            super().__init__(i18n, "finish_title")
+            self.state = state
+            v = QVBoxLayout(self)
+            v.addWidget(LanguageSwitcher(i18n))
 
-        def nextId(self):
-            return InstallerWizard.Page_Finish
+            self.msg = QLabel()
+            self.msg.setWordWrap(True)
+            v.addWidget(self.msg)
 
-    class FinishPage(QWizardPage):
-        def __init__(self):
-            super().__init__()
-            self.setTitle("Completed")
-            lay = QVBoxLayout()
-            done = QLabel("YPSH has been installed successfully.")
-            done.setWordWrap(True)
-            lay.addWidget(done)
-            hint = QLabel("Open a new terminal to use updated PATH (if enabled).")
-            hint.setWordWrap(True)
-            lay.addWidget(hint)
-            self.setLayout(lay)
-            self.setFinalPage(True)
+            row = QHBoxLayout()
+            row.addStretch(1)
+            self.btn_open = QPushButton()
+            self.btn_copy_cmd = QPushButton()
+            row.addWidget(self.btn_open)
+            row.addWidget(self.btn_copy_cmd)
+            v.addLayout(row)
+
+            self.hint = QLabel()
+            self.hint.setWordWrap(True)
+            v.addWidget(self.hint)
+
+            self.btn_open.clicked.connect(self._open_folder)
+            self.btn_copy_cmd.clicked.connect(self._copy_cmd)
+
+            self.i18n.languageChanged.connect(self.apply_texts)
+            # ★ ここで apply_texts は呼ばない（wizard() がまだ None のため）
+            # self.apply_texts()
+
+        def initializePage(self) -> None:
+            # ページがウィザードに組み込まれた後に呼ばれるので安全
+            self.apply_texts()
+
+        @Slot()
+        def _open_folder(self) -> None:
+            dest = self.state.dest
+            if platform.system() == "Windows":
+                os.startfile(dest)  # type: ignore
+            elif platform.system() == "Darwin":
+                os.system(f'open "{dest}"')
+            else:
+                os.system(f'xdg-open "{dest}"')
+
+        @Slot()
+        def _copy_cmd(self) -> None:
+            bin_name = "ypsh.exe" if platform.system() == "Windows" else "ypsh"
+            cmd = os.path.join(self.state.dest, bin_name)
+            QApplication.clipboard().setText(cmd)
+            QMessageBox.information(self, self.i18n.t("copied_title"), self.i18n.t("copied_body", cmd=cmd))
+
+        def isFinalPage(self) -> bool:
+            return True
+
+        def apply_texts(self):
+            # ★ wizard() が None のケースに対応
+            dest = self.state.dest
+            wiz = self.wizard()
+            if wiz is not None:
+                res = wiz.property("result")
+                if isinstance(res, dict):
+                    dest = res.get("dest", dest)
+
+            self.setTitle(self.i18n.t("finish_title"))
+            self.msg.setText(self.i18n.t("finish_msg", dest=dest))
+            self.btn_open.setText(self.i18n.t("finish_open"))
+            self.btn_copy_cmd.setText(self.i18n.t("finish_copy"))
+            self.hint.setText(self.i18n.t("finish_hint"))
+
+    # ── Wizard ──────────────────────────────────────────────────────────────
 
     class InstallerWizard(QWizard):
-        Page_Welcome, Page_License, Page_Channel, Page_CustomTag, Page_Destination, Page_Advanced, Page_Install, Page_Finish = range(8)
+        Page_Welcome, Page_License, Page_Channel, Page_CustomTag, Page_Destination, Page_Options, Page_Summary, Page_Install, Page_Finish = range(9)
 
         def __init__(self):
             super().__init__()
-            self.setWindowTitle("YPSH Setup")
+            self.i18n = I18n(lang="en")  # default English
+            self.state = WizardState()
+
+            self.setWindowTitle(self.i18n.t("app_title"))
             self.setWizardStyle(QWizard.ModernStyle)
-
-            self.setAttribute(Qt.WA_StyledBackground, True)
-            self.setAutoFillBackground(True)
-
+            self.setMinimumSize(760, 560)
             self.setPixmap(QWizard.WatermarkPixmap, QPixmap())
             self.setPixmap(QWizard.LogoPixmap, QPixmap())
+            self.setWindowIcon(QIcon())
 
-            self.setPage(self.Page_Welcome, WelcomePage())
-            self.setPage(self.Page_License, LicensePage())
-            self.setPage(self.Page_Channel, ChannelPage())
-            self.setPage(self.Page_CustomTag, CustomTagPage())
-            self.setPage(self.Page_Destination, DestinationPage())
-            self.setPage(self.Page_Advanced, AdvancedPage())
-            self.setPage(self.Page_Install, InstallPage())
-            self.setPage(self.Page_Finish, FinishPage())
+            # Pages
+            self.setPage(self.Page_Welcome, WelcomePage(self.i18n))
+            self.setPage(self.Page_License, LicensePage(self.i18n))
+            self.setPage(self.Page_Channel, ChannelPage(self.i18n, self.state))
+            self.setPage(self.Page_CustomTag, CustomTagPage(self.i18n, self.state))
+            self.setPage(self.Page_Destination, DestinationPage(self.i18n, self.state))
+            self.setPage(self.Page_Options, OptionsPage(self.i18n, self.state))
+            self.setPage(self.Page_Summary, SummaryPage(self.i18n, self.state))
+            self.setPage(self.Page_Install, InstallPage(self.i18n, self.state))
+            self.setPage(self.Page_Finish, FinishPage(self.i18n, self.state))
 
             self.setButtonLayout([
                 QWizard.Stretch,
@@ -710,115 +1124,61 @@ if PYSIDE_AVAILABLE:
                 QWizard.FinishButton,
             ])
 
-            self.currentIdChanged.connect(self._update_cancel_visibility)
-            self._update_cancel_visibility(self.currentId())
-            self.setOption(QWizard.NoBackButtonOnStartPage, True)
+            self._apply_button_texts()
+            self.setStyleSheet(BASE_QSS)
 
-            self._apply_styles()
+            self.i18n.languageChanged.connect(self._apply_i18n_all)
 
-            stack = self.findChild(QStackedWidget, "qt_wizard_stack")
-            if stack:
-                stack.setObjectName("qt_wizard_stack")      # 念のため
-                stack.setAutoFillBackground(True)
-                stack.setAttribute(Qt.WA_StyledBackground, True)
-                stack.setStyleSheet("QStackedWidget#qt_wizard_stack { background: #0e1116; }")
+        def _apply_button_texts(self):
+            self.setButtonText(QWizard.NextButton, self.i18n.t("btn_next"))
+            self.setButtonText(QWizard.BackButton, self.i18n.t("btn_back"))
+            self.setButtonText(QWizard.CancelButton, self.i18n.t("btn_cancel"))
+            self.setButtonText(QWizard.FinishButton, self.i18n.t("btn_finish"))
 
-        def paintEvent(self, e):
-            p = QPainter(self)
-            p.fillRect(self.rect(), QColor("#0e1116"))
-            super().paintEvent(e)
+        @Slot()
+        def _apply_i18n_all(self):
+            self.setWindowTitle(self.i18n.t("app_title"))
+            self._apply_button_texts()
+            # Titles & page content are updated by each page via languageChanged
 
-        def _update_cancel_visibility(self, page_id: int):
-            cancel_btn = self.button(QWizard.CancelButton)
-            if cancel_btn is None:
-                return
-            cancel_btn.setVisible(page_id in (self.Page_Welcome, self.Page_License))
+        def nextId(self) -> int:
+            cur = self.currentId()
+            if cur == self.Page_Welcome:
+                return self.Page_License
+            if cur == self.Page_License:
+                return self.Page_Channel
+            if cur == self.Page_Channel:
+                return super().nextId()
+            if cur == self.Page_CustomTag:
+                return self.Page_Destination
+            if cur == self.Page_Destination:
+                return self.Page_Options
+            if cur == self.Page_Options:
+                return self.Page_Summary
+            if cur == self.Page_Summary:
+                return self.Page_Install
+            if cur == self.Page_Install:
+                return self.Page_Finish
+            return -1
 
-        def _apply_styles(self):
-            self.setStyleSheet("""
-                QDialog {
-                    background: #0e1116;
-                }
-                QWizard {
-                    background: #0e1116;
-                }
-                QWizardPage {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #11151c, stop:1 #0e1116);
-                }
-                QWizard QLabel#Brand {
-                    font-size: 40px;
-                    font-weight: 800;
-                    color: #e6edf3;
-                    letter-spacing: 1px;
-                    margin: 8px 0 16px 0;
-                }
-                QWizard QWidget {
-                    color: #e6edf3;
-                    font-size: 14px;
-                }
-                QWizardPage {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                                stop:0 #11151c, stop:1 #0e1116);
-                    border: 1px solid #232936;
-                    border-radius: 12px;
-                    padding: 16px;
-                    margin: 12px;
-                }
-                QLineEdit, QTextEdit {
-                    background: #0b0e14;
-                    border: 1px solid #2b3343;
-                    border-radius: 8px;
-                    padding: 8px;
-                    selection-background-color: #2f81f7;
-                }
-                QRadioButton, QCheckBox {
-                    spacing: 8px;
-                }
-                QPushButton {
-                    border-radius: 10px;
-                    padding: 8px 14px;
-                    background: #1f6feb;
-                    color: white;
-                    border: none;
-                }
-                QPushButton:hover {
-                    background: #2b80ff;
-                }
-                QPushButton:disabled {
-                    background: #2b3343;
-                    color: #9aa4b2;
-                }
-                QProgressBar {
-                    background: #0b0e14;
-                    border: 1px solid #2b3343;
-                    border-radius: 8px;
-                    text-align: center;
-                }
-                QProgressBar::chunk {
-                    background-color: #2f81f7;
-                    border-radius: 8px;
-                    margin: 1px;
-                }
-                QStackedWidget#qt_wizard_stack {
-                    background: #0e1116;
-                }
-            """)
-
-    def launch_gui():
+    def launch_gui() -> None:
         app = QApplication(sys.argv)
+        apply_dark_palette(app)
         w = InstallerWizard()
-        w.resize(720, 520)
         w.show()
         sys.exit(app.exec())
 
 else:
-    def launch_gui():
-        print("[yellow]PySide6 not installed; using CLI.")
+
+    def launch_gui() -> None:
+        print("[yellow]PySide6 not found; using CLI.")
         run_cli([a for a in sys.argv[1:] if a != "cli"])
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry
 # ─────────────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     argv = sys.argv[1:]
     if "cli" in argv or not PYSIDE_AVAILABLE:
