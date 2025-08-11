@@ -1,7 +1,7 @@
 
 <img width="1920" height="1080" alt="YPSH Header" src="https://github.com/user-attachments/assets/af60ff25-6459-48d9-9721-3c0a3f41f324" />
 
-# YPSH Language (formerly Pylo)
+# YPSH Language
 A programming language with a simple and intuitive syntax
 > Your route of Programming is Starting from Here
 
