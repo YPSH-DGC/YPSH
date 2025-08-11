@@ -24,7 +24,7 @@ from rich import print
 # ─────────────────────────────────────────────────────────────────────────────
 try:
     from PySide6.QtCore import QThread, Signal, Qt
-    from PySide6.QtGui import QPixmap
+    from PySide6.QtGui import QPixmap, QPainter, QColor
     from PySide6.QtWidgets import (
         QApplication,
         QWizard,
@@ -686,7 +686,9 @@ if PYSIDE_AVAILABLE:
             self.setWindowTitle("YPSH Setup")
             self.setWizardStyle(QWizard.ModernStyle)
 
-            # Optional: banner/watermark area (blank pixmaps, styled by CSS)
+            self.setAttribute(Qt.WA_StyledBackground, True)
+            self.setAutoFillBackground(True)
+
             self.setPixmap(QWizard.WatermarkPixmap, QPixmap())
             self.setPixmap(QWizard.LogoPixmap, QPixmap())
 
@@ -713,6 +715,11 @@ if PYSIDE_AVAILABLE:
 
             # Modern, rich styling
             self._apply_styles()
+
+        def paintEvent(self, e):
+            p = QPainter(self)
+            p.fillRect(self.rect(), QColor("#0e1116"))
+            super().paintEvent(e)
 
         def _update_cancel_visibility(self, page_id: int):
             cancel_btn = self.button(QWizard.CancelButton)
