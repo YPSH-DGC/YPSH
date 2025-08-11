@@ -722,8 +722,14 @@ if PYSIDE_AVAILABLE:
 
         def _apply_styles(self):
             self.setStyleSheet("""
+                QDialog {
+                    background: #0e1116;
+                }
                 QWizard {
                     background: #0e1116;
+                }
+                QWizardPage {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #11151c, stop:1 #0e1116);
                 }
                 QWizard QLabel#Brand {
                     font-size: 40px;
