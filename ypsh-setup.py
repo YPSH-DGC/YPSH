@@ -94,7 +94,7 @@ def getAutoBuildInfomation(tag: str) -> Dict[str, Any]:
 
 def _add_to_path_posix(path_dir: str) -> list[str]:
     home = os.path.expanduser("~")
-    shell = os.path.basename(os.environ.get("SHELL", "")).lower()
+    shell = os.path.basename(os.environ.get("SHELL", "bash")).lower()
 
     def contains(p: str) -> bool:
         try:
