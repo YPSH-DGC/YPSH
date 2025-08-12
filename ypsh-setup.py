@@ -117,19 +117,28 @@ def _add_to_path_posix(path_dir: str) -> list[str]:
         return []
 
     if "zsh" in shell:
-        preferred = [os.path.join(home, ".zprofile"), os.path.join(home, ".zshrc")]
+        candidates = [os.path.join(home, ".zprofile"), os.path.join(home, ".zshrc")]
     elif "bash" in shell:
-        preferred = [os.path.join(home, ".bash_profile"), os.path.join(home, ".bashrc")]
+        candidates = [os.path.join(home, ".bash_profile"), os.path.join(home, ".bashrc")]
     else:
-        preferred = [os.path.join(home, ".profile")]
+        candidates = [os.path.join(home, ".profile")]
 
-    target = next((f for f in preferred if os.path.exists(f)), preferred[0])
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    with open(target, "a", encoding="utf-8") as fh:
-        fh.write(f'\n# Added by YPSH installer\nexport PATH="{path_dir}:$PATH"\n')
+    updated: list[str] = []
 
-    return [target]
+    if not any(os.path.exists(p) for p in candidates):
+        target = candidates[0]
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "a", encoding="utf-8") as fh:
+            fh.write(f'\n# Added by YPSH installer\nexport PATH="{path_dir}:$PATH"\n')
+        return [target]
 
+    for p in candidates:
+        if os.path.exists(p) and not contains(p):
+            with open(p, "a", encoding="utf-8") as fh:
+                fh.write(f'\n# Added by YPSH installer\nexport PATH="{path_dir}:$PATH"\n')
+            updated.append(p)
+
+    return updated
 
 def _add_to_path_windows(path_dir: str) -> bool:
     try:
