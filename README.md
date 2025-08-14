@@ -8,7 +8,7 @@ A programming language with a simple and intuitive syntax
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/YPSH)
 
 ## Links
-[**H**ome](https://ypsh.diamondgotcat.net/) [**D**ocs](https://ypsh-docs.diamondgotcat.net/)
+[Home](https://ypsh.diamondgotcat.net/) [Downloads](https://ypsh-downloads.diamondgotcat.net/) [Docs](https://ypsh-docs.diamondgotcat.net/)
 
 ## AutoBuild (for Binary Version)
 YPSH builds are automated using GitHub Actions.
