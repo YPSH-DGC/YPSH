@@ -34,11 +34,11 @@ result = f"""
 # MIT License
 # Copyright (c) 2025 DiamondGotCat
 
-VERSION_TYPE = \"YPSH\"
-VERSION_NUMBER = \"{args.tag}\"
-BUILDID = \"{args.buildid}\"
-VERSION = f\"{{VERSION_TYPE}} {{VERSION_NUMBER}} ({{BUILDID}})\"
-LANG = \"{args.lang}\"
+PRODUCT_ID = \"YPSH\"
+VERSION_ID = \"{args.tag}\"
+BUILD_ID = \"{args.buildid}\"
+VERSION_TEXT = f\"{{VERSION_TYPE}} {{VERSION_NUMBER}} ({{BUILDID}})\"
+LANG_ID = \"{args.lang}\"
 
 {inte_script_nomain}
 

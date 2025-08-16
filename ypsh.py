@@ -7,11 +7,11 @@
 # Writed by DiamondGotCat
 #################################################################
 
-VERSION_TYPE = "YPSH"
-VERSION_NUMBER = "for Python"
-BUILDID = "YPSH-NOTBUILT"
-VERSION = f"{VERSION_TYPE} {VERSION_NUMBER} ({BUILDID})"
-LANG = "en"
+PRODUCT_ID = "YPSH"
+VERSION_ID = "for Python"
+BUILD_ID = "YPSH-NOTBUILT"
+VERSION_TEXT = f"{PRODUCT_ID} {VERSION_ID} ({BUILD_ID})"
+LANG_ID = "en"
 
 #!checkpoint!
 
@@ -20,6 +20,7 @@ from rich.console import Console
 from rich.markup import escape
 from dotenv import load_dotenv
 from next_drop_lib import FileSender, FileReceiver
+from typing import Optional, Dict, Callable, Any
 try:
     import readline
 except ImportError:
@@ -31,9 +32,9 @@ console = Console()
 rich_print = console.print
 shell_cwd = os.getcwd()
 
-YPSH_DIR = os.environ.get("YPSH_DIR", None) if not os.environ.get("YPSH_DIR", None) == None else os.path.join(os.path.expanduser('~'), '.ypsh')
-YPSH_LIBS_DIR = os.environ.get("YPSH_LIBS_DIR", None) if not os.environ.get("YPSH_LIBS_DIR", None) == None else os.path.join(YPSH_DIR, 'libs')
-YPSH_PM_DIR = os.environ.get("YPSH_PM_DIR", None) if not os.environ.get("YPSH_PM_DIR", None) == None else os.path.join(YPSH_DIR, 'pm')
+YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
+YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
+YPSH_PM_DIR: str = os.environ.get("YPSH_PM_DIR") or os.path.join(YPSH_DIR, "pm")
 
 ##############################
 # Helper
@@ -74,8 +75,8 @@ class YPSHError(Exception):
         super().__init__(self.__str__())
 
     def __str__(self):
-        if LANG in self.desc.keys():
-            return f"<{self.location}:{self.level}{self.ecode}> {self.desc[LANG]}"
+        if LANG_ID in self.desc.keys():
+            return f"<{self.location}:{self.level}{self.ecode}> {self.desc[LANG_ID]}"
         elif "en" in self.desc.keys():
             return f"<{self.location}:{self.level}{self.ecode}> {self.desc['en']}"
         else:
@@ -91,7 +92,7 @@ class YPSHError(Exception):
         elif key in ("ecode", "code"):
             return self.ecode
         elif key == "desc":
-            return self.desc.get(LANG, self.desc.get("en", ""))
+            return self.desc.get(LANG_ID, self.desc.get("en", ""))
         else:
             raise KeyError(key)
 
@@ -355,12 +356,13 @@ class NextDPManager:
         threading.Thread(target=runner, daemon=True).start()
 
     def stop_receiving(self):
-        if self._loop and self._server_task:
-            def stopper():
-                self._server_task.cancel()
-                self._loop.stop()
-
-            self._loop.call_soon_threadsafe(stopper)
+        loop = self._loop
+        task = self._server_task
+        if loop is not None and task is not None:
+            def stopper(task=task, loop=loop):
+                task.cancel()
+                loop.stop()
+            loop.call_soon_threadsafe(stopper)
 
     async def send_file(self, file_path):
         sender = FileSender(self.host, port=self.port, file_path=file_path)
@@ -374,8 +376,18 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
 
-    def current(self):
+    def current(self) -> Optional[Token]:
         return self.tokens[self.pos] if self.pos < len(self.tokens) else None
+
+    def _expect_current(self) -> Token:
+        tok = self.current()
+        if tok is None:
+            raise YPSHError("YPSH", "E", "0004", {"en": "Unexpected end of input.", "ja": "入力の終端に達しました。"})
+        return tok
+
+    def match(self, kind: str, value: str | None = None) -> bool:
+        tok = self.current()
+        return bool(tok and tok.type == kind and (value is None or tok.value == value))
 
     def eat(self, token_type):
         token = self.current()
@@ -394,17 +406,17 @@ class Parser:
 
     def statement(self):
         token = self.current()
-        
-        if token.type == 'ID' and token.value == 'template':
+
+        if token and token.type == 'ID' and token.value == 'template':
             return self.template_decl()
-        elif token.type == 'ID' and token.value == 'class':
+        elif token and token.type == 'ID' and token.value == 'class':
             return self.class_decl()
         elif token and token.type == 'ID' and token.value == 'do':
             return self.try_catch_stmt()
-        elif token.type == 'SHELL':
+        elif token and token.type == 'SHELL':
             self.eat('SHELL')
             return ShellStmt(token.value[1:].strip())
-        elif token.type == 'ID':
+        elif token and token.type == 'ID':
             if token.value == 'var':
                 return self.var_decl()
             elif token.value == 'func':
@@ -446,21 +458,25 @@ class Parser:
         name = self.eat('ID').value
         self.eat('LPAREN')
         params = []
-        if self.current().type != 'RPAREN':
+        tok = self.current()
+        if tok and tok.type != 'RPAREN':
             while True:
                 param_name = self.eat('ID').value
                 param_type = "auto"
-                if self.current() and self.current().type == 'COLON':
+                tok2 = self.current()
+                if tok2 and tok2.type == 'COLON':
                     self.eat('COLON')
                     param_type = self.eat('ID').value
                 params.append((param_name, param_type))
-                if self.current().type == 'COMMA':
+                tok3 = self.current()
+                if tok3 and tok3.type == 'COMMA':
                     self.eat('COMMA')
                 else:
                     break
         self.eat('RPAREN')
         return_type = "auto"
-        if self.current() and self.current().type == 'ARROW':
+        tok4 = self.current()
+        if tok4 and tok4.type == 'ARROW':
             self.eat('ARROW')
             return_type = self.eat('ID').value
         body = self.block()
@@ -546,7 +562,8 @@ class Parser:
         self.eat('ID')  # 'do'
         try_block = self.block()
 
-        if self.current().type == 'ID' and self.current().value == 'catch':
+        tok = self.current()
+        if tok and tok.type == 'ID' and tok.value == 'catch':
             self.eat('ID')  # 'catch'
             catch_var = self.eat('ID').value
             catch_block = self.block()
@@ -620,6 +637,10 @@ class Parser:
 
     def expr_atom(self):
         token = self.current()
+        if token is None:
+            raise YPSHError("YPSH", "E", "0004",
+                            {"en": "Unexpected end of input.",
+                            "ja": "入力の終端に達しました。"})
 
         if token.type == 'NUMBER':
             self.eat('NUMBER')
@@ -820,25 +841,26 @@ class Instance:
         self.__dict__['_cls'] = cls
         self.__dict__['_props'] = dict(cls.env)
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: str):
         val = self._props.get(item)
         if isinstance(val, Function):
             return lambda *a, **kw: val.call([self, *a], self._cls.interpreter)
         if callable(val):
-            return lambda *a, **kw: val(self, *a, **kw)
+            fn: Callable[..., Any] = val
+            return lambda *a, **kw: fn(self, *a, **kw)
         return val
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: str, value: Any):
         self._props[key] = value
 
 class Interpreter:
     modules = []
     docs = {}
 
-    VERSION_TYPE = VERSION_TYPE
-    VERSION_NUMBER = VERSION_NUMBER
-    VERSION = VERSION
-    BUILDID = BUILDID
+    PRODUCT_ID = PRODUCT_ID
+    VERSION_ID = VERSION_ID
+    VERSION_TEXT = VERSION_TEXT
+    BUILD_ID = BUILD_ID
 
     ypsh_false = "__false__"
     ypsh_true = "__true__"
@@ -1034,14 +1056,14 @@ Those who use them wisely, without abuse, are the true users of computers.
                 command_name = command.split(" ")[0]
                 if command_name == "cd":
                     changeto: str = command.split(" ")[1]
-                    changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}")))
+                    changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}")))
                     if changeto.startswith("/"):
                         shell_cwd = changeto
                     else:
                         shell_cwd = os.path.abspath(os.path.join(shell_cwd, changeto))
                 else:
                     try:
-                        result = subprocess.run(os.path.expanduser(os.path.expandvars(command.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
+                        result = subprocess.run(os.path.expanduser(os.path.expandvars(command.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
                         return result.stdout
                     except subprocess.CalledProcessError as e:
                         return e.stderr
@@ -1059,10 +1081,10 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return True
             self.ypsh_def("shell", "cwd.set", set_shell_cwd)
 
-            self.ypsh_def("ypsh", "version", self.VERSION, desc="Return YPSH's Full Version Name")
-            self.ypsh_def("ypsh", "version.type", self.VERSION_TYPE, desc="Return YPSH's Type / Distribution Type")
-            self.ypsh_def("ypsh", "version.number", self.VERSION_NUMBER, desc="Return Version Number as str")
-            self.ypsh_def("ypsh", "version.build", self.BUILDID, desc="Return the Build ID")
+            self.ypsh_def("ypsh", "version", self.VERSION_TEXT, desc="Return YPSH's Full Version Name")
+            self.ypsh_def("ypsh", "version.type", self.PRODUCT_ID, desc="Return YPSH's Type / Distribution Type")
+            self.ypsh_def("ypsh", "version.number", self.VERSION_ID, desc="Return Version Number as str")
+            self.ypsh_def("ypsh", "version.build", self.BUILD_ID, desc="Return the Build ID")
             self.ypsh_def("ypsh", "module", self.modules, desc="Module List / submodule 'module'")
             self.ypsh_def("ypsh", "modules", self.modules, desc="Module List / submodule 'modules'")
             self.ypsh_def("ypsh", "module.enable", self.module_enable, desc="Enable a Module on This Session")
@@ -1081,7 +1103,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("ypsh", "minimalize", ypsh_minimal, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
 
             def get_ypsh_version():
-                return self.VERSION
+                return self.VERSION_TEXT
             self.ypsh_def("ypsh", "version.get", get_ypsh_version, desc="Get YPSH's Full Version Name (func)")
 
             def ypsh_error(location: str = "APP", level: str = "E", ecode: str = "0000", desc = None):
@@ -1093,8 +1115,8 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "raise", raise_error, desc="Raise a Error with Error Object.")
 
             def error_lang_set(lang="en"):
-                global LANG
-                LANG = lang
+                global LANG_ID
+                LANG_ID = lang
             self.ypsh_def("@", "error.lang.set", error_lang_set, desc="Set a Language ID for Localized Error Message.")
 
         elif id == "docs":
@@ -1149,12 +1171,12 @@ Those who use them wisely, without abuse, are the true users of computers.
                 nextdp_manager.stop_receiving()
             self.ypsh_def("nextdp", "receiver.stop", nextdp_receiver_stop, desc="Stop the NextDP Receiver")
 
-            def nextdp_receiver_start(filepath: str, host: str = "0.0.0.0", port: int = 4321):
+            def nextdp_sender_start(filepath: str, host: str = "0.0.0.0", port: int = 4321):
                 global nextdp_manager
                 nextdp_manager.host = host
                 nextdp_manager.port = port
-                nextdp_manager.send_file(filepath)
-            self.ypsh_def("nextdp", "send", nextdp_receiver_start, desc="Send a file using NextDP")
+                asyncio.run(nextdp_manager.send_file(filepath))
+            self.ypsh_def("nextdp", "send", nextdp_sender_start, desc="Send a file using NextDP")
 
         elif id == "exstr":
             def exstr_unicode_uplus(s):
@@ -1529,14 +1551,14 @@ Those who use them wisely, without abuse, are the true users of computers.
             command_name = node.command.split(" ")[0]
             if command_name == "cd":
                 changeto: str = node.command.split(" ")[1]
-                changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}")))
+                changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}")))
                 if changeto.startswith("/"):
                     shell_cwd = changeto
                 else:
                     shell_cwd = os.path.abspath(os.path.join(shell_cwd, changeto))
             else:
                 try:
-                    result = subprocess.run(os.path.expanduser(os.path.expandvars(node.command.replace("$SHELL", f"{VERSION_TYPE.lower().replace('.', '-')}{VERSION_NUMBER.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
+                    result = subprocess.run(os.path.expanduser(os.path.expandvars(node.command.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
                     print(result.stdout)
                 except subprocess.CalledProcessError as e:
                     print(e.stderr)
@@ -1605,8 +1627,9 @@ Those who use them wisely, without abuse, are the true users of computers.
                     pass
 
             base = self.evaluate(node.obj, env)
+            base_any: Any = base  # type: ignore[assignment]
             try:
-                return getattr(base, node.name)
+                return getattr(base_any, node.name)  # type: ignore[attr-defined]
             except AttributeError:
                 raise YPSHError("YPSH", "E", "0101", {
                     "en": f"Object has no attribute '{node.name}'",
@@ -1649,7 +1672,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             elif node.op == '||':
                 return bool(left) or bool(right)
             elif node.op == '[]':
-                collection = self.evaluate(node.left, env)
+                collection: Any = self.evaluate(node.left, env)
                 index = self.evaluate(node.right, env)
                 try:
                     return collection[index]
@@ -1913,7 +1936,8 @@ def repl():
     accumulated_code = ""
 
     readline.set_history_length(1000)
-    if "libedit" in readline.__doc__:
+    doc = (getattr(readline, "__doc__", "") or "")
+    if "libedit" in doc:
         readline.parse_and_bind("bind ^I rl_complete")
     else:
         readline.parse_and_bind("tab: complete")
@@ -2052,7 +2076,7 @@ if __name__ == '__main__':
                 options["main"] = code
 
     if "version" in options:
-        print(VERSION)
+        print(VERSION_TEXT)
 
     if "lint" in options:
         if isReceivedCode:
@@ -2071,5 +2095,5 @@ if __name__ == '__main__':
         run_text(options["main"])
 
     elif not isReceivedGoodOption:
-        print(VERSION)
+        print(VERSION_TEXT)
         repl()

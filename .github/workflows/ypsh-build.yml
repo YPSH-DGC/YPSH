@@ -129,7 +129,7 @@ jobs:
       - name: Generate ypsh-release.py
         shell: bash
         run: |
-          python for-autobuild.py ${{ github.event.release.tag_name || github.ref }}
+          python for-autobuild-dl.py ${{ github.event.release.tag_name || github.ref }}
 
       - name: Notify progress 25%
         shell: bash
@@ -324,7 +324,7 @@ jobs:
       - name: Generate ypsh-release.py
         shell: bash
         run: |
-          python for-autobuild.py ${{ github.event.release.tag_name || github.ref }}
+          python for-autobuild-dl.py ${{ github.event.release.tag_name || github.ref }}
 
       - name: Notify progress 25%
         shell: bash
