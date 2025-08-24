@@ -37,7 +37,7 @@ result = f"""
 PRODUCT_ID = \"YPSH\"
 VERSION_ID = \"{args.tag}\"
 BUILD_ID = \"{args.buildid}\"
-VERSION_TEXT = f\"{{VERSION_TYPE}} {{VERSION_NUMBER}} ({{BUILDID}})\"
+VERSION_TEXT = f\"{{PRODUCT_ID}} {{VERSION_ID}} ({{BUILD_ID}})\"
 LANG_ID = \"{args.lang}\"
 
 {inte_script_nomain}
