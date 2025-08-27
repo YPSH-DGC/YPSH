@@ -12,7 +12,9 @@ YPSH builds are automated using GitHub Actions.
 ### Dashboard
 You can view the build status at [build.diamondgotcat.net](https://build.diamondgotcat.net/)
 
-### AutoBuild V4.5 (YPSH v6.1 and later)
+**Current AutoBuild Version: V4**
+
+### AutoBuild V4.5 (YPSH v6.1 and later, YPSH v6.5.1 and earlier)
 AutoBuild V4.5 is a 6-platform (and 1 Experimental platform) build automation that uses PyInstaller.
 - `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
 - `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
@@ -27,7 +29,7 @@ Currently, I do not have a RISC-V computer.
 Therefore, I may not be able to identify issues related to RISC-V builds.
 If possible, please submit any issues that occur on RISC-V as an issue.
 
-### AutoBuild V4 (YPSH v1.1 and later)
+### AutoBuild V4 (YPSH v1.1 and later, YPSH v6.1.1 and earlier) (YPSH v6.6 and later)
 AutoBuild V4 is a 6-platform build automation that uses PyInstaller.
 - `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
 - `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
