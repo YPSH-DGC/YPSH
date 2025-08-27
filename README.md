@@ -1,11 +1,10 @@
 
-<img width="1920" height="1080" alt="YPSH Header" src="https://github.com/user-attachments/assets/af60ff25-6459-48d9-9721-3c0a3f41f324" />
+<img width="1920" alt="YPSH Header" src="https://github.com/user-attachments/assets/af60ff25-6459-48d9-9721-3c0a3f41f324" />
 
 # YPSH Language
-A programming language with a simple and intuitive syntax
-> Your route of Programming is Starting from Here
+**YPSH - Your route of Programming is Starting from Here**
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/YPSH)
+A programming language with a simple and intuitive syntax
 
 ## AutoBuild (for Binary Version)
 YPSH builds are automated using GitHub Actions.
@@ -68,3 +67,7 @@ AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
 - `pylo-macos.zip`: macOS (Apple Silicon aarch64/arm64)
 - `pylo-linux.zip`: Linux (AMD amd64, Intel x86_64)
 - `pylo-windows.zip`: Windows (AMD amd64, Intel x86_64)
+
+---
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/YPSH) [![DGC-AutoBuild (YPSH)](https://github.com/YPSH-DGC/YPSH/actions/workflows/ypsh-build.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/ypsh-build.yml) [![DGC-AutoBuild (YPSH Setup)](https://github.com/YPSH-DGC/YPSH/actions/workflows/setup-build.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/setup-build.yml)
