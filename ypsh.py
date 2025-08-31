@@ -9,7 +9,7 @@
 
 PRODUCT_ID = "YPSH"
 VERSION_ID = "for Python"
-BUILD_ID = "YPSH-NOTBUILT"
+BUILD_ID = "YPSH-PYTHON"
 VERSION_TEXT = f"{PRODUCT_ID} {VERSION_ID} ({BUILD_ID})"
 LANG_ID = "en"
 
@@ -21,11 +21,7 @@ from rich.markup import escape
 from dotenv import load_dotenv
 from next_drop_lib import FileSender, FileReceiver
 from typing import Optional, Dict, Callable, Any
-try:
-    import readline
-except ImportError:
-    import pyreadline as readline
-import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex, ssl, certifi
+import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, readline, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex, ssl, certifi
 
 load_dotenv()
 console = Console()
@@ -60,6 +56,15 @@ def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
                 shallowest_path = os.path.join(dirpath, target_filename)
     
     return shallowest_path
+
+def return_ypsh_exec_folder() -> str:
+    if BUILD_ID == "YPSH-PYTHON":
+        return os.path.dirname(os.path.abspath(__file__))
+    else:
+        if getattr(sys, 'frozen', False):
+            return os.path.dirname(sys.executable)
+        else:
+            return os.path.dirname(os.path.abspath(__file__))
 
 ##############################
 # Built-in Error Documentation
@@ -1082,8 +1087,10 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("shell", "cwd.set", set_shell_cwd)
 
             self.ypsh_def("ypsh", "version", self.VERSION_TEXT, desc="Return YPSH's Full Version Name")
-            self.ypsh_def("ypsh", "version.type", self.PRODUCT_ID, desc="Return YPSH's Type / Distribution Type")
-            self.ypsh_def("ypsh", "version.number", self.VERSION_ID, desc="Return Version Number as str")
+            self.ypsh_def("ypsh", "version.dist", self.PRODUCT_ID, desc="Return YPSH's Product ID / Distribution ID")
+            self.ypsh_def("ypsh", "version.product", self.PRODUCT_ID, desc="Return YPSH's Product ID / Distribution ID")
+            self.ypsh_def("ypsh", "version.number", self.VERSION_ID, desc="Return Version Number/Tag as str")
+            self.ypsh_def("ypsh", "version.tag", self.VERSION_ID, desc="Return Version Number/Tag as str")
             self.ypsh_def("ypsh", "version.build", self.BUILD_ID, desc="Return the Build ID")
             self.ypsh_def("ypsh", "module", self.modules, desc="Module List / submodule 'module'")
             self.ypsh_def("ypsh", "modules", self.modules, desc="Module List / submodule 'modules'")
@@ -2011,6 +2018,13 @@ def run_lint(code):
             counter += 1
         raise SystemExit(1)
 
+def check_ypsh_scripts(*path_list, base: str = return_ypsh_exec_folder()) -> str | None:
+    for path in path_list:
+        full_path = os.path.join(base, path)
+        if os.path.isfile(full_path):
+            return full_path
+    return None
+
 #!checkpoint!
 
 ##############################
@@ -2095,5 +2109,12 @@ if __name__ == '__main__':
         run_text(options["main"])
 
     elif not isReceivedGoodOption:
-        print(VERSION_TEXT)
-        repl()
+        found_ypsh_script = check_ypsh_scripts("__autorun__.ypsh", "autorun.ypsh", "__main__.ypsh", "main.ypsh")
+        if found_ypsh_script:
+            with open(found_ypsh_script, encoding='utf-8') as f:
+                code = f.read()
+            run_text(code)
+
+        else:    
+            print(VERSION_TEXT + " [REPL]")
+            repl()
