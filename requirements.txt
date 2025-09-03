@@ -10,3 +10,5 @@ ulid-py
 python-dotenv
 certifi
 PySide6
+prompt_toolkit
+pygments

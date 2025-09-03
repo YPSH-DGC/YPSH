@@ -22,6 +22,16 @@ from dotenv import load_dotenv
 from next_drop_lib import FileSender, FileReceiver
 from typing import Optional, Dict, Callable, Any
 import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, readline, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex, ssl, certifi
+try:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.lexers import PygmentsLexer
+    from prompt_toolkit.completion import Completer, Completion
+    from prompt_toolkit.styles.pygments import style_from_pygments_dict
+    from pygments.lexer import RegexLexer, bygroups
+    import pygments.token as PygTok
+    _YPSH_HAS_PTK = True
+except Exception:
+    _YPSH_HAS_PTK = False
 
 load_dotenv()
 console = Console()
@@ -1907,6 +1917,100 @@ def collect_errors(code: str) -> list[Exception]:
 
     return errors
 
+if _YPSH_HAS_PTK:
+    BlockKwToken = PygTok.Keyword.Declaration
+
+    class YpshLexer(RegexLexer):
+        name = "YPSH"
+        aliases = ["ypsh"]
+
+        tokens = {
+            "root": [
+                (r'(//[^\n]*|#[^\n]*)', PygTok.Comment),
+                (r'"""', PygTok.String, 'tdqstring'),
+                (r"'''", PygTok.String, 'tsqstring'),
+                (r'"',   PygTok.String, 'dqstring'),
+                (r"'",   PygTok.String, 'sqstring'),
+                (r'\b(func)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
+                bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Function)),
+                (r'\b(class)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
+                bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
+                (r'\b(template)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
+                bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
+                (r'\b(template|if|elif|else|for|while|do|catch|return|break|continue|var|in)\b',
+                BlockKwToken),
+                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
+                bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name.Function)),
+                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
+                PygTok.Name.Function),
+                (r'\b\d+(\.\d+)?\b', PygTok.Number),
+                (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
+                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}(),.:?]', PygTok.Punctuation),
+                (r'\s+', PygTok.Text),
+            ],
+            "dqstring": [
+                (r'\\\(', PygTok.Punctuation, 'interp'),
+                (r'\\.',  PygTok.String.Escape),
+                (r'"',    PygTok.String, '#pop'),
+                (r'[^"\\]+', PygTok.String),
+            ],
+            "sqstring": [
+                (r'\\\(', PygTok.Punctuation, 'interp'),
+                (r'\\.',  PygTok.String.Escape),
+                (r"'",    PygTok.String, '#pop'),
+                (r"[^'\\]+", PygTok.String),
+            ],
+            "tdqstring": [
+                (r'\\\(', PygTok.Punctuation, 'interp'),
+                (r'\\.',  PygTok.String.Escape),
+                (r'"""',  PygTok.String, '#pop'),
+                (r'[^\\]+', PygTok.String),
+            ],
+            "tsqstring": [
+                (r'\\\(', PygTok.Punctuation, 'interp'),
+                (r'\\.',  PygTok.String.Escape),
+                (r"'''",  PygTok.String, '#pop'),
+                (r'[^\\]+', PygTok.String),
+            ],
+            "interp": [
+                (r'\)', PygTok.Punctuation, '#pop'),
+                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
+                bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name.Function)),
+                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
+                PygTok.Name.Function),
+                (r'\b\d+(\.\d+)?\b', PygTok.Number),
+                (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
+                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}.,:?]', PygTok.Punctuation),
+                (r'\s+', PygTok.Text),
+            ],
+        }
+
+    class YpshCompleter(Completer):
+        def __init__(self, get_env_keys_callable):
+            self._get_keys = get_env_keys_callable
+
+        def get_completions(self, document, complete_event):
+            word = document.get_word_before_cursor()
+            if not word:
+                return
+            for k in sorted(set(self._get_keys())):
+                if k.startswith(word):
+                    yield Completion(k, start_position=-len(word))
+
+    def _ypsh_ptk_style():
+        return style_from_pygments_dict({
+            BlockKwToken:            "fg:#FF69B4",
+            PygTok.Name.Function:    "fg:#FFD700",
+            PygTok.Name.Class:       "fg:#00B8B8",
+            PygTok.Comment:          "fg:#A0A0A0",
+            PygTok.Text:             "fg:#FFFFFF",
+            PygTok.Punctuation:      "fg:#FFFFFF",
+            PygTok.Name:             "fg:#FFFFFF",
+            PygTok.String:           "fg:#FFA500",
+            PygTok.Number:           "fg:#7FDBFF",
+            PygTok.Keyword:          "fg:#FFFFFF",
+        })
+
 ##############################
 # REPL / Script Executing / Other
 ##############################
@@ -1942,56 +2046,100 @@ def repl():
     interpreter = Interpreter()
     accumulated_code = ""
 
-    readline.set_history_length(1000)
-    doc = (getattr(readline, "__doc__", "") or "")
-    if "libedit" in doc:
-        readline.parse_and_bind("bind ^I rl_complete")
-    else:
-        readline.parse_and_bind("tab: complete")
+    if _YPSH_HAS_PTK:
+        style = _ypsh_ptk_style()
 
-    def completer(text, state):
-        env = interpreter.ypsh_globals
-        results = []
-        while env:
-            results += [k for k in env.vars.keys() if k.startswith(text)]
-            env = env.parent
-        results = sorted(set(results))
-        return results[state] if state < len(results) else None
+        def _all_env_keys():
+            env = interpreter.ypsh_globals
+            keys = []
+            while env:
+                keys.extend(env.vars.keys())
+                env = env.parent
+            return keys
 
-    readline.set_completer(completer)
+        session = PromptSession(
+            lexer=PygmentsLexer(YpshLexer),
+            completer=YpshCompleter(_all_env_keys),
+            style=style
+        )
 
-    while True:
-        try:
-            prompt = ">>> " if accumulated_code == "" else "... "
+        while True:
             try:
-                line = input(prompt)
+                prompt = ">>> " if accumulated_code == "" else "... "
+                line = session.prompt(prompt)
             except KeyboardInterrupt:
                 print()
                 accumulated_code = ""
                 continue
             except EOFError:
                 break
-        except KeyboardInterrupt:
-            print()
-            accumulated_code = ""
-            continue
-        except EOFError:
-            break
 
-        accumulated_code += line + "\n"
+            accumulated_code += line + "\n"
 
-        if not is_code_complete(accumulated_code):
-            continue
+            if not is_code_complete(accumulated_code):
+                continue
 
-        try:
-            tokens = tokenize(accumulated_code)
-            parser = Parser(tokens)
-            ast    = parser.parse()
-            interpreter.interpret(ast)
-        except Exception as e:
-            rich_print(f"[red]{e}[/red]")
-        finally:
-            accumulated_code = ""
+            try:
+                tokens = tokenize(accumulated_code)
+                parser = Parser(tokens)
+                ast    = parser.parse()
+                interpreter.interpret(ast)
+            except Exception as e:
+                rich_print(f"[red]{e}[/red]")
+            finally:
+                accumulated_code = ""
+
+    else:
+        readline.set_history_length(1000)
+        doc = (getattr(readline, "__doc__", "") or "")
+        if "libedit" in doc:
+            readline.parse_and_bind("bind ^I rl_complete")
+        else:
+            readline.parse_and_bind("tab: complete")
+
+        def completer(text, state):
+            env = interpreter.ypsh_globals
+            results = []
+            while env:
+                results += [k for k in env.vars.keys() if k.startswith(text)]
+                env = env.parent
+            results = sorted(set(results))
+            return results[state] if state < len(results) else None
+
+        readline.set_completer(completer)
+
+        while True:
+            try:
+                prompt = ">>> " if accumulated_code == "" else "... "
+                try:
+                    line = input(prompt)
+                except KeyboardInterrupt:
+                    print()
+                    accumulated_code = ""
+                    continue
+                except EOFError:
+                    break
+            except KeyboardInterrupt:
+                print()
+                accumulated_code = ""
+                continue
+            except EOFError:
+                break
+
+            accumulated_code += line + "\n"
+
+            if not is_code_complete(accumulated_code):
+                continue
+
+            try:
+                tokens = tokenize(accumulated_code)
+                parser = Parser(tokens)
+                ast    = parser.parse()
+                interpreter.interpret(ast)
+            except Exception as e:
+                rich_print(f"[red]{e}[/red]")
+            finally:
+                accumulated_code = ""
 
 def run_text(code):
     try:
