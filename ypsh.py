@@ -64,7 +64,7 @@ def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
             if depth < shallowest_depth:
                 shallowest_depth = depth
                 shallowest_path = os.path.join(dirpath, target_filename)
-    
+
     return shallowest_path
 
 def return_ypsh_exec_folder() -> str:
@@ -79,25 +79,30 @@ def return_ypsh_exec_folder() -> str:
 ##############################
 # Built-in Error Documentation
 ##############################
-class YPSHError(Exception):
-    def __init__(self, location: str = "YPSH", level: str = "E", ecode: str = "0000", desc = None):
+class YPSHException(Exception):
+    def __init__(self, location: str = "YPSH", level: str = "E", ecode: str = "0000", name: str = "GeneralError", desc = None):
+        if isinstance(name, dict) and desc is None:
+            desc, name = name, "GeneralError"
         if desc is None:
             desc = {"en": "Unknown Error", "ja": "不明なエラー"}
         self.location = location
         self.level = level
         self.ecode = ecode
+        self.name = name
         self.desc = desc
         super().__init__(self.__str__())
 
     def __str__(self):
         if LANG_ID in self.desc.keys():
-            return f"<{self.location}:{self.level}{self.ecode}> {self.desc[LANG_ID]}"
+            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc[LANG_ID]}"
+        elif "default" in self.desc.keys():
+            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc['default']}"
         elif "en" in self.desc.keys():
-            return f"<{self.location}:{self.level}{self.ecode}> {self.desc['en']}"
+            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc['en']}"
         else:
-            return f"<{self.location}:{self.level}{self.ecode}> No Description"
-    
-    def __getitem__(self, key):
+            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: No Description"
+
+    def __getitem__(self, key: str):
         if key == "full":
             return str(self)
         elif key == "location":
@@ -106,10 +111,88 @@ class YPSHError(Exception):
             return self.level
         elif key in ("ecode", "code"):
             return self.ecode
+        elif key == "name":
+            return self.name
         elif key == "desc":
             return self.desc.get(LANG_ID, self.desc.get("en", ""))
         else:
             raise KeyError(key)
+
+    def format(self, items: dict[str, Any] = {}):
+        for lang in self.desc.keys():
+            for key in items:
+                self.desc[lang] = self.desc[lang].replace("{" + key + "}", str(items[key]))
+        return self
+
+    def escape(self, flag: bool = False):
+        if flag:
+            for lang in self.desc.keys():
+                self.desc[lang] = escape(self.desc[lang])
+        return self
+
+##############################
+# Exceptions
+##############################
+ExceptionPrintingLevel = "W"
+
+UnknownError = YPSHException("YPSH", "E", "0000", "UnknownError", {"en": "Unknown Error", "ja": "不明なエラー"})
+BUILTIN_EXCEPTION_SPEC = {
+    "E0000": UnknownError,
+    "E0001": YPSHException("YPSH", "E", "0001", "SyntaxError", {"en": "Unexpected character {value!r} at line {line_num}.", "ja": "予想外の文字「{value!r}」が{line_num}行目に存在します。"}),
+    "E0002": YPSHException("YPSH", "E", "0002", "SyntaxError", {"en": "Unexpected end of input.", "ja": "入力の終端に達しました。"}),
+    "E0003": YPSHException("YPSH", "E", "0003", "SyntaxError", {"en": "Expected token {token_type} but got {token}.", "ja": "{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"}),
+    "E0004": YPSHException("YPSH", "E", "0004", "SyntaxError", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"}),
+    "E0005": YPSHException("YPSH", "E", "0005", "SyntaxError", {"en": "Expected 'catch' after 'do' block.","ja": "'do' ブロックの後に 'catch' が必要です。"}),
+    "E0006": YPSHException("YPSH", "E", "0006", "SyntaxError", {"en": "Unexpected token {token}.", "ja": "予想外のトークン: {token}"}),
+    "E0007": YPSHException("YPSH", "E", "0007", "KeyError", {"en": "Invalid dictionary key: {key_token}.", "ja": "辞書のキーが無効です: {key_token}"}),
+    "E0008": YPSHException("YPSH", "E", "0008", "ScopeError", {"en": "Cannot find '{name}' in scope.", "ja": "'{name}'がスコープに見つかりません。"}),
+    "E0009": YPSHException("YPSH", "E", "0009", "ArgumentError", {"en": "Function argument count mismatch.", "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"}),
+    "E0010": YPSHException("YPSH", "E", "0010", "TypeError", {"en": "Return type mismatch in function '{self.decl.name}': expected '{return_type}', got '{type(e.value).__name__}'", "ja": "関数 '{self.decl.name}' の戻り値の型が一致しません: '{return_type}' を期待していましたが、'{type(e.value).__name__}' でした。"}),
+    "E0011": YPSHException("YPSH", "E", "0011", "ArgumentError", {"en": "__init__ expects {len(params)-1} arg(s)", "ja": "__init__ は {len(params)-1} 個の引数を要求します"}),
+    "E0012": YPSHException("YPSH", "E", "0012", "ExpressionError", {"en": "Invalid embedded expression: {expr_src}", "ja": "埋め込み式が不正です: {expr_src}"}),
+    "E0013": YPSHException("YPSH", "E", "0013", "InterpolationError", {"en": "String interpolation failed: {e}", "ja": "文字列埋め込みの評価に失敗しました: {e}"}),
+    "E0014": YPSHException("YPSH", "E", "0014", "TypeError", {"en": "Expected '{id}' to be a list.", "ja": "'{id}' の種類はlistではありません。"}),
+    "E0015": YPSHException("YPSH", "E", "0015", "ImportError", {"en": "File not found: {file_path}.", "ja": "ファイルが存在しません: {file_path}"}),
+    "E0016": YPSHException("YPSH", "E", "0016", "ImportError", {"en": "Cannot find this Module(s)/Library(s): [{', '.join(not_founds)}]", "ja": "次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]"}),
+    "E0017": YPSHException("YPSH", "E", "0017", "TypeError", {"en": "Type mismatch for variable '{node.name}': expected '{expected_type}', got '{type(value).__name__}'", "ja": "変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{type(value).__name__}' でした。"}),
+    "E0018": YPSHException("YPSH", "E", "0018", "TypeError", {"en": "Base {node.base} is not template", "ja": "基底 {node.base} は template ではありません"}),
+    "E0019": YPSHException("YPSH", "E", "0019", "TypeError", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"}),
+    "E0020": YPSHException("YPSH", "E", "0020", "KeyError", {"en": "Object has no attribute '{node.name}'", "ja": "属性 '{node.name}' は存在しません"}),
+    "E0021": YPSHException("YPSH", "E", "0021", "KeyError", {"en": "Cannot access index/key '{index}' on {collection}", "ja": "{collection} に対してインデックス/キー '{index}' を取得できません"}),
+    "E0022": YPSHException("YPSH", "E", "0022", "SyntaxError", {"en": "Unknown operator: {node.op}.", "ja": "未知の演算子: {node.op}"}),
+    "E0023": YPSHException("YPSH", "E", "0023", "SyntaxError", {"en": "Unknown unary operator {node.op}.", "ja": "未知の単項演算子: {node.op}"}),
+    "E0024": YPSHException("YPSH", "E", "0024", "TypeError", {"en": "Attempting to call a non-callable object.", "ja": "呼び出し不可能なオブジェクトを呼び出そうとしました。"}),
+    "E0025": YPSHException("YPSH", "E", "0025", "EvaluationError", {"en": "Cannot evaluate node {node}.", "ja": "{node} を処理できません。"}),
+    "E0026": YPSHException("YPSH", "E", "0026", "ScopeError", {"en": "Cannot find function '{name}' in scope.", "ja": "関数 '{name}' がスコープ内に存在しません。"})
+}
+
+def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_escape: bool = False) -> YPSHException:
+    tmpl = BUILTIN_EXCEPTION_SPEC.get(id, UnknownError)
+    new_exc = YPSHException(
+        location=tmpl.location,
+        level=tmpl.level,
+        ecode=tmpl.ecode,
+        name=tmpl.name,
+        desc=dict(tmpl.desc),
+    )
+    if args is None:
+        args = {}
+    return new_exc.format(args).escape(need_escape)
+
+def exception_handler(exception: Exception, level: str = None):
+    final_level = "W"
+    if isinstance(exception, YPSHException):
+        final_level = exception.level[0].upper()
+    if level:
+        final_level = level[0].upper()
+    if final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
+        raise exception
+    elif final_level == "W" and ExceptionPrintingLevel in ["W", "I", "D"]:
+        print(str(exception))
+    elif final_level == "I" and ExceptionPrintingLevel in ["I", "D"]:
+        print(str(exception))
+    elif final_level == "D" and ExceptionPrintingLevel in ["D"]:
+        print(str(exception))
 
 ##############################
 # Tokens
@@ -176,7 +259,7 @@ def tokenize(code, collect_errors=False):
         elif kind in ('SKIP', 'COMMENT'):
             continue
         elif kind == 'MISMATCH' and collect_errors:
-            errors.append(YPSHError("YPSH", "E", "0001", {"en": f"Unexpected character {value!r} at line {line_num}.", "ja": f"予想外の文字「{value!r}」が{line_num}行目に存在します。"}))
+            errors.append(get_builtin_exception("E0001", {"value!r": f"{value!r}", "line_num": line_num}))
         else:
             tokens.append(Token(kind, value, line_num))
     return (tokens, errors) if collect_errors else tokens
@@ -397,7 +480,7 @@ class Parser:
     def _expect_current(self) -> Token:
         tok = self.current()
         if tok is None:
-            raise YPSHError("YPSH", "E", "0004", {"en": "Unexpected end of input.", "ja": "入力の終端に達しました。"})
+            exception_handler(get_builtin_exception("E0002"))
         return tok
 
     def match(self, kind: str, value: str | None = None) -> bool:
@@ -410,7 +493,7 @@ class Parser:
             self.pos += 1
             return token
         else:
-            raise YPSHError("YPSH", "E", "0002", {"en": f"Expected token {token_type} but got {token}.", "ja": f"{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"})
+            exception_handler(get_builtin_exception("E0003", {"token_type": token_type, "token": token}))
 
     def parse(self):
         statements = []
@@ -551,7 +634,7 @@ class Parser:
         self.eat('ID')
         var_name = self.eat('ID').value
         if not (self.current() and self.current().type == 'ID' and self.current().value == 'in'):
-            raise YPSHError("YPSH", "E", "0003", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"})
+            exception_handler(get_builtin_exception("E0004"))
         self.eat('ID')
         iterable = self.expr()
         body = self.block()
@@ -584,10 +667,7 @@ class Parser:
             catch_block = self.block()
             return TryCatchStmt(try_block, catch_var, catch_block)
         else:
-            raise YPSHError("YPSH", "E", "0020", {
-                "en": "Expected 'catch' after 'do' block.",
-                "ja": "'do' ブロックの後に 'catch' が必要です。"
-            })
+            exception_handler(get_builtin_exception("E0005"))
 
     def expr(self):
         return self.expr_ternary()
@@ -653,9 +733,7 @@ class Parser:
     def expr_atom(self):
         token = self.current()
         if token is None:
-            raise YPSHError("YPSH", "E", "0004",
-                            {"en": "Unexpected end of input.",
-                            "ja": "入力の終端に達しました。"})
+            exception_handler(get_builtin_exception("E0002"))
 
         if token.type == 'NUMBER':
             self.eat('NUMBER')
@@ -680,9 +758,7 @@ class Parser:
             self.eat('RPAREN')
 
         else:
-            raise YPSHError("YPSH", "E", "0004",
-                {"en": f"Unexpected token {token}.",
-                 "ja": f"予想外のトークン: {token}"})
+            exception_handler(get_builtin_exception("E0006", {"token": token}))
 
         while True:
             tok = self.current()
@@ -741,7 +817,7 @@ class Parser:
                 elif key_token.type == 'ID':
                     key = self.eat('ID').value
                 else:
-                    raise YPSHError("YPSH", "E", "0015", {"en": f"Invalid dictionary key: {key_token}.", "ja": f"辞書のキーが無効です: {key_token}"})
+                    exception_handler(get_builtin_exception("E0007", {"key_token": key_token}))
 
                 self.eat('COLON')
                 value = self.expr()
@@ -776,7 +852,7 @@ class Environment:
         elif self.parent:
             return self.parent.get(name)
         else:
-            raise YPSHError("YPSH", "E", "0005", {"en": f"Cannot find '{name}' in scope.", "ja": f"'{name}'がスコープに見つかりません。"})
+            exception_handler(get_builtin_exception("E0008", {"name": name}))
     def set(self, name, value):
         self.vars[name] = value
     def unset(self, name):
@@ -791,10 +867,7 @@ class Function:
         local_env = Environment(self.env)
 
         if len(args) != len(self.decl.params):
-            raise YPSHError("YPSH", "E", "0006", {
-                "en": "Function argument count mismatch.",
-                "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"
-            })
+            exception_handler(get_builtin_exception("E0009"))
 
         for (param_name, _), arg in zip(self.decl.params, args):
             value = interpreter.evaluate(arg, local_env) if isinstance(arg, ASTNode) else arg
@@ -807,10 +880,7 @@ class Function:
             return result
         except ReturnException as e:
             if return_type != "auto" and not interpreter._check_type_match(e.value, return_type):
-                raise YPSHError("TYPE", "E", "0019", {
-                    "en": f"Return type mismatch in function '{self.decl.name}': expected '{return_type}', got '{type(e.value).__name__}'",
-                    "ja": f"関数 '{self.decl.name}' の戻り値の型が一致しません: '{return_type}' を期待していましたが、'{type(e.value).__name__}' でした。"
-                })
+                exception_handler(get_builtin_exception("E0010", {"self.decl.name": self.decl.name, "return_type": return_type, "type(e.value).__name__": type(e.value).__name__}))
             return e.value
 
 class Template:
@@ -834,9 +904,7 @@ class Class:
         if isinstance(init_func, Function):
             params = init_func.decl.params
             if len(args) != len(params) - 1:
-                raise YPSHError("CLASS", "E", "0102",
-                    {"en": f"__init__ expects {len(params)-1} arg(s)",
-                     "ja": f"__init__ は {len(params)-1} 個の引数を要求します"})
+                exception_handler(get_builtin_exception("E0011", {"len(params)-1": len(params)-1}))
             local_env = Environment(init_func.env)
             local_env.set(params[0][0], inst)
             for (p, _), v in zip(params[1:], args):
@@ -896,15 +964,11 @@ class Interpreter:
                 expr   = p.expr()
                 
                 if p.current() is not None:
-                    raise YPSHError("STR", "E", "0200",
-                                    {"en": f"Invalid embedded expression: {expr_src}",
-                                     "ja": f"埋め込み式が不正です: {expr_src}"})
+                    exception_handler(get_builtin_exception("E0012", {"expr_src": expr_src}))
                 val = self.evaluate(expr, env)
                 return str(val)
             except Exception as e:
-                raise YPSHError("STR", "E", "0201",
-                                {"en": f"String interpolation failed: {e}",
-                                 "ja": f"文字列埋め込みの評価に失敗しました: {e}"})
+                exception_handler(get_builtin_exception("E0013", {"e": e}))
         return self._interp_pat.sub(repl, raw)
 
     def append_global_env_var_list(self, id, content):
@@ -916,7 +980,7 @@ class Interpreter:
                 current_conv.append(content)
                 self.ypsh_globals.set(id, current_conv)
         else:
-            raise YPSHError("YPSH", "E", "0007", {"en": f"Expected '{id}' to be a list.", "ja": f"'{id}' の種類はlistではありません。"})
+            exception_handler(get_builtin_exception("E0014", {"id": id}))
 
     def get_ids_from_content(self, content):
         matching_keys = []
@@ -971,7 +1035,7 @@ class Interpreter:
         if module in ["@", "root"]:
             try:
                 self.ypsh_globals.get("root")
-            except YPSHError:
+            except YPSHException:
                 self.ypsh_globals.set("root", [])
         
             self.append_global_env_var_list("root", id)
@@ -983,7 +1047,7 @@ class Interpreter:
         else:
             try:
                 self.ypsh_globals.get(module)
-            except YPSHError:
+            except YPSHException:
                 self.ypsh_globals.set(module, [])
         
             self.append_global_env_var_list(module, id)
@@ -1001,7 +1065,7 @@ class Interpreter:
         elif (module == id) or (id is None):
             try:
                 members = list(self.ypsh_globals.get(module))
-            except YPSHError:
+            except YPSHException:
                 return
 
             for member in members:
@@ -1015,7 +1079,7 @@ class Interpreter:
         else:
             try:
                 members = list(self.ypsh_globals.get(module))
-            except YPSHError:
+            except YPSHException:
                 return
 
             if id in members:
@@ -1123,18 +1187,18 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return self.VERSION_TEXT
             self.ypsh_def("ypsh", "version.get", get_ypsh_version, desc="Get YPSH's Full Version Name (func)")
 
-            def ypsh_error(location: str = "APP", level: str = "E", ecode: str = "0000", desc = None):
-                return YPSHError(location=location, level=level, ecode=ecode, desc=desc)
-            self.ypsh_def("@", "error", ypsh_error, desc="Return a Error Object.")
+            self.ypsh_def("@", "Exception", YPSHException, desc="The Exception Object.")
+            self.ypsh_def("@", "Error", YPSHException, desc="The Exception Object.")
 
-            def raise_error(error: Exception):
-                raise error
-            self.ypsh_def("@", "raise", raise_error, desc="Raise a Error with Error Object.")
+            def raise_error(exception: Exception):
+                exception_handler(exception)
+            self.ypsh_def("@", "raise", raise_error, desc="Raise a Exception with Exception Object.")
 
             def error_lang_set(lang="en"):
                 global LANG_ID
                 LANG_ID = lang
-            self.ypsh_def("@", "error.lang.set", error_lang_set, desc="Set a Language ID for Localized Error Message.")
+            self.ypsh_def("@", "Exception.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
+            self.ypsh_def("@", "Error.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
 
         elif id == "docs":
             self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Documentation")
@@ -1223,7 +1287,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             def ypsh_range(start=1, end=None):
                 if end == None:
-                    raise YPSHError("STDMATH", "E", "0008", {"en": "At least one argument is required: end", "ja": "少なくとも引数「end」が必要です。"})
+                    return range(1, start+1)
                 else:
                     return range(start, end+1)
             self.ypsh_def("@", "range", ypsh_range)
@@ -1253,7 +1317,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             def import_py(file_path):
                 if not os.path.isfile(file_path):
-                    raise YPSHError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
+                    exception_handler("E0015", {"file_path": file_path})
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
                 local_dict = globals()
@@ -1291,10 +1355,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                             found_libs[id] = id
 
                 if not_founds:
-                    raise YPSHError("YPSH", "E", "0017", {
-                        "en": escape(f"Cannot find this Module(s)/Library(s): [{', '.join(not_founds)}]"),
-                        "ja": escape(f"次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]")
-                    })
+                    exception_handler(get_builtin_exception("E0016", {"', '.join(not_founds)": ', '.join(not_founds)}, True))
             self.ypsh_def("@", "import", import_main_python)
 
         elif id == "conv":
@@ -1345,7 +1406,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             def import_ypsh(file_path):
                 if not os.path.isfile(file_path):
-                    raise YPSHError("IMPORT", "E", "0009", {"en": f"File not found: {file_path}.", "ja": f"ファイルが存在しません: {file_path}"})
+                    exception_handler("E0015", {"file_path": file_path})
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
                 tokens = tokenize(code)
@@ -1369,14 +1430,10 @@ Those who use them wisely, without abuse, are the true users of computers.
                             found_libs[id] = id
 
                 if not_founds:
-                    raise YPSHError("YPSH", "E", "0017", {
-                        "en": escape(f"Cannot find this Module(s)/Library(s): [{', '.join(not_founds)}]"),
-                        "ja": escape(f"次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]")
-                    })
+                    exception_handler(get_builtin_exception("E0016", {"', '.join(not_founds)": ', '.join(not_founds)}, True))
             self.ypsh_def("@", "import", import_main)
 
         elif id == "exec":
-
             def ypsh_exec(code_string):
                 tokens = tokenize(code_string)
                 parser = Parser(tokens)
@@ -1534,10 +1591,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             if expected_type != "auto":
                 if not self._check_type_match(value, expected_type):
-                    raise YPSHError("TYPE", "E", "0018", {
-                        "en": f"Type mismatch for variable '{node.name}': expected '{expected_type}', got '{type(value).__name__}'",
-                        "ja": f"変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{type(value).__name__}' でした。"
-                    })
+                    exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": expected_type, "type(value).__name__": type(value).__name__}))
 
             env.set(node.name, value)
         elif isinstance(node, TemplateDecl):
@@ -1548,8 +1602,7 @@ Those who use them wisely, without abuse, are the true users of computers.
         elif isinstance(node, ClassDecl):
             base_obj = env.get(node.base) if node.base else None
             if base_obj and not isinstance(base_obj, Template):
-                raise YPSHError("CLASS", "E", "0100",
-                        {"en": f"Base {node.base} is not template", "ja": f"基底 {node.base} は template ではありません"})
+                exception_handler(get_builtin_exception("E0018", {"node.base": node.base}))
             cls_obj = Class(node.name, base_obj, node.body, self)
             env.set(node.name, cls_obj)
         elif isinstance(node, ExpressionStmt):
@@ -1582,7 +1635,7 @@ Those who use them wisely, without abuse, are the true users of computers.
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
-                raise YPSHError("YPSH", "E", "0010", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"})
+                exception_handler(get_builtin_exception("E0019"))
             for value in iterable:
                 local_env = Environment(env)
                 local_env.set(node.var_name, value)
@@ -1633,14 +1686,14 @@ Those who use them wisely, without abuse, are the true users of computers.
             if full_key:
                 try:
                     return env.get(full_key)
-                except YPSHError:
+                except YPSHException:
                     pass
 
             if isinstance(node.obj, str):
                 dotted = f"{node.obj}.{node.name}"
                 try:
                     return env.get(dotted)
-                except YPSHError:
+                except YPSHException:
                     pass
 
             base = self.evaluate(node.obj, env)
@@ -1648,10 +1701,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             try:
                 return getattr(base_any, node.name)  # type: ignore[attr-defined]
             except AttributeError:
-                raise YPSHError("YPSH", "E", "0101", {
-                    "en": f"Object has no attribute '{node.name}'",
-                    "ja": f"属性 '{node.name}' は存在しません"
-                })
+                exception_handler(get_builtin_exception("E0020", {"node.name": node.name}))
         elif isinstance(node, Number):
             return node.value
         elif isinstance(node, String):
@@ -1694,18 +1744,15 @@ Those who use them wisely, without abuse, are the true users of computers.
                 try:
                     return collection[index]
                 except Exception:
-                    raise YPSHError("YPSH", "E", "0016", {
-                        "en": f"Cannot access index/key '{index}' on {collection}",
-                        "ja": f"{collection} に対してインデックス/キー '{index}' を取得できません"
-                    })
+                    exception_handler(get_builtin_exception("E0021", {"index": index, "collection": collection}))
             else:
-                raise YPSHError("YPSH", "E", "0011", {"en": f"Unknown operator: {node.op}.", "ja": f"未知の演算子: {node.op}"})
+                exception_handler(get_builtin_exception("E0022", {"node.op": node.op}))
         elif isinstance(node, UnaryOp):
             operand = self.evaluate(node.operand, env)
             if node.op == '!':
                 return not bool(operand)
             else:
-                raise YPSHError("YPSH", "E", "0012", {"en": f"Unknown unary operator {node.op}.", "ja": f"未知の単項演算子: {node.op}"})
+                exception_handler(get_builtin_exception("E0023", {"node.op": node.op}))
         elif isinstance(node, FuncCall):
             if isinstance(node.name, (Attribute, BinOp, UnaryOp, TernaryOp)):
                 func_obj = self.evaluate(node.name, env)
@@ -1717,9 +1764,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 args = [self.evaluate(arg, env) for arg in node.args]
                 return func_obj(*args)
             else:
-                raise YPSHError("YPSH", "E", "0013",
-                    {"en": f"Attempting to call a non-callable object.",
-                     "ja": f"呼び出し不可能なオブジェクトを呼び出そうとしました。"})
+                exception_handler(get_builtin_exception("E0024"))
         elif isinstance(node, str):
             value = env.get(node)
             if value == self.ypsh_false:
@@ -1738,7 +1783,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             else:
                 return self.evaluate(node.if_false, env)
         else:
-            raise YPSHError("YPSH", "E", "0014", {"en": f"Cannot evaluate node {node}.", "ja": f"{node} を処理できません。"})
+            exception_handler(get_builtin_exception("E0025", {"node": node}))
 
 ##############################
 # YPSH Linting System
@@ -1846,19 +1891,13 @@ class SemanticAnalyzer:
             self.analyze(node.name.obj)
         else:
             if not self.is_declared(node.name):
-                self.errors.append(YPSHError("YPSH", "E", "0005", {
-                    "en": f"Cannot find function '{node.name}' in scope.",
-                    "ja": f"関数 '{node.name}' がスコープ内に存在しません。"
-                }))
+                self.errors.append(get_builtin_exception("E0026", {"name": node.name}))
         for arg in node.args:
             self.analyze(arg)
 
     def analyze_str(self, node):
         if not self.is_declared(node):
-            self.errors.append(YPSHError("YPSH", "E", "0005", {
-                "en": f"Cannot find '{node}' in scope.",
-                "ja": f"'{node}' がスコープ内に存在しません。"
-            }))
+            self.errors.append(get_builtin_exception("E0008", {"name": node}))
 
     def analyze_ListLiteral(self, node):
         for elem in node.elements:
@@ -2244,7 +2283,7 @@ if __name__ == '__main__':
         if isReceivedCode:
             try:
                 run_lint(options["main"])
-            except YPSHError as e:
+            except YPSHException as e:
                 raise SystemExit(1)
         else:
             console.print("[red]No Code Received.[/red]")
