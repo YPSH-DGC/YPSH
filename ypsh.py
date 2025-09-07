@@ -2034,10 +2034,36 @@ if _YPSH_HAS_PTK:
             self._get_keys = get_env_keys_callable
 
         def get_completions(self, document, complete_event):
-            word = document.get_word_before_cursor()
-            if not word:
+            word = document.get_word_before_cursor(
+                pattern=re.compile(r"[A-Za-z0-9@_%\.]+")
+            )
+            if word is None:
                 return
-            for k in sorted(set(self._get_keys())):
+
+            keys = sorted(set(self._get_keys()))
+
+            if "." in word:
+                base, _, after = word.rpartition(".")
+                start_pos = -len(after)
+
+                children = set()
+                base_prefix = base + "."
+                for k in keys:
+                    if not k.startswith(base_prefix):
+                        continue
+                    remainder = k[len(base_prefix):]
+                    if not remainder:
+                        continue
+                    child = remainder.split(".", 1)[0]
+                    if after and not child.startswith(after):
+                        continue
+                    children.add(child)
+
+                for child in sorted(children):
+                    yield Completion(child, start_position=start_pos)
+                return
+
+            for k in keys:
                 if k.startswith(word):
                     yield Completion(k, start_position=-len(word))
 
