@@ -1037,8 +1037,13 @@ class Interpreter:
                 self.ypsh_globals.get("root")
             except YPSHException:
                 self.ypsh_globals.set("root", [])
+            try:
+                self.ypsh_globals.get("@")
+            except YPSHException:
+                self.ypsh_globals.set("@", [])
         
             self.append_global_env_var_list("root", id)
+            self.append_global_env_var_list("@", id)
             self.ypsh_globals.set(f"root.{id}", content)
             self.ypsh_globals.set(f"@.{id}", content)
             self.ypsh_globals.set(f"{id}", content)
