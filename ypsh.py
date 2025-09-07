@@ -291,7 +291,7 @@ class ListLiteral(ASTNode):
         self.elements = elements
     def __repr__(self):
         return f'ListLiteral({self.elements})'
-    
+
 class DictLiteral(ASTNode):
     def __init__(self, pairs):
         self.pairs = pairs  # list of (key, value)
@@ -320,7 +320,7 @@ class UnaryOp(ASTNode):
         self.operand = operand
     def __repr__(self):
         return f'UnaryOp({self.op}, {self.operand})'
-    
+
 class TernaryOp(ASTNode):
     def __init__(self, condition, if_true, if_false):
         self.condition = condition
@@ -411,7 +411,7 @@ class BreakStmt(ASTNode):
 class ContinueStmt(ASTNode):
     def __repr__(self):
         return 'ContinueStmt()'
-    
+
 class ShellStmt(ASTNode):
     def __init__(self, command):
         self.command = command
@@ -679,7 +679,7 @@ class Parser:
             right = self.expr_and()
             node = BinOp(node, '||', right)
         return node
-    
+
     def expr_ternary(self):
         condition = self.expr_or()
         if self.current() and self.current().type == 'QUESTION':
@@ -804,7 +804,7 @@ class Parser:
                     break
         self.eat('RBRACKET')
         return ListLiteral(elements)
-    
+
     def dict_literal(self):
         self.eat('LBRACE')
         pairs = []
@@ -962,7 +962,7 @@ class Interpreter:
                 tokens = tokenize(expr_src)
                 p      = Parser(tokens)
                 expr   = p.expr()
-                
+
                 if p.current() is not None:
                     exception_handler(get_builtin_exception("E0012", {"expr_src": expr_src}))
                 val = self.evaluate(expr, env)
@@ -1041,7 +1041,7 @@ class Interpreter:
                 self.ypsh_globals.get("@")
             except YPSHException:
                 self.ypsh_globals.set("@", [])
-        
+
             self.append_global_env_var_list("root", id)
             self.append_global_env_var_list("@", id)
             self.ypsh_globals.set(f"root.{id}", content)
@@ -1054,7 +1054,7 @@ class Interpreter:
                 self.ypsh_globals.get(module)
             except YPSHException:
                 self.ypsh_globals.set(module, [])
-        
+
             self.append_global_env_var_list(module, id)
             self.ypsh_globals.set(f"{module}.{id}", content)
             self.docs[f"{module}.{id}"] = desc
@@ -1101,7 +1101,7 @@ class Interpreter:
             return self.ypsh_false
 
         return result
-    
+
     def set_doc(self, key, content):
         self.docs[key] = content
 
@@ -1483,7 +1483,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("https", "post.json", https_post_json)
 
         elif id == "file":
-            
+
             def file_isexist(path):
                 if os.path.exists(path):
                     return True
