@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  build-PY:
+  before:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout source
@@ -40,8 +40,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
-  build-AMD64:
-    needs: build-PY
+  build:
+    needs: before
     continue-on-error: true
     strategy:
       matrix:
@@ -55,192 +55,6 @@ jobs:
           - os: windows-2022
             platform: Windows Intel/AMD
             filename: YPSH-windows-amd64
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Notify build start (pending)
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "pending",
-              "progress": 0,
-              "product": "YPSH"
-            }'
-
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
-
-      - name: Notify progress 5%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 5,
-              "product": "YPSH"
-            }'
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
-      - name: Notify progress 10%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 10,
-              "product": "YPSH"
-            }'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller ordered-set zstandard pefile
-
-      - name: Notify progress 20%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 20,
-              "product": "YPSH"
-            }'
-
-      - name: Generate ypsh-release.py
-        shell: bash
-        run: |
-          python for-autobuild-dl.py ${{ github.event.release.tag_name || github.ref }}
-
-      - name: Notify progress 25%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 25,
-              "product": "YPSH"
-            }'
-
-      - name: Build with PyInstaller
-        shell: bash
-        run: |
-          pyinstaller --onefile --distpath dist --name ypsh-release ypsh-release.py
-
-      - name: Notify progress 70%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 70,
-              "product": "YPSH"
-            }'
-
-      - name: Rename binary, Zip (non-Windows)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          mkdir upload
-          filename="${{ matrix.filename }}"
-          mv dist/ypsh-release "upload/${filename}"
-          cd upload
-          zip "${filename}.zip" "${filename}"
-
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $filename = "${{ matrix.filename }}"
-          mkdir upload
-          Move-Item -Path dist/ypsh-release.exe -Destination "upload/$filename.exe"
-
-      - name: Zip (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $filename = "${{ matrix.filename }}"
-          Compress-Archive -Path "upload/$filename.exe" -DestinationPath "upload/$filename.zip"
-
-      - name: Notify progress 80%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 80,
-              "product": "YPSH"
-            }'
-
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: upload/*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
-      - name: Notify success
-        if: success()
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "completed",
-              "progress": 100,
-              "product": "YPSH"
-            }'
-
-      - name: Notify failure
-        if: failure()
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "failed",
-              "progress": 100,
-              "product": "YPSH"
-            }'
-
-  build-ARM64:
-    needs: build-PY
-    continue-on-error: true
-    strategy:
-      matrix:
-        include:
           - os: macos-14
             platform: macOS Apple Silicon
             filename: YPSH-macos-arm64
@@ -306,7 +120,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller ordered-set zstandard pefile
+          pip install pyinstaller ordered-set zstandard pefile pillow
 
       - name: Notify progress 20%
         shell: bash
@@ -339,7 +153,51 @@ jobs:
               "product": "YPSH"
             }'
 
-      - name: Build with PyInstaller
+      - name: Prepare icon (.icns) for macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          ICON_PNG="assets/YPSH-Runtime.png"
+          ICONSET="icon.iconset"
+          mkdir -p "$ICONSET"
+          sips -z 16 16     "$ICON_PNG" --out "$ICONSET/icon_16x16.png"
+          sips -z 32 32     "$ICON_PNG" --out "$ICONSET/icon_16x16@2x.png"
+          sips -z 32 32     "$ICON_PNG" --out "$ICONSET/icon_32x32.png"
+          sips -z 64 64     "$ICON_PNG" --out "$ICONSET/icon_32x32@2x.png"
+          sips -z 128 128   "$ICON_PNG" --out "$ICONSET/icon_128x128.png"
+          sips -z 256 256   "$ICON_PNG" --out "$ICONSET/icon_128x128@2x.png"
+          sips -z 256 256   "$ICON_PNG" --out "$ICONSET/icon_256x256.png"
+          sips -z 512 512   "$ICON_PNG" --out "$ICONSET/icon_256x256@2x.png"
+          sips -z 512 512   "$ICON_PNG" --out "$ICONSET/icon_512x512.png"
+          cp "$ICON_PNG" "$ICONSET/icon_512x512@2x.png"
+          iconutil -c icns "$ICONSET" -o app.icns
+
+      - name: Prepare icon (.ico) for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python - <<'EOF'
+          from PIL import Image
+          import sys
+          src = r"assets/YPSH-Runtime.png"
+          img = Image.open(src)
+          img.save("app.ico", sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          EOF
+
+      - name: Build with PyInstaller (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          pyinstaller --onefile --distpath dist --name ypsh-release --icon app.icns ypsh-release.py
+
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pyinstaller --onefile --distpath dist --name ypsh-release --icon app.ico ypsh-release.py
+
+      - name: Build with PyInstaller (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           pyinstaller --onefile --distpath dist --name ypsh-release ypsh-release.py
@@ -431,7 +289,7 @@ jobs:
             }'
 
   after:
-    needs: [build-AMD64, build-ARM64]
+    needs: build
     runs-on: ubuntu-22.04
     if: ${{ success() && github.event_name == 'release' }}
 
