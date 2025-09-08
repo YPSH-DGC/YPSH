@@ -174,7 +174,7 @@ jobs:
 
       - name: Prepare icon (.ico) for Windows
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: bash
         run: |
           python - <<'EOF'
           from PIL import Image
