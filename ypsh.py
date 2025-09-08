@@ -722,11 +722,19 @@ class Parser:
             node = BinOp(node, op, right)
         return node
 
+    def expr_unary(self):
+        tok = self.current()
+        if tok and tok.type == 'OP' and tok.value in ('+', '-'):
+            op = self.eat('OP').value
+            operand = self.expr_unary()
+            return UnaryOp(op, operand)
+        return self.expr_atom()
+
     def expr_factor(self):
-        node = self.expr_atom()
+        node = self.expr_unary()
         while self.current() and self.current().type == 'OP' and self.current().value in ('*', '/'):
             op = self.eat('OP').value
-            right = self.expr_atom()
+            right = self.expr_unary()
             node = BinOp(node, op, right)
         return node
 
@@ -1756,6 +1764,10 @@ Those who use them wisely, without abuse, are the true users of computers.
             operand = self.evaluate(node.operand, env)
             if node.op == '!':
                 return not bool(operand)
+            elif node.op == '-':
+                return -operand
+            elif node.op == '+':
+                return +operand
             else:
                 exception_handler(get_builtin_exception("E0023", {"node.op": node.op}))
         elif isinstance(node, FuncCall):
