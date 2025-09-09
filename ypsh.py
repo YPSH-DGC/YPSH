@@ -146,7 +146,7 @@ BUILTIN_EXCEPTION_SPEC = {
     "E0006": YPSHException("YPSH", "E", "0006", "SyntaxError", {"en": "Unexpected token {token}.", "ja": "予想外のトークン: {token}"}),
     "E0007": YPSHException("YPSH", "E", "0007", "KeyError", {"en": "Invalid dictionary key: {key_token}.", "ja": "辞書のキーが無効です: {key_token}"}),
     "E0008": YPSHException("YPSH", "E", "0008", "ScopeError", {"en": "Cannot find '{name}' in scope.", "ja": "'{name}'がスコープに見つかりません。"}),
-    "E0009": YPSHException("YPSH", "E", "0009", "ArgumentError", {"en": "Function argument count mismatch.", "ja": "関数の期待されている引数の長さと、受け取った引数の長さが一致しません。"}),
+    "E0009": YPSHException("YPSH", "E", "0009", "ArgumentError", {"en": "Function argument count mismatch.", "ja": "関数で定義されている引数の設定と、実際に受け取った引数が一致しません。"}),
     "E0010": YPSHException("YPSH", "E", "0010", "TypeError", {"en": "Return type mismatch in function '{self.decl.name}': expected '{return_type}', got '{type(e.value).__name__}'", "ja": "関数 '{self.decl.name}' の戻り値の型が一致しません: '{return_type}' を期待していましたが、'{type(e.value).__name__}' でした。"}),
     "E0011": YPSHException("YPSH", "E", "0011", "ArgumentError", {"en": "__init__ expects {len(params)-1} arg(s)", "ja": "__init__ は {len(params)-1} 個の引数を要求します"}),
     "E0012": YPSHException("YPSH", "E", "0012", "ExpressionError", {"en": "Invalid embedded expression: {expr_src}", "ja": "埋め込み式が不正です: {expr_src}"}),
@@ -200,7 +200,7 @@ def exception_handler(exception: Exception, level: str = None):
 TOKEN_SPEC = [
     ('NEWLINE',  r'\n'),
     ('SKIP',     r'[ \t]+'),
-    ('COMMENT',  r'(//[^\n]*|#[^\n]*)'),
+    ('COMMENT',  r'(//[^\n]*|#[^\n]*|/\*.*?\*/)'),
     ('SHELL',    r'\$[^\n]+'),
     ('ARROW',    r'->'),
     ('DOT',      r'\.'),
@@ -297,6 +297,13 @@ class DictLiteral(ASTNode):
         self.pairs = pairs  # list of (key, value)
     def __repr__(self):
         return f'DictLiteral({self.pairs})'
+
+class KeywordArg(ASTNode):
+    def __init__(self, name: str, value: ASTNode):
+        self.name = name
+        self.value = value
+    def __repr__(self):
+        return f'KeywordArg({self.name}={self.value})'
 
 class VarDecl(ASTNode):
     def __init__(self, name, var_type, expr):
@@ -561,11 +568,20 @@ class Parser:
             while True:
                 param_name = self.eat('ID').value
                 param_type = "auto"
+                default_expr = None
+
                 tok2 = self.current()
                 if tok2 and tok2.type == 'COLON':
                     self.eat('COLON')
                     param_type = self.eat('ID').value
-                params.append((param_name, param_type))
+                    tok2 = self.current()
+
+                if tok2 and tok2.type == 'EQUAL':
+                    self.eat('EQUAL')
+                    default_expr = self.expr()
+
+                params.append((param_name, param_type, default_expr))
+
                 tok3 = self.current()
                 if tok3 and tok3.type == 'COMMA':
                     self.eat('COMMA')
@@ -780,7 +796,19 @@ class Parser:
                 args = []
                 if self.current() and self.current().type != 'RPAREN':
                     while True:
-                        args.append(self.expr())
+                        is_kw = False
+                        cur = self.current()
+                        nxt = self.tokens[self.pos + 1] if (self.pos + 1) < len(self.tokens) else None
+                        if cur and cur.type == 'ID' and nxt and nxt.type == 'EQUAL':
+                            name = self.eat('ID').value
+                            self.eat('EQUAL')
+                            value = self.expr()
+                            args.append(KeywordArg(name, value))
+                            is_kw = True
+
+                        if not is_kw:
+                            args.append(self.expr())
+
                         if self.current() and self.current().type == 'COMMA':
                             self.eat('COMMA')
                         else:
@@ -870,16 +898,36 @@ class Function:
     def __init__(self, decl, env):
         self.decl = decl
         self.env = env
-    def call(self, args, interpreter):
+
+    def call(self, pos_args, kw_args, interpreter):
         return_type = self.decl.return_type
         local_env = Environment(self.env)
 
-        if len(args) != len(self.decl.params):
+        param_names = [p for (p, _, _) in self.decl.params]
+        unknown = set(kw_args.keys()) - set(param_names)
+        if unknown:
             exception_handler(get_builtin_exception("E0009"))
 
-        for (param_name, _), arg in zip(self.decl.params, args):
-            value = interpreter.evaluate(arg, local_env) if isinstance(arg, ASTNode) else arg
+        j = 0
+        used_kw = set()
+        for (param_name, _ptype, default_expr) in self.decl.params:
+            if j < len(pos_args):
+                value = pos_args[j]
+                j += 1
+            elif param_name in kw_args:
+                value = kw_args[param_name]
+                used_kw.add(param_name)
+            elif default_expr is not None:
+                value = interpreter.evaluate(default_expr, local_env)
+            else:
+                exception_handler(get_builtin_exception("E0009"))
+
             local_env.set(param_name, value)
+
+        if j != len(pos_args):
+            exception_handler(get_builtin_exception("E0009"))
+        if set(kw_args.keys()) - used_kw:
+            exception_handler(get_builtin_exception("E0009"))
 
         try:
             result = None
@@ -888,7 +936,11 @@ class Function:
             return result
         except ReturnException as e:
             if return_type != "auto" and not interpreter._check_type_match(e.value, return_type):
-                exception_handler(get_builtin_exception("E0010", {"self.decl.name": self.decl.name, "return_type": return_type, "type(e.value).__name__": type(e.value).__name__}))
+                exception_handler(get_builtin_exception("E0010", {
+                    "self.decl.name": self.decl.name,
+                    "return_type": return_type,
+                    "type(e.value).__name__": type(e.value).__name__
+                }))
             return e.value
 
 class Template:
@@ -906,25 +958,17 @@ class Class:
         self.env = base_env
         self.interpreter = interpreter
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         inst = Instance(self)
         init_func = self.env.get('__init__')
         if isinstance(init_func, Function):
-            params = init_func.decl.params
-            if len(args) != len(params) - 1:
-                exception_handler(get_builtin_exception("E0011", {"len(params)-1": len(params)-1}))
-            local_env = Environment(init_func.env)
-            local_env.set(params[0][0], inst)
-            for (p, _), v in zip(params[1:], args):
-                local_env.set(p, v)
             try:
-                for stmt in init_func.decl.body:
-                    self.interpreter.execute(stmt, local_env)
+                init_func.call([inst, *args], kwargs, self.interpreter)
             except ReturnException:
                 pass
         elif callable(init_func):
-            bound = lambda *a: init_func(inst, *a)
-            bound(*args)
+            bound = lambda *a, **kw: init_func(inst, *a, **kw)
+            bound(*args, **kwargs)
         return inst
 
 class Instance:
@@ -935,7 +979,7 @@ class Instance:
     def __getattr__(self, item: str):
         val = self._props.get(item)
         if isinstance(val, Function):
-            return lambda *a, **kw: val.call([self, *a], self._cls.interpreter)
+            return lambda *a, **kw: val.call([self, *a], kw, self._cls.interpreter)
         if callable(val):
             fn: Callable[..., Any] = val
             return lambda *a, **kw: fn(self, *a, **kw)
@@ -1116,12 +1160,15 @@ class Interpreter:
     def module_enable(self, id):
         if id == "minimal":
             self.module_enable("ypsh")
+            self.module_enable("python")
             self.module_enable("standard")
             self.module_enable("import")
 
         elif id == "default":
             self.module_enable("ypsh")
+            self.module_enable("python")
             self.module_enable("standard")
+            self.module_enable("stdmath")
             self.module_enable("docs")
             self.module_enable("import")
             self.module_enable("type")
@@ -1248,30 +1295,6 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
             self.ypsh_def("@", "stdout", self.normal_print, desc="Directly Printing to stdout")
 
-        elif id == "nextdp":
-            global nextdp_manager
-            nextdp_manager = NextDPManager()
-
-            def nextdp_receiver_start(host: str = "0.0.0.0", port: int = 4321, save_dir: str = "./received/"):
-                global nextdp_manager
-                nextdp_manager.host = host
-                nextdp_manager.port = port
-                nextdp_manager.save_dir = save_dir
-                nextdp_manager.start_receiving()
-            self.ypsh_def("nextdp", "receiver.start", nextdp_receiver_start, desc="Start the NextDP Receiver")
-
-            def nextdp_receiver_stop():
-                global nextdp_manager
-                nextdp_manager.stop_receiving()
-            self.ypsh_def("nextdp", "receiver.stop", nextdp_receiver_stop, desc="Stop the NextDP Receiver")
-
-            def nextdp_sender_start(filepath: str, host: str = "0.0.0.0", port: int = 4321):
-                global nextdp_manager
-                nextdp_manager.host = host
-                nextdp_manager.port = port
-                asyncio.run(nextdp_manager.send_file(filepath))
-            self.ypsh_def("nextdp", "send", nextdp_sender_start, desc="Send a file using NextDP")
-
         elif id == "exstr":
             def exstr_unicode_uplus(s):
                 return ''.join(f'U+{ord(c):04X}' for c in s)
@@ -1320,56 +1343,50 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "dict", dict)
 
         elif id == "python":
-            global import_py
-
+            import importlib
             self.ypsh_def("python", "str", str)
             self.ypsh_def("python", "int", int)
             self.ypsh_def("python", "float", float)
             self.ypsh_def("python", "list", list)
             self.ypsh_def("python", "dict", dict)
 
+            def python_path_add(path: str):
+                p = os.path.expanduser(os.path.expandvars(path))
+                if p and p not in sys.path:
+                    sys.path.insert(0, p)
+                return True
+            self.ypsh_def("python", "path.add", python_path_add, desc="Add a directory to sys.path for Python imports")
+
+            extra = os.environ.get("YPSH_PY_EXTLIBS", "")
+            for p in [p for p in extra.split(os.pathsep) if p]:
+                python_path_add(p)
+
             def import_py(file_path):
                 if not os.path.isfile(file_path):
-                    exception_handler("E0015", {"file_path": file_path})
+                    exception_handler(get_builtin_exception("E0015", {"file_path": file_path}))
+                local_dict = {}
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
-                local_dict = globals()
                 exec(code, local_dict)
                 for key, value in local_dict.items():
-                    if callable(value) and not key.startswith('_'):
-                        self.ypsh_globals.set(key, value)
-            self.ypsh_def("python", "import", import_py)
+                    self.ypsh_globals.set(key, value)
+            self.ypsh_def("python", "import", import_py, desc="Exec a .py file into YPSH env")
 
-            def python_exec(code_string):
-                local_dict = globals()
-                exec(code_string, local_dict)
-                for key, value in local_dict.items():
-                    if callable(value) and not key.startswith('_'):
-                        self.ypsh_globals.set(key, value)
-            self.ypsh_def("python", "exec", python_exec)
-
-            def import_main_python(*ids):
-                found_libs = {}
-                not_founds = []
-                for id in ids:
-                    filepath_ypsh = find_file_shallowest(YPSH_LIBS_DIR, f"{id}.ypsh")
-                    filepath_py = find_file_shallowest(YPSH_LIBS_DIR, f"{id}.py")
-                    if not filepath_ypsh == None:
-                        found_libs[id] = filepath_ypsh
-                        import_ypsh(filepath_ypsh)
-                    elif not filepath_py == None:
-                        found_libs[id] = filepath_py
-                        import_py(filepath_py)
+            def import_main_python(*specs):
+                core_import = self.ypsh_globals.get("@.import")
+                normalized = []
+                for s in specs:
+                    if isinstance(s, str):
+                        normalized.append({"lib": s, "py": True})
+                    elif isinstance(s, dict):
+                        d = dict(s)
+                        d.setdefault("py", True)
+                        normalized.append(d)
                     else:
-                        result = self.module_enable(id)
-                        if result is False:
-                            not_founds.append(str(f"'{id}'"))
-                        else:
-                            found_libs[id] = id
+                        raise TypeError("python.import accepts string or dict spec")
+                return core_import(*normalized)
 
-                if not_founds:
-                    exception_handler(get_builtin_exception("E0016", {"', '.join(not_founds)": ', '.join(not_founds)}, True))
-            self.ypsh_def("@", "import", import_main_python)
+            self.ypsh_def("python", "module", import_main_python, desc="Python import sugar; same options as @.import with py:true")
 
         elif id == "conv":
             def convert_to_decimal(value) -> str:
@@ -1390,36 +1407,48 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return hex(value)[2:]
             self.ypsh_def("conv", "hexadecimal", convert_to_hexadecimal)
 
-        elif id == "base58":
-            global BASE58_ALPHABET
-
-            BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-
-            def convert_to_base58(value: str) -> str:
-                value2 = int.from_bytes(value.encode('utf-8'), 'big')
-                result = ''
-                while value2 > 0:
-                    value2, remainder = divmod(value2, 58)
-                    result = BASE58_ALPHABET[remainder] + result
-                return result or "--"
-            self.ypsh_def("conv", "base58", convert_to_base58)
-
-        elif id == "base64":
-            global base64
-            import base64
-
-            def convert_to_base64(value: str) -> str:
-                input_bytes = value.encode('utf-8')
-                return base64.b64encode(input_bytes).decode('utf-8')
-            self.ypsh_def("conv", "base64", convert_to_base64)
-
         elif id == "import":
             self.module_enable("env")
-            global import_ypsh, import_main
+            import importlib
 
-            def import_ypsh(file_path):
+            def _snap_keys():
+                env = self.ypsh_globals
+                return set(env.vars.keys())
+
+            def _namespace_new_bindings(before_keys, alias: str | None, only: list[str] | None):
+                env = self.ypsh_globals
+                after_keys = set(env.vars.keys())
+                new_keys = list(after_keys - before_keys)
+
+                keep = new_keys if not only else [k for k in new_keys if k in set(only)]
+                drop = [] if not only else [k for k in new_keys if k not in set(only)]
+
+                if alias:
+                    for k in keep:
+                        try:
+                            v = env.get(k)
+                            desc = self.docs.get(f"root.{k}", None) or self.docs.get(f"@.{k}", None)
+                            self.ypsh_def(alias, k, v, desc=desc)
+                        except Exception:
+                            pass
+                        env.unset(k)
+
+                for k in drop:
+                    env.unset(k)
+
+            def _find_ypsh(path_id: str) -> str | None:
+                if os.path.isfile(path_id):
+                    return path_id if path_id.endswith(".ypsh") else None
+                return find_file_shallowest(YPSH_LIBS_DIR, f"{path_id}.ypsh")
+
+            def _find_py(path_id: str) -> str | None:
+                if os.path.isfile(path_id):
+                    return path_id if path_id.endswith(".py") else None
+                return find_file_shallowest(YPSH_LIBS_DIR, f"{path_id}.py")
+
+            def _raw_import_ypsh(file_path: str):
                 if not os.path.isfile(file_path):
-                    exception_handler("E0015", {"file_path": file_path})
+                    exception_handler(get_builtin_exception("E0015", {"file_path": file_path}))
                 with open(file_path, encoding='utf-8') as f:
                     code = f.read()
                 tokens = tokenize(code)
@@ -1427,23 +1456,99 @@ Those who use them wisely, without abuse, are the true users of computers.
                 ast = parser.parse()
                 self.interpret(ast)
 
-            def import_main(*ids):
-                found_libs = {}
+            def _import_ypsh_with_opts(file_path: str, alias: str | None, only: list[str] | None):
+                before = _snap_keys()
+                _raw_import_ypsh(file_path)
+                _namespace_new_bindings(before, alias, only)
+
+            def _enable_builtin_with_opts(mod_id: str, alias: str | None, only: list[str] | None) -> bool:
+                before = _snap_keys()
+                ok = self.module_enable(mod_id)
+                if ok is False:
+                    return False
+                _namespace_new_bindings(before, alias, only)
+                return True
+
+            def _python_import_by_name(mod_name: str, alias: str | None, only: list[str] | None, paths: list[str] | None):
+                extra = os.environ.get("YPSH_PY_EXTLIBS", "")
+                for p in ([p for p in extra.split(os.pathsep) if p] + (paths or [])):
+                    p = os.path.expanduser(os.path.expandvars(p))
+                    if p and p not in sys.path:
+                        sys.path.insert(0, p)
+
+                mod = importlib.import_module(mod_name)
+
+                target_ns = alias or (None if only else mod_name)
+
+                names = [n for n in dir(mod) if not n.startswith("_")]
+                if only:
+                    names = [n for n in only if hasattr(mod, n)]
+
+                if target_ns:
+                    for n in names:
+                        self.ypsh_def(target_ns, n, getattr(mod, n))
+                else:
+                    for n in names:
+                        self.ypsh_globals.set(n, getattr(mod, n))
+
+            def _python_import_by_file(py_path: str, alias: str | None, only: list[str] | None):
+                if not os.path.isfile(py_path):
+                    exception_handler(get_builtin_exception("E0015", {"file_path": py_path}))
+                before = _snap_keys()
+                local_dict = {}
+                with open(py_path, encoding='utf-8') as f:
+                    code = f.read()
+                exec(code, local_dict)
+                for key, value in local_dict.items():
+                    self.ypsh_globals.set(key, value)
+                _namespace_new_bindings(before, alias, only)
+
+            def _normalize_spec(x):
+                if isinstance(x, dict):
+                    lib = x.get("lib") or x.get("id") or x.get("name")
+                    if not lib or not isinstance(lib, str):
+                        raise ValueError("import spec dict must have 'lib' (str)")
+                    alias = x.get("as")
+                    only  = x.get("in")
+                    py    = bool(x.get("py") or x.get("python"))
+                    paths = x.get("paths") or x.get("py_paths")
+                    if paths is not None and not isinstance(paths, list):
+                        paths = [paths]
+                    return lib, alias, (only if isinstance(only, list) else None), py, (paths or None)
+                elif isinstance(x, str):
+                    return x, None, None, False, None
+                else:
+                    raise TypeError("import accepts string or dict spec")
+
+            def import_main(*specs):
                 not_founds = []
-                for id in ids:
-                    filepath_ypsh = find_file_shallowest(YPSH_LIBS_DIR, f"{id}.ypsh")
-                    if not filepath_ypsh == None:
-                        found_libs[id] = filepath_ypsh
-                        import_ypsh(filepath_ypsh)
-                    else:
-                        result = self.module_enable(id)
-                        if result is False:
-                            not_founds.append(str(f"'{id}'"))
-                        else:
-                            found_libs[id] = id
+                for spec in specs:
+                    lib, alias, only, is_py, paths = _normalize_spec(spec)
+
+                    ypsh_path = _find_ypsh(lib)
+                    py_path   = _find_py(lib)
+
+                    if ypsh_path:
+                        _import_ypsh_with_opts(ypsh_path, alias, only)
+                        continue
+
+                    if py_path:
+                        _python_import_by_file(py_path, alias, only)
+                        continue
+
+                    if _enable_builtin_with_opts(lib, alias, only):
+                        continue
+
+                    try:
+                        _python_import_by_name(lib, alias, only, paths)
+                        continue
+                    except Exception:
+                        not_founds.append(f"'{lib}'")
 
                 if not_founds:
-                    exception_handler(get_builtin_exception("E0016", {"', '.join(not_founds)": ', '.join(not_founds)}, True))
+                    exc = get_builtin_exception("E0016", {"not_founds": ", ".join(not_founds)}, True)
+                    exception_handler(exc)
+
             self.ypsh_def("@", "import", import_main)
 
         elif id == "exec":
@@ -1453,42 +1558,6 @@ Those who use them wisely, without abuse, are the true users of computers.
                 ast = parser.parse()
                 self.interpret(ast)
             self.ypsh_def("@", "exec", ypsh_exec)
-
-        elif id == "https":
-            global requests
-            import requests
-
-            def https_get_save(url, path):
-                r = requests.get(url)
-                with open(path, 'wb') as saveFile:
-                    saveFile.write(r.content)
-            self.ypsh_def("https", "get.save", https_get_save)
-
-            def https_post_save(url, path):
-                r = requests.post(url)
-                with open(path, 'wb') as saveFile:
-                    saveFile.write(r.content)
-            self.ypsh_def("https", "post.save", https_post_save)
-
-            def https_get_text(url):
-                r = requests.get(url)
-                return r.text
-            self.ypsh_def("https", "get.text", https_get_text)
-
-            def https_post_text(url):
-                r = requests.post(url)
-                return r.text
-            self.ypsh_def("https", "post.text", https_post_text)
-
-            def https_get_json(url):
-                r = requests.get(url)
-                return r.json()
-            self.ypsh_def("https", "get.json", https_get_json)
-
-            def https_post_json(url):
-                r = requests.post(url)
-                return r.json()
-            self.ypsh_def("https", "post.json", https_post_json)
 
         elif id == "file":
 
@@ -1517,16 +1586,8 @@ Those who use them wisely, without abuse, are the true users of computers.
                 os.remove(path)
             self.ypsh_def("file", "remove", file_remove)
 
-        elif id == "datetime":
-            global datetime, timezone, timedelta
-            from datetime import datetime, timezone, timedelta
-
-            self.ypsh_def("@", "datetime", datetime)
-            self.ypsh_def("@", "timezone", timezone)
-            self.ypsh_def("@", "timedelta", timedelta)
-
         elif id == "dgce":
-            self.module_enable("datetime")
+            from datetime import datetime, timezone, timedelta
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
             def datetime_to_dgc_epoch48(dt: datetime) -> str:
@@ -1545,27 +1606,13 @@ Those who use them wisely, without abuse, are the true users of computers.
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '064b')
                 return binary_str
-            self.ypsh_def("conv", "conv.dgce64", datetime_to_dgc_epoch64)
+            self.ypsh_def("conv", "dgce64", datetime_to_dgc_epoch64)
 
             def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
                 milliseconds = int(dgc_epoch_str, 2)
                 return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
             self.ypsh_def("conv", "datetime", dgc_epoch64_to_datetime)
 
-        elif id == "luhn":
-            def exec_luhn_algo(card_number: str):
-                card_number = ''.join(filter(str.isdigit, card_number))
-                total = 0
-                reverse_digits = card_number[::-1]
-                for i, digit in enumerate(reverse_digits):
-                    n = int(digit)
-                    if i % 2 == 1:
-                        n *= 2
-                        if n > 9:
-                            n -= 9
-                    total += n
-                return total % 10 == 0
-            self.ypsh_def("@", "luhn", exec_luhn_algo)
         else:
             return False
 
@@ -1775,11 +1822,19 @@ Those who use them wisely, without abuse, are the true users of computers.
                 func_obj = self.evaluate(node.name, env)
             else:
                 func_obj = env.get(node.name)
+
+            pos_vals = []
+            kw_vals = {}
+            for a in node.args:
+                if isinstance(a, KeywordArg):
+                    kw_vals[a.name] = self.evaluate(a.value, env)
+                else:
+                    pos_vals.append(self.evaluate(a, env))
+
             if isinstance(func_obj, Function):
-                return func_obj.call(node.args, self)
+                return func_obj.call(pos_vals, kw_vals, self)
             elif callable(func_obj):
-                args = [self.evaluate(arg, env) for arg in node.args]
-                return func_obj(*args)
+                return func_obj(*pos_vals, **kw_vals)
             else:
                 exception_handler(get_builtin_exception("E0024"))
         elif isinstance(node, str):
@@ -1852,8 +1907,10 @@ class SemanticAnalyzer:
     def analyze_FuncDecl(self, node):
         self.declare(node.name)
         self.push_scope()
-        for param_name, _ in node.params:
+        for (param_name, _ptype, default_expr) in node.params:
             self.declare(param_name)
+            if default_expr is not None:
+                self.analyze(default_expr)
         for stmt in node.body:
             self.analyze(stmt)
         self.pop_scope()
@@ -1910,7 +1967,13 @@ class SemanticAnalyzer:
             if not self.is_declared(node.name):
                 self.errors.append(get_builtin_exception("E0026", {"name": node.name}))
         for arg in node.args:
-            self.analyze(arg)
+            if isinstance(arg, KeywordArg):
+                self.analyze(arg.value)
+            else:
+                self.analyze(arg)
+
+    def analyze_KeywordArg(self, node):
+        self.analyze(node.value)
 
     def analyze_str(self, node):
         if not self.is_declared(node):
