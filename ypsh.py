@@ -1795,9 +1795,9 @@ Those who use them wisely, without abuse, are the true users of computers.
             elif node.op == '!=':
                 return left != right
             elif node.op == '&&':
-                return bool(left) and bool(right)
+                return left and right
             elif node.op == '||':
-                return bool(left) or bool(right)
+                return left or right
             elif node.op == '[]':
                 collection: Any = self.evaluate(node.left, env)
                 index = self.evaluate(node.right, env)
@@ -1810,7 +1810,7 @@ Those who use them wisely, without abuse, are the true users of computers.
         elif isinstance(node, UnaryOp):
             operand = self.evaluate(node.operand, env)
             if node.op == '!':
-                return not bool(operand)
+                return not operand
             elif node.op == '-':
                 return -operand
             elif node.op == '+':
