@@ -1184,9 +1184,12 @@ Those who use them wisely, without abuse, are the true users of computers.
                   """.strip())
 
         elif id == "ypsh":
-            self.ypsh_def("@", "false", "<false>")
-            self.ypsh_def("@", "true", "<true>")
-            self.ypsh_def("@", "none", "<none>")
+            self.ypsh_def("@", "false", False)
+            self.ypsh_def("@", "False", False)
+            self.ypsh_def("@", "true", True)
+            self.ypsh_def("@", "True", True)
+            self.ypsh_def("@", "none", None)
+            self.ypsh_def("@", "None", None)
             self.ypsh_def("@", "def", self.ypsh_def, desc="Define Anything as Variable")
             self.ypsh_def("@", "undef", self.ypsh_undef, desc="Delete a Variable(or Function)")
 
