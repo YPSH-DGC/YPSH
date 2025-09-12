@@ -997,10 +997,6 @@ class Interpreter:
     VERSION_TEXT = VERSION_TEXT
     BUILD_ID = BUILD_ID
 
-    ypsh_false = "__false__"
-    ypsh_true = "__true__"
-    ypsh_none = "__none__"
-
     _interp_pat = re.compile(r'\\\((.*?)\)')
 
     def __init__(self):
@@ -1150,7 +1146,7 @@ class Interpreter:
         try:
             result = self.docs[key]
         except KeyError:
-            return self.ypsh_false
+            return False
 
         return result
 
@@ -1290,9 +1286,9 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             def stdin_isatty():
                 if sys.stdin.isatty():
-                    return self.ypsh_true
+                    return True
                 else:
-                    return self.ypsh_false
+                    return False
             self.ypsh_def("stdin", "isatty", stdin_isatty)
 
             self.ypsh_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
@@ -1335,7 +1331,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             global get_system_env
             def get_system_env(id):
                 load_dotenv()
-                return os.environ.get(id, Interpreter.ypsh_none)
+                return os.environ.get(id, None)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
         elif id == "type":
@@ -1842,11 +1838,11 @@ Those who use them wisely, without abuse, are the true users of computers.
                 exception_handler(get_builtin_exception("E0024"))
         elif isinstance(node, str):
             value = env.get(node)
-            if value == self.ypsh_false:
+            if value == False:
                 return False
-            elif value == self.ypsh_true:
+            elif value == True:
                 return True
-            elif value == self.ypsh_none:
+            elif value == None:
                 return None
             return value
         elif isinstance(node, DictLiteral):
