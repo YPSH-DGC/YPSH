@@ -204,6 +204,10 @@ TOKEN_SPEC = [
     ('SHELL',    r'\$[^\n]+'),
     ('ARROW',    r'->'),
     ('DOT',      r'\.'),
+    ('PLUSEQ',   r'\+='),
+    ('MINUSEQ',  r'-='),
+    ('MULTEQ',   r'\*='),
+    ('DIVEQ',    r'/='),
     ('NUMBER',   r'\d+(\.\d+)?'),
     ('MLSTRING', r'("""(\\.|[^"\\])*?"""|\'\'\'(\\.|[^\'\\])*?\'\'\')'),
     ('STRING',   r'("(\\"|[^"])*?"|\'(\\\'|[^\'])*?\')'),
@@ -227,6 +231,7 @@ TOKEN_SPEC = [
     ('RBRACE',   r'\}'),
     ('LBRACKET', r'\['),
     ('RBRACKET', r'\]'),
+    ('SEMI',     r';'),
     ('ID',       r'[A-Za-z@_%][A-Za-z0-9@_%]*'),
     ('MISMATCH', r'.'),
 ]
@@ -433,6 +438,29 @@ class TryCatchStmt(ASTNode):
     def __repr__(self):
         return f'TryCatchStmt(try, catch {self.catch_var})'
 
+class Intent(ASTNode):
+    def __init__(self, kind: str, name: str):
+        self.kind = kind  # 'global' or 'local'
+        self.name = name
+
+class Assign(ASTNode):
+    def __init__(self, name: str | None, expr, declare: bool=False, force_global: bool=False,
+                 force_local: bool=False, is_const: bool=False, target: ASTNode | None = None):
+        self.name = name
+        self.expr = expr
+        self.declare = declare
+        self.force_global = force_global
+        self.force_local = force_local
+        self.is_const = is_const
+        self.target = target
+
+class AugAssign(ASTNode):
+    def __init__(self, name: str | None, op: str, expr, target: ASTNode | None = None):
+        self.name = name
+        self.op = op
+        self.expr = expr
+        self.target = target
+
 ##############################
 # NextDP Integration
 # https://github.com/DiamondGotCat/NextDrop/
@@ -490,6 +518,10 @@ class Parser:
             exception_handler(get_builtin_exception("E0002"))
         return tok
 
+    def _consume_semicolons(self):
+        while self.current() and self.current().type == 'SEMI':
+            self.eat('SEMI')
+
     def match(self, kind: str, value: str | None = None) -> bool:
         tok = self.current()
         return bool(tok and tok.type == kind and (value is None or tok.value == value))
@@ -505,26 +537,72 @@ class Parser:
     def parse(self):
         statements = []
         while self.current() is not None:
+            self._consume_semicolons()
+            if self.current() is None:
+                break
             stmt = self.statement()
-            statements.append(stmt)
+            if stmt is not None:
+                statements.append(stmt)
+            self._consume_semicolons()
         return Block(statements)
 
     def statement(self):
         token = self.current()
 
-        if token and token.type == 'ID' and token.value == 'template':
-            return self.template_decl()
-        elif token and token.type == 'ID' and token.value == 'class':
-            return self.class_decl()
-        elif token and token.type == 'ID' and token.value == 'do':
-            return self.try_catch_stmt()
-        elif token and token.type == 'SHELL':
+        save_pos = self.pos
+        lval = self.parse_lvalue()
+        if lval is not None and self.current() and self.current().type in ('EQUAL', 'PLUSEQ', 'MINUSEQ', 'MULTEQ', 'DIVEQ'):
+            t = self.eat(self.current().type)
+            rhs = self.expr()
+            if t.type == 'EQUAL':
+                if isinstance(lval, str):
+                    return Assign(lval, rhs, declare=False, target=None)
+                else:
+                    return Assign(None, rhs, declare=False, target=lval)
+            else:
+                if isinstance(lval, str):
+                    return AugAssign(lval, t.type, rhs, target=None)
+                else:
+                    return AugAssign(None, t.type, rhs, target=lval)
+        else:
+            self.pos = save_pos
+
+        if token and token.type == 'ID' and token.value in ('global', 'local'):
+            kind = token.value
+            self.eat('ID')
+            name = self.eat('ID').value
+
+            if self.current() and self.current().type == 'ID' and self.current().value in ('var', 'let'):
+                kw = self.current().value
+                return self.var_decl(force_global=(kind == 'global'), force_local=(kind == 'local'))
+
+            return Intent(kind, name)
+
+        if token and token.type == 'ID' and token.value in ('template', 'class', 'do'):
+            pass
+
+        if token and token.type == 'ID' and token.value in ('var', 'let'):
+            is_let = (token.value == 'let')
+            return self.var_decl(is_const=is_let)
+
+        if token and token.type == 'ID':
+            nxt = self.tokens[self.pos + 1] if (self.pos + 1) < len(self.tokens) else None
+            if nxt and nxt.type in ('EQUAL', 'PLUSEQ', 'MINUSEQ', 'MULTEQ', 'DIVEQ'):
+                name = self.eat('ID').value
+                if nxt.type == 'EQUAL':
+                    self.eat('EQUAL')
+                    expr = self.expr()
+                    return Assign(name, expr, declare=False)
+                else:
+                    op_tok = self.eat(nxt.type)
+                    expr = self.expr()
+                    return AugAssign(name, op_tok.type, expr)
+
+        if token and token.type == 'SHELL':
             self.eat('SHELL')
             return ShellStmt(token.value[1:].strip())
         elif token and token.type == 'ID':
-            if token.value == 'var':
-                return self.var_decl()
-            elif token.value == 'func':
+            if token.value == 'func':
                 return self.func_decl()
             elif token.value == 'if':
                 return self.if_stmt()
@@ -547,8 +625,11 @@ class Parser:
             expr = self.expr()
             return ExpressionStmt(expr)
 
-    def var_decl(self):
-        self.eat('ID')  # var
+    def var_decl(self, is_const: bool=False, force_global: bool=False, force_local: bool=False):
+        if self.match('ID', 'var') or self.match('ID', 'let'):
+            kw = self.eat('ID').value
+            is_const = (kw == 'let') or is_const
+
         name = self.eat('ID').value
         var_type = "auto"
         if self.current() and self.current().type == 'COLON':
@@ -556,7 +637,9 @@ class Parser:
             var_type = self.eat('ID').value
         self.eat('EQUAL')
         expr = self.expr()
-        return VarDecl(name, var_type, expr)
+        node = Assign(name, expr, declare=True, force_global=force_global, force_local=force_local, is_const=is_const)
+        node.var_type = var_type
+        return node
 
     def func_decl(self):
         self.eat('ID')  # func
@@ -616,7 +699,13 @@ class Parser:
         self.eat('LBRACE')
         statements = []
         while self.current() and self.current().type != 'RBRACE':
-            statements.append(self.statement())
+            self._consume_semicolons()
+            if self.current() and self.current().type == 'RBRACE':
+                break
+            stmt = self.statement()
+            if stmt is not None:
+                statements.append(stmt)
+            self._consume_semicolons()
         self.eat('RBRACE')
         return Block(statements)
 
@@ -628,10 +717,12 @@ class Parser:
             self.eat('RPAREN')
         else:
             condition = self.expr()
-
         then_block = self.block()
-        else_block = None
 
+        while self.current() and self.current().type == 'SEMI':
+            self.eat('SEMI')
+
+        else_block = None
         if self.current() and self.current().type == 'ID':
             if self.current().value == 'else':
                 self.eat('ID')  # 'else'
@@ -864,6 +955,35 @@ class Parser:
                     break
         self.eat('RBRACE')
         return DictLiteral(pairs)
+    
+    def parse_lvalue(self) -> ASTNode | None:
+        tok = self.current()
+        if not tok or tok.type != 'ID':
+            return None
+
+        node: ASTNode | str = self.eat('ID').value
+
+        while True:
+            tok = self.current()
+            if not tok:
+                break
+            if tok.type == 'DOT':
+                self.eat('DOT')
+                if not (self.current() and self.current().type == 'ID'):
+                    return None
+                attr_name = self.eat('ID').value
+                node = Attribute(node, attr_name)
+            elif tok.type == 'LBRACKET':
+                self.eat('LBRACKET')
+                index_expr = self.expr()
+                self.eat('RBRACKET')
+                node = BinOp(node, '[]', index_expr)
+            elif tok.type == 'LPAREN':
+                return None
+            else:
+                break
+
+        return node
 
 class ReturnException(Exception):
     def __init__(self, value):
@@ -882,17 +1002,85 @@ class Environment:
     def __init__(self, parent=None):
         self.vars = {}
         self.parent = parent
-    def get(self, name):
+        self._meta = {}
+        self._block_stack = []
+        self._intent = {}
+
+    def _find_holder(self, name):
+        env = self
+        while env:
+            if name in env.vars:
+                return env
+            env = env.parent
+        return None
+
+    def _root(self):
+        env = self
+        while env.parent:
+            env = env.parent
+        return env
+
+    def set_intent(self, name, kind: str):
+        self._intent[name] = kind
+
+    def _declare_here(self, name, value, *, const=False, record_local=True):
+        self.vars[name] = value
+        self._meta[name] = {'const': const}
+        if record_local and self._block_stack:
+            self._block_stack[-1].append(name)
+
+    def declare(self, name, value, *, is_const=False, force_global=False, force_local=False):
+        if force_global:
+            self._root()._declare_here(name, value, const=is_const, record_local=False)
+            return
+        if force_local:
+            self._declare_here(name, value, const=is_const, record_local=True)
+            return
+        intent = self.get_intent(name)
+        target = self._root() if intent == 'global' else self
+        target._declare_here(name, value, const=is_const, record_local=(target is self))
+
+    def get(self, name: str):
         if name in self.vars:
             return self.vars[name]
-        elif self.parent:
+        if self.parent:
             return self.parent.get(name)
-        else:
-            exception_handler(get_builtin_exception("E0008", {"name": name}))
+        exception_handler(get_builtin_exception("E0008", {"name": name}))
+
+    def get_intent(self, name: str) -> Optional[str]:
+        env = self
+        while env:
+            if name in env._intent:
+                return env._intent[name]
+            env = env.parent
+        return None
+
     def set(self, name, value):
-        self.vars[name] = value
+        holder = self._find_holder(name)
+        if holder:
+            if holder._meta.get(name, {}).get('const', False):
+                exception_handler(YPSHException("YPSH", "E", "0100", "ConstAssignmentError",
+                                {"en": f"Cannot assign to read-only variable '{name}'.",
+                                "ja": f"読み取り専用変数 '{name}' には代入できません。"}))
+            holder.vars[name] = value
+            return
+        intent = self.get_intent(name)
+        target = self._root() if intent == 'global' else self
+        target._declare_here(name, value, const=False, record_local=(target is self))
+
     def unset(self, name):
         self.vars.pop(name, None)
+        self._meta.pop(name, None)
+
+    def push_block(self):
+        self._block_stack.append([])
+
+    def pop_block(self):
+        if not self._block_stack:
+            return
+        dying = self._block_stack.pop()
+        for name in dying:
+            self.unset(name)
 
 class Function:
     def __init__(self, decl, env):
@@ -1018,6 +1206,61 @@ class Interpreter:
             except Exception as e:
                 exception_handler(get_builtin_exception("E0013", {"e": e}))
         return self._interp_pat.sub(repl, raw)
+
+    def _apply_aug_op(self, op, cur, val):
+        if op == 'PLUSEQ':
+            return cur + val
+        elif op == 'MINUSEQ':
+            return cur - val
+        elif op == 'MULTEQ':
+            return cur * val
+        elif op == 'DIVEQ':
+            return cur / val
+        else:
+            exception_handler(get_builtin_exception("E0022", {"node.op": op}))
+
+    def _read_from_target(self, target: ASTNode, env: Environment):
+        if isinstance(target, Attribute):
+            base = self.evaluate(target.obj, env)
+            try:
+                return getattr(base, target.name)
+            except AttributeError:
+                exception_handler(get_builtin_exception("E0020", {"node.name": target.name}))
+        elif isinstance(target, BinOp) and target.op == '[]':
+            coll = self.evaluate(target.left, env)
+            index = self.evaluate(target.right, env)
+            try:
+                return coll[index]
+            except Exception:
+                exception_handler(get_builtin_exception("E0021", {"index": index, "collection": coll}))
+        elif isinstance(target, str):
+            return env.get(target)
+        else:
+            exception_handler(get_builtin_exception("E0025", {"node": target}))
+
+    def _assign_to_target(self, target: ASTNode, value, env: Environment):
+        if isinstance(target, Attribute):
+            base = self.evaluate(target.obj, env)
+            try:
+                setattr(base, target.name, value)
+                return
+            except Exception:
+                exception_handler(get_builtin_exception("E0020", {"node.name": target.name}))
+
+        if isinstance(target, BinOp) and target.op == '[]':
+            coll = self.evaluate(target.left, env)
+            index = self.evaluate(target.right, env)
+            try:
+                coll[index] = value
+                return
+            except Exception:
+                exception_handler(get_builtin_exception("E0021", {"index": index, "collection": coll}))
+
+        if isinstance(target, str):
+            env.set(target, value)
+            return
+
+        exception_handler(get_builtin_exception("E0025", {"node": target}))
 
     def append_global_env_var_list(self, id, content):
         if id not in self.modules:
@@ -1545,7 +1788,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                         not_founds.append(f"'{lib}'")
 
                 if not_founds:
-                    exc = get_builtin_exception("E0016", {"not_founds": ", ".join(not_founds)}, True)
+                    exc = get_builtin_exception("E0016", {"', '.join(not_founds)": ", ".join(not_founds)}, True)
                     exception_handler(exc)
 
             self.ypsh_def("@", "import", import_main)
@@ -1636,45 +1879,126 @@ Those who use them wisely, without abuse, are the true users of computers.
             return True
 
     def interpret(self, node):
+        if isinstance(node, Block):
+            result = None
+            for stmt in node.statements:
+                result = self.execute(stmt, self.ypsh_globals)
+            return result
         return self.execute(node, self.ypsh_globals)
 
     def execute(self, node, env):
         if isinstance(node, Block):
-            result = None
-            for stmt in node.statements:
-                result = self.execute(stmt, env)
-            return result
+            env.push_block()
+            try:
+                result = None
+                for stmt in node.statements:
+                    result = self.execute(stmt, env)
+                return result
+            finally:
+                env.pop_block()
+
         elif isinstance(node, VarDecl):
             value = self.evaluate(node.expr, env)
             expected_type = node.var_type
+            if expected_type != "auto" and not self._check_type_match(value, expected_type):
+                exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": expected_type, "type(value).__name__": type(value).__name__}))
+            env.declare(node.name, value)
 
-            if expected_type != "auto":
-                if not self._check_type_match(value, expected_type):
-                    exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": expected_type, "type(value).__name__": type(value).__name__}))
+        elif isinstance(node, Intent):
+            env.set_intent(node.name, node.kind)
+            return None
 
-            env.set(node.name, value)
+        elif isinstance(node, Assign):
+            value = self.evaluate(node.expr, env)
+            var_type = getattr(node, 'var_type', "auto")
+            if node.declare and var_type != "auto":
+                if not self._check_type_match(value, var_type):
+                    exception_handler(get_builtin_exception("E0017", {
+                        "node.name": node.name, "expected_type": var_type,
+                        "type(value).__name__": type(value).__name__
+                    }))
+
+            if node.target is not None:
+                self._assign_to_target(node.target, value, env)
+                return None
+
+            if node.declare:
+                intent = env.get_intent(node.name)
+                holder = env._root() if (node.force_global or (not node.force_local and intent == 'global')) else env
+
+                real_holder = holder._find_holder(node.name)
+                if real_holder:
+                    real_holder.unset(node.name)
+
+                env.declare(
+                    node.name, value,
+                    is_const=node.is_const,
+                    force_global=node.force_global or (not node.force_local and intent == 'global'),
+                    force_local=node.force_local or (intent == 'local'),
+                )
+            else:
+                env.set(node.name, value)
+            return None
+
+        elif isinstance(node, AugAssign):
+            if node.target is not None:
+                cur = self._read_from_target(node.target, env)
+                val = self.evaluate(node.expr, env)
+                newv = self._apply_aug_op(node.op, cur, val)
+                self._assign_to_target(node.target, newv, env)
+                return None
+
+            holder = env._find_holder(node.name)
+            if not holder:
+                base = 0
+                env.set(node.name, base)
+                holder = env._find_holder(node.name)
+            cur = holder.vars[node.name]
+            val = self.evaluate(node.expr, env)
+            if node.op == 'PLUSEQ':
+                newv = cur + val
+            elif node.op == 'MINUSEQ':
+                newv = cur - val
+            elif node.op == 'MULTEQ':
+                newv = cur * val
+            elif node.op == 'DIVEQ':
+                newv = cur / val
+            else:
+                exception_handler(get_builtin_exception("E0022", {"node.op": node.op}))
+            holder.vars[node.name] = newv
+            return None
+
         elif isinstance(node, TemplateDecl):
             tmpl_env = Environment(env)
             for stmt in node.body:
                 self.execute(stmt, tmpl_env)
             env.set(node.name, Template(tmpl_env.vars))
+
         elif isinstance(node, ClassDecl):
             base_obj = env.get(node.base) if node.base else None
             if base_obj and not isinstance(base_obj, Template):
                 exception_handler(get_builtin_exception("E0018", {"node.base": node.base}))
             cls_obj = Class(node.name, base_obj, node.body, self)
             env.set(node.name, cls_obj)
+
         elif isinstance(node, ExpressionStmt):
+            if isinstance(node.expr, KeywordArg) and isinstance(node.expr.value, String):
+                if node.expr.name in ('global', 'local'):
+                    name = node.expr.value.value
+                    env.set_intent(name, node.expr.name)
+                    return None
             return self.evaluate(node.expr, env)
+
         elif isinstance(node, FuncDecl):
             func = Function(node, env)
             env.set(node.name, func)
+
         elif isinstance(node, IfStmt):
             condition = self.evaluate(node.condition, env)
             if condition:
-                return self.execute(node.then_block, Environment(env))
+                return self.execute(node.then_block, env)
             elif node.else_block:
-                return self.execute(node.else_block, Environment(env))
+                return self.execute(node.else_block, env)
         elif isinstance(node, ShellStmt):
             global shell_cwd
             command_name = node.command.split(" ")[0]
@@ -1696,22 +2020,29 @@ Those who use them wisely, without abuse, are the true users of computers.
             if not hasattr(iterable, '__iter__'):
                 exception_handler(get_builtin_exception("E0019"))
             for value in iterable:
-                local_env = Environment(env)
-                local_env.set(node.var_name, value)
                 try:
-                    self.execute(node.body, local_env)
+                    env.push_block()
+                    env.declare(node.var_name, value, force_local=True)
+                    self.execute(node.body, env)
                 except ContinueException:
-                    continue
+                    pass
                 except BreakException:
+                    env.pop_block()
                     break
+                finally:
+                    env.pop_block()
         elif isinstance(node, WhileStmt):
             while self.evaluate(node.condition, env):
                 try:
+                    env.push_block()
                     self.execute(node.body, env)
                 except ContinueException:
-                    continue
+                    pass
                 except BreakException:
+                    env.pop_block()
                     break
+                finally:
+                    env.pop_block()
         elif isinstance(node, ReturnStmt):
             value = self.evaluate(node.value, env)
             raise ReturnException(value)
@@ -1721,11 +2052,17 @@ Those who use them wisely, without abuse, are the true users of computers.
             raise ContinueException()
         elif isinstance(node, TryCatchStmt):
             try:
-                return self.execute(node.try_block, Environment(env))
+                env.push_block()
+                return self.execute(node.try_block, env)
             except Exception as e:
-                local_env = Environment(env)
-                local_env.set(node.catch_var, e)
-                return self.execute(node.catch_block, local_env)
+                try:
+                    env.push_block()
+                    env.declare(node.catch_var, e, force_local=True)
+                    return self.execute(node.catch_block, env)
+                finally:
+                    env.pop_block()
+            finally:
+                env.pop_block()
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
@@ -1993,6 +2330,17 @@ class SemanticAnalyzer:
         self.analyze(node.catch_block)
         self.pop_scope()
 
+    def analyze_Assign(self, node):
+        self.analyze(node.expr)
+        if getattr(node, 'declare', False):
+            self.declare(node.name)
+        else:
+            self.declare(node.name)
+
+    def analyze_AugAssign(self, node):
+        self.declare(node.name)
+        self.analyze(node.expr)
+
 def collect_errors(code: str) -> list[Exception]:
     errors = []
 
@@ -2069,7 +2417,7 @@ if _YPSH_HAS_PTK:
                  bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name)),
                 (r'\b\d+(\.\d+)?\b', PygTok.Number),
                 (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
-                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}(),.:?]', PygTok.Punctuation),
+                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}(),.:?;]', PygTok.Punctuation),
                 (r'\s+', PygTok.Text),
             ],
             "dqstring": [
@@ -2110,7 +2458,7 @@ if _YPSH_HAS_PTK:
                  bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name)),
                 (r'\b\d+(\.\d+)?\b', PygTok.Number),
                 (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
-                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}.,:?]', PygTok.Punctuation),
+                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}.,:?;]', PygTok.Punctuation),
                 (r'\s+', PygTok.Text),
             ],
         }
