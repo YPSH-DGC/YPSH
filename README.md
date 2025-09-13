@@ -72,4 +72,4 @@ AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
 
 ---
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DiamondGotCat/YPSH) [![DGC-AutoBuild (YPSH)](https://github.com/YPSH-DGC/YPSH/actions/workflows/ypsh-build.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/ypsh-build.yml) [![DGC-AutoBuild (YPSH Setup)](https://github.com/YPSH-DGC/YPSH/actions/workflows/setup-build.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/setup-build.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/YPSH-DGC/YPSH) [![DGC-AutoBuild (YPSH)](https://github.com/YPSH-DGC/YPSH/actions/workflows/ypsh-build.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/ypsh-build.yml) [![DGC-AutoBuild (YPSH Setup)](https://github.com/YPSH-DGC/YPSH/actions/workflows/setup-build.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/setup-build.yml)
