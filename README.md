@@ -1,5 +1,5 @@
 
-<img width="1920" alt="YPSH Header" src="https://github.com/user-attachments/assets/af60ff25-6459-48d9-9721-3c0a3f41f324" />
+<img width="1920" height="1080" alt="YPSH Logo from 2025-09-21" src="https://github.com/user-attachments/assets/c60412a6-0042-4e87-9aa4-474d9c6b9c68" />
 
 # YPSH-DGC for Python (PyYPSH)
 **YPSH - Your route of Programming is Starting from Here**
