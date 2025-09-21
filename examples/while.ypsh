@@ -9,8 +9,6 @@ var limit = 5
 var current = 0
 
 while current < limit {
-
-    var current = current + 1
-    print(current)
-
+    current += 1
+    print(str(current))
 }

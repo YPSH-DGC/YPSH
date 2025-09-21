@@ -1,74 +1,25 @@
 
-<img width="1920" height="1080" alt="YPSH Logo from 2025-09-21" src="https://github.com/user-attachments/assets/c60412a6-0042-4e87-9aa4-474d9c6b9c68" />
+<img width="1920" alt="YPSH Logo from 2025-09-21" src="https://github.com/user-attachments/assets/c60412a6-0042-4e87-9aa4-474d9c6b9c68" />
 
-# YPSH-DGC for Python (PyYPSH)
 **YPSH - Your route of Programming is Starting from Here**
+PyYPSH is one of the official implementations of the YPSH programming language.
+It is being developed by DiamondGotCat (hereafter referred to as the creator) alone and is available on GitHub under the MIT license.
 
-A programming language with a simple and intuitive syntax
+## About the YPSH Language
+The creation of the YPSH language was prompted by a problem the creator was struggling with.
+The creator, who uses Python, Swift, PHP, etc. (primarily Python), noticed that certain language-specific issues, such as Python's indentation and PHP's `;`, were inherently inconvenient, leading him to wonder, "Isn't it possible to combine the best parts of various languages?"
+This is why PyYPSH has such strong integration with the Python interpreter.
+Python has a large number of libraries, so it's only natural that you'd want to use them in your own language.
+The PyYPSH interpreter offers features that are only possible because it's based on Python, such as direct import of Python libraries.
 
-## AutoBuild (for Binary Version)
-YPSH builds are automated using GitHub Actions.
+## About Building
+PyYPSH is built using DGC-AutoBuild, a GitHub Action. It automatically starts building immediately after a release is published.
+Pre-releases are automatically applied to the `beta` channel, and regular releases are automatically applied to the `stable` channel.
 
-### Dashboard
-You can view the build status at [build.diamondgotcat.net](https://build.diamondgotcat.net/)
-
-**Current AutoBuild Version: V4**
-
-### AutoBuild V4.5 (YPSH v6.1 and later, YPSH v6.5.1 and earlier)
-AutoBuild V4.5 is a 6-platform (and 1 Experimental platform) build automation that uses PyInstaller.
-- `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
-- `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `YPSH-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-- `YPSH-windows-arm64.zip`: Windows (ARM arm64)
-- `YPSH-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `YPSH-linux-arm64.zip`: Linux (ARM arm64)
-- `YPSH-linux-riscv.zip`: Linux (RISC-V) **[Experimental, Not Using PyInstaller, Not Supported on Dashboard]**
-
-**NOTE:**
-Currently, I do not have a RISC-V computer.
-Therefore, I may not be able to identify issues related to RISC-V builds.
-If possible, please submit any issues that occur on RISC-V as an issue.
-
-### AutoBuild V4 (YPSH v1.1 and later, YPSH v6.1.1 and earlier) (YPSH v6.6 and later)
-AutoBuild V4 is a 6-platform build automation that uses PyInstaller.
-- `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
-- `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `YPSH-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `YPSH-linux-arm64.zip`: Linux (ARM arm64)
-- `YPSH-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-- `YPSH-windows-arm64.zip`: Windows (ARM arm64)
-
-### AutoBuild V3 (Pylo 16.1 and later, YPSH v1.0 and earlier)
-AutoBuild V3 is a 6-platform build automation that uses Nuitka.
-
-**Pylo**
-- `pylo-macos-amd64.zip`: macOS (Intel x86_64)
-- `pylo-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `pylo-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `pylo-linux-arm64.zip`: Linux (ARM arm64)
-- `pylo-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-- `pylo-windows-arm64.zip`: Windows (ARM arm64)
-
-**YPSH**
-- `YPSH-macos-amd64.zip`: macOS (Intel x86_64)
-- `YPSH-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `YPSH-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `YPSH-linux-arm64.zip`: Linux (ARM arm64)
-- `YPSH-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-- `YPSH-windows-arm64.zip`: Windows (ARM arm64)
-
-### AutoBuild V2 (Pylo 14.3 R2 and later, Pylo 16.0 and earlier)
-AutoBuild V2 is a 4-platform build automation that uses Nuitka.
-- `pylo-macos-amd64.zip`: macOS (Intel x86_64)
-- `pylo-macos-arm64.zip`: macOS (Apple Silicon aarch64/arm64)
-- `pylo-linux-amd64.zip`: Linux (AMD amd64, Intel x86_64)
-- `pylo-windows-amd64.zip`: Windows (AMD amd64, Intel x86_64)
-
-### AutoBuild V1 (Pylo 16.0 or earlier)
-AutoBuild V1 is a tri-platform build automation that uses PyInstaller.
-- `pylo-macos.zip`: macOS (Apple Silicon aarch64/arm64)
-- `pylo-linux.zip`: Linux (AMD amd64, Intel x86_64)
-- `pylo-windows.zip`: Windows (AMD amd64, Intel x86_64)
+## About Contributions
+YPSH is under active development on GitHub.
+If you need a feature or fix, please open an issue or make your own changes and submit a pull request.
+Your contributions are welcome.
 
 ---
 

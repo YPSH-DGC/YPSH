@@ -5,29 +5,24 @@
 # Copyright (c) 2025 DiamondGotCat
 ##################################
 
-import("stdmath", "exec", "python")
-
 # Save Result of 10 + 20 to "a" variable
 var a = 10 + 20
 
 # Save The remainder when a is divided by 7 to "b variable"
-var b = mod(a, 7)
+var b = mod(a,7)
 
 # Show Content
 print("a = 10 + 20 = " + a)
 print("b = mod(a, 7) = " + b)
 
 # Define Function named "add"
-func add(x, y) -> int { # Define Input Args, and Return Contents.
-    var result = x + y
-    standard.output(str(x) + " + " + str(y) + " = " + result) # Show Content with Other Ways
+func add(x,y) -> int { # Define Input Args, and Return Contents.
+    return x + y
 }
 
 # Call Function named "add"
-add(5, 7)
-
-# Execute Python from YPSH
-python.exec("print(\"Hello from Python\")")
+let added = add(5,7)
+print("5 + 7 = \(added)")
 
 # Shell Integration (Added in Pylo v11.1)
 $ echo "Hello from Shell"
