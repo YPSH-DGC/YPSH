@@ -1,6 +1,8 @@
 
 <img width="1920" alt="YPSH Logo from 2025-09-21" src="https://github.com/user-attachments/assets/c60412a6-0042-4e87-9aa4-474d9c6b9c68" />
 
+---
+
 **YPSH - Your route of Programming is Starting from Here**
 
 PyYPSH is one of the official implementations of the YPSH programming language.
