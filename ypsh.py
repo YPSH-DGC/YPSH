@@ -135,9 +135,8 @@ class YPSHException(Exception):
 ##############################
 ExceptionPrintingLevel = "W"
 
-UnknownError = YPSHException("YPSH", "E", "0000", "UnknownError", {"en": "Unknown Error", "ja": "不明なエラー"})
 BUILTIN_EXCEPTION_SPEC = {
-    "E0000": UnknownError,
+    "E0000": YPSHException("YPSH", "E", "0000", "UnknownError", {"en": "Unknown Error", "ja": "不明なエラー"}),
     "E0001": YPSHException("YPSH", "E", "0001", "SyntaxError", {"en": "Unexpected character {value!r} at line {line_num}.", "ja": "予想外の文字「{value!r}」が{line_num}行目に存在します。"}),
     "E0002": YPSHException("YPSH", "E", "0002", "SyntaxError", {"en": "Unexpected end of input.", "ja": "入力の終端に達しました。"}),
     "E0003": YPSHException("YPSH", "E", "0003", "SyntaxError", {"en": "Expected token {token_type} but got {token}.", "ja": "{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"}),
@@ -163,11 +162,12 @@ BUILTIN_EXCEPTION_SPEC = {
     "E0023": YPSHException("YPSH", "E", "0023", "SyntaxError", {"en": "Unknown unary operator {node.op}.", "ja": "未知の単項演算子: {node.op}"}),
     "E0024": YPSHException("YPSH", "E", "0024", "TypeError", {"en": "Attempting to call a non-callable object.", "ja": "呼び出し不可能なオブジェクトを呼び出そうとしました。"}),
     "E0025": YPSHException("YPSH", "E", "0025", "EvaluationError", {"en": "Cannot evaluate node {node}.", "ja": "{node} を処理できません。"}),
-    "E0026": YPSHException("YPSH", "E", "0026", "ScopeError", {"en": "Cannot find function '{name}' in scope.", "ja": "関数 '{name}' がスコープ内に存在しません。"})
+    "E0026": YPSHException("YPSH", "E", "0026", "ScopeError", {"en": "Cannot find function '{name}' in scope.", "ja": "関数 '{name}' がスコープ内に存在しません。"}),
+    "E0027": YPSHException("YPSH", "E", "0027", "ConstAssignmentError", {"en": "Cannot assign to read-only variable '{name}'.", "ja": "読み取り専用変数 '{name}' には代入できません。"})
 }
 
 def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_escape: bool = False) -> YPSHException:
-    tmpl = BUILTIN_EXCEPTION_SPEC.get(id, UnknownError)
+    tmpl = BUILTIN_EXCEPTION_SPEC.get(id, BUILTIN_EXCEPTION_SPEC["E0000"])
     new_exc = YPSHException(
         location=tmpl.location,
         level=tmpl.level,
@@ -1059,9 +1059,7 @@ class Environment:
         holder = self._find_holder(name)
         if holder:
             if holder._meta.get(name, {}).get('const', False):
-                exception_handler(YPSHException("YPSH", "E", "0100", "ConstAssignmentError",
-                                {"en": f"Cannot assign to read-only variable '{name}'.",
-                                "ja": f"読み取り専用変数 '{name}' には代入できません。"}))
+                exception_handler(get_builtin_exception("E0027", {"name": name}))
             holder.vars[name] = value
             return
         intent = self.get_intent(name)
@@ -1955,17 +1953,8 @@ Those who use them wisely, without abuse, are the true users of computers.
                 holder = env._find_holder(node.name)
             cur = holder.vars[node.name]
             val = self.evaluate(node.expr, env)
-            if node.op == 'PLUSEQ':
-                newv = cur + val
-            elif node.op == 'MINUSEQ':
-                newv = cur - val
-            elif node.op == 'MULTEQ':
-                newv = cur * val
-            elif node.op == 'DIVEQ':
-                newv = cur / val
-            else:
-                exception_handler(get_builtin_exception("E0022", {"node.op": node.op}))
-            holder.vars[node.name] = newv
+            newv = self._apply_aug_op(node.op, cur, val)
+            env.set(node.name, newv)
             return None
 
         elif isinstance(node, TemplateDecl):
