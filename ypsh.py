@@ -36,7 +36,9 @@ except Exception:
 load_dotenv()
 console = Console()
 rich_print = console.print
-shell_cwd = os.getcwd()
+
+SHELL_NAME = f"YPShell-{'_'.join(VERSION_ID.replace(' ', '').replace('v', '').split('.'))}".strip()
+SHELL_CWD = os.getcwd()
 
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
 YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
@@ -75,6 +77,50 @@ def return_ypsh_exec_folder() -> str:
             return os.path.dirname(sys.executable)
         else:
             return os.path.dirname(os.path.abspath(__file__))
+
+##############################
+# Shell Execution
+##############################
+class ShellExecutionResult():
+    def __init__(self, return_code: int = 0, stdout: str = "", stderr: str = ""):
+        self.code = return_code
+        self.return_code = return_code
+        self.zero = return_code == 0
+        self.non_zero = not return_code == 0
+        self.stdout = stdout
+        self.stderr = stderr
+
+def shell_exec(command) -> ShellExecutionResult:
+    global SHELL_CWD
+    command_name = command.split(" ")[0]
+    shell_env = os.environ.copy()
+    shell_env["SHELL"] = SHELL_NAME
+    shell_env["YPSH_VERSION"] = VERSION_ID
+    shell_env["YPSH_BUILDID"] = BUILD_ID
+    return_code = 0
+    stdout = ""
+    stderr = ""
+    if command_name == "cd":
+        changeto: str = os.path.expanduser(os.path.expandvars(command.split(" ")[1]))
+        if changeto.startswith("/"):
+            SHELL_CWD_TMP = changeto
+        else:
+            SHELL_CWD_TMP = os.path.abspath(os.path.join(SHELL_CWD, changeto))
+        if not os.path.exists(SHELL_CWD_TMP):
+            return ShellExecutionResult(return_code=1, stderr="YPShell: No such file or directory.")
+        SHELL_CWD = SHELL_CWD_TMP
+        return ShellExecutionResult(return_code=0, stdout="YPShell: Successfully Changed CWD.")
+    else:
+        try:
+            result = subprocess.run(os.path.expanduser(os.path.expandvars(command)), shell=True, check=True, text=True, capture_output=True, cwd=SHELL_CWD, env=shell_env)
+            return_code = result.returncode
+            stdout = result.stdout
+            stderr = result.stderr
+        except subprocess.CalledProcessError as e:
+            return_code = e.returncode
+            stdout = e.stdout
+            stderr = e.stderr
+    return ShellExecutionResult(return_code=return_code, stdout=stdout, stderr=stderr)
 
 ##############################
 # Built-in Error Documentation
@@ -1429,36 +1475,19 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "None", None)
             self.ypsh_def("@", "def", self.ypsh_def, desc="Define Anything as Variable")
             self.ypsh_def("@", "undef", self.ypsh_undef, desc="Delete a Variable(or Function)")
-
-            def shell_exec(command):
-                global shell_cwd
-                command_name = command.split(" ")[0]
-                if command_name == "cd":
-                    changeto: str = command.split(" ")[1]
-                    changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}")))
-                    if changeto.startswith("/"):
-                        shell_cwd = changeto
-                    else:
-                        shell_cwd = os.path.abspath(os.path.join(shell_cwd, changeto))
-                else:
-                    try:
-                        result = subprocess.run(os.path.expanduser(os.path.expandvars(command.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
-                        return result.stdout
-                    except subprocess.CalledProcessError as e:
-                        return e.stderr
             self.ypsh_def("@", "%", shell_exec)
             self.ypsh_def("shell", "run", shell_exec)
 
-            def get_shell_cwd():
-                global shell_cwd
-                return shell_cwd
-            self.ypsh_def("shell", "cwd.get", get_shell_cwd)
+            def get_SHELL_CWD():
+                global SHELL_CWD
+                return SHELL_CWD
+            self.ypsh_def("shell", "cwd.get", get_SHELL_CWD)
 
-            def set_shell_cwd(new):
-                global shell_cwd
-                shell_cwd = new
+            def set_SHELL_CWD(new):
+                global SHELL_CWD
+                SHELL_CWD = new
                 return True
-            self.ypsh_def("shell", "cwd.set", set_shell_cwd)
+            self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
 
             self.ypsh_def("ypsh", "version", self.VERSION_TEXT, desc="Return YPSH's Full Version Name")
             self.ypsh_def("ypsh", "version.dist", self.PRODUCT_ID, desc="Return YPSH's Product ID / Distribution ID")
@@ -1989,21 +2018,9 @@ Those who use them wisely, without abuse, are the true users of computers.
             elif node.else_block:
                 return self.execute(node.else_block, env)
         elif isinstance(node, ShellStmt):
-            global shell_cwd
-            command_name = node.command.split(" ")[0]
-            if command_name == "cd":
-                changeto: str = node.command.split(" ")[1]
-                changeto: str = os.path.expanduser(os.path.expandvars(changeto.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}")))
-                if changeto.startswith("/"):
-                    shell_cwd = changeto
-                else:
-                    shell_cwd = os.path.abspath(os.path.join(shell_cwd, changeto))
-            else:
-                try:
-                    result = subprocess.run(os.path.expanduser(os.path.expandvars(node.command.replace("$SHELL", f"{PRODUCT_ID.lower().replace('.', '-')}{VERSION_ID.lower().replace('.', '-')}"))), shell=True, check=True, text=True, capture_output=True, cwd=shell_cwd)
-                    print(result.stdout)
-                except subprocess.CalledProcessError as e:
-                    print(e.stderr)
+            shell_exec_result = shell_exec(node.command)
+            print(shell_exec_result.stdout)
+            print(shell_exec_result.stderr)
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
             if not hasattr(iterable, '__iter__'):
