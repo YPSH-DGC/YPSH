@@ -19,12 +19,12 @@ Python has a large number of libraries, so it's only natural that you'd want to 
 
 The PyYPSH interpreter offers features that are only possible because it's based on Python, such as direct import of Python libraries.
 
-## About Building
+## Building
 PyYPSH is built using DGC-AutoBuild, a GitHub Action. It automatically starts building immediately after a release is published.
 
 Pre-releases are automatically applied to the `beta` channel, and regular releases are automatically applied to the `stable` channel.
 
-## About Contributions
+## Contributions
 YPSH is under active development on GitHub.
 
 If you need a feature or fix, please open an issue or make your own changes and submit a pull request.
