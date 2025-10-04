@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-#################################################################
-# YPSH Language - Your route of Programming is Starting from Here
-# Main
-# MIT License
-# Copyright (c) 2025 DiamondGotCat
-# Writed by DiamondGotCat
-#################################################################
+
+# -- PyYPSH ----------------------------------------------------- #
+# ypsh.py on PyYPSH                                               #
+# Made by DiamondGotCat, Licensed under MIT License               #
+# Copyright (c) 2025 DiamondGotCat                                #
+# ---------------------------------------------- DiamondGotCat -- #
 
 PRODUCT_ID = "YPSH"
-VERSION_ID = "for Python"
-BUILD_ID = "YPSH-PYTHON"
+VERSION_ID = "python3"
+BUILD_ID = "YPSH-PYTHON-3"
 VERSION_TEXT = f"{PRODUCT_ID} {VERSION_ID} ({BUILD_ID})"
 LANG_ID = "en"
 
@@ -21,7 +20,7 @@ from rich.markup import escape
 from dotenv import load_dotenv
 from next_drop_lib import FileSender, FileReceiver
 from typing import Optional, Dict, Callable, Any
-import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, readline, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex, ssl, certifi
+import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, readline, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex, ssl, certifi, shutil, stat
 try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.lexers import PygmentsLexer
@@ -42,7 +41,6 @@ SHELL_CWD = os.getcwd()
 
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
 YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
-YPSH_PM_DIR: str = os.environ.get("YPSH_PM_DIR") or os.path.join(YPSH_DIR, "pm")
 
 ##############################
 # Helper
@@ -2641,6 +2639,9 @@ def repl():
             if not is_code_complete(accumulated_code):
                 continue
 
+            if accumulated_code in ["exit", "quit"]:
+                raise SystemExit(0)
+
             try:
                 tokens = tokenize(accumulated_code)
                 parser = Parser(tokens)
@@ -2730,6 +2731,10 @@ if __name__ == '__main__':
             isReceivedGoodOption = True
             options["repl"] = True
 
+        elif arg2 in ["ypms", "ypms-install"]:
+            isReceivedGoodOption = True
+            options["ypms-install"] = True
+
         else:
             if "code" in options:
                 isReceivedGoodOption = True
@@ -2749,6 +2754,38 @@ if __name__ == '__main__':
 
     if "version" in options:
         print(VERSION_TEXT)
+
+    if "ypms-install" in options:
+        ypsh_dir = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
+        bin_dir = os.path.join(ypsh_dir, "bin")
+        target_path = os.path.join(bin_dir, "ypms")
+
+        os.makedirs(bin_dir, exist_ok=True)
+
+        req = urllib.request.Request(url, headers={"User-Agent": "YPMS-Launcher/1.0 (+urllib)"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            if getattr(resp, "status", 200) != 200:
+                raise RuntimeError(f"Failed to download: HTTP {resp.status}")
+            with tempfile.NamedTemporaryFile("wb", delete=False, dir=bin_dir, prefix=".tmp-ypms-", suffix=".part") as tmp:
+                shutil.copyfileobj(resp, tmp, length=1024 * 1024)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                tmp_path = tmp.name
+
+        try:
+            if os.name != "nt":
+                os.chmod(tmp_path, 0o755)
+        except Exception:
+            pass
+
+        os.replace(tmp_path, target_path)
+
+        try:
+            if os.name != "nt":
+                mode = os.stat(target_path).st_mode
+                os.chmod(target_path, (mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH) & 0o777)
+        except Exception:
+            pass
 
     if "lint" in options:
         if isReceivedCode:
