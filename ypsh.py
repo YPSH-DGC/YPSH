@@ -2762,7 +2762,7 @@ if __name__ == '__main__':
 
         os.makedirs(bin_dir, exist_ok=True)
 
-        req = urllib.request.Request(url, headers={"User-Agent": "YPMS-Launcher/1.0 (+urllib)"})
+        req = urllib.request.Request("https://ypsh-dgc.github.io/YPMS/ypms-launcher.py", headers={"User-Agent": "YPMS-Launcher/1.0 (+urllib)"})
         with urllib.request.urlopen(req, timeout=60) as resp:
             if getattr(resp, "status", 200) != 200:
                 raise RuntimeError(f"Failed to download: HTTP {resp.status}")
