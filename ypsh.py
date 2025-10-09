@@ -2756,6 +2756,8 @@ if __name__ == '__main__':
         print(VERSION_TEXT)
 
     if "ypms-install" in options:
+        print("YPSH: Install/Update YPMS-Launcher: Started")
+
         ypsh_dir = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
         bin_dir = os.path.join(ypsh_dir, "bin")
         target_path = os.path.join(bin_dir, "ypms")
@@ -2786,6 +2788,8 @@ if __name__ == '__main__':
                 os.chmod(target_path, (mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH) & 0o777)
         except Exception:
             pass
+
+        print("YPSH: Install/Update YPMS-Launcher: Finished")
 
     if "lint" in options:
         if isReceivedCode:

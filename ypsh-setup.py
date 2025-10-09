@@ -372,10 +372,10 @@ class I18n(QObject):
                 "lang_en": "English",
                 "lang_ja": "日本語",
 
-                "welcome_title": "Welcome to YPSH Setup",
+                "welcome_title": "Welcome!",
                 "welcome_msg": "This wizard will install YPSH on your system. Click “Next” to continue.",
                 "tip_1": "No admin privileges required (installs to your user directory)",
-                "tip_2": "Adding to PATH is optional",
+                "tip_2": "Supports automatic addition to the PATH environment variable",
                 "tip_3": "On macOS, quarantine (Gatekeeper) can be cleared",
 
                 "license_title": "License Agreement",
@@ -385,9 +385,9 @@ class I18n(QObject):
                 "license_error": "Failed to fetch license.\nClick “Reload” to try again.\n\n{err}",
 
                 "channel_title": "Choose a Release Channel",
-                "stable": "Stable (recommended)",
-                "beta": "Beta (early features)",
-                "custom": "Custom (specify tag)",
+                "stable": "Stable",
+                "beta": "Beta",
+                "custom": "Custom",
                 "channel_hint": "If you choose Custom, you will enter an exact release tag (e.g., v1.2.3) on the next page.",
 
                 "custom_title": "Specify Custom Tag",
@@ -423,8 +423,8 @@ class I18n(QObject):
                 "install_failed": "Installation failed",
                 "error_unknown": "Unknown error",
 
-                "finish_title": "Completed",
-                "finish_msg": "YPSH has been installed.\nDestination: {dest}",
+                "finish_title": "Hello, World!",
+                "finish_msg": "YPSH has been installed. Happy Hacking!\nDestination: {dest}",
                 "finish_open": "Open install folder",
                 "finish_copy": "Copy launch command",
                 "finish_hint": "Open a new terminal to pick up PATH changes.",
@@ -443,11 +443,11 @@ class I18n(QObject):
                 "lang_en": "English",
                 "lang_ja": "日本語",
 
-                "welcome_title": "YPSH セットアップへようこそ",
-                "welcome_msg": "このウィザードは YPSH をシステムにインストールします。“次へ”を押して進みます。",
-                "tip_1": "管理者権限は不要です（ユーザーディレクトリへ展開）",
-                "tip_2": "PATH への追加は任意です",
-                "tip_3": "macOS では Gatekeeper の隔離属性を解除可能",
+                "welcome_title": "ようこそ！",
+                "welcome_msg": "このウィザードではPyYPSHを簡単にインストール/アップデートすることができます。",
+                "tip_1": "管理者権限は不要です（ユーザーディレクトリを使用します）",
+                "tip_2": "PATH環境変数への自動追加に対応",
+                "tip_3": "macOSではセキュリティアラートを回避できます",
 
                 "license_title": "ライセンスに同意",
                 "license_reload": "再読み込み",
@@ -456,10 +456,10 @@ class I18n(QObject):
                 "license_error": "ライセンスの取得に失敗しました。“再読み込み”で再試行してください。\n\n{err}",
 
                 "channel_title": "リリースチャンネルを選択",
-                "stable": "Stable（安定版・推奨）",
-                "beta": "Beta（新機能の早期提供）",
-                "custom": "Custom（タグを指定）",
-                "channel_hint": "Custom を選ぶと次ページで正確なタグ（例: v1.2.3）を入力します。",
+                "stable": "安定版",
+                "beta": "ベータ版",
+                "custom": "その他",
+                "channel_hint": "その他 を選ぶと次ページで正確なタグ（例: v1.2.3）を入力します。",
 
                 "custom_title": "カスタムタグの指定",
                 "custom_label": "タグ:",
@@ -494,8 +494,8 @@ class I18n(QObject):
                 "install_failed": "インストール失敗",
                 "error_unknown": "不明なエラー",
 
-                "finish_title": "完了",
-                "finish_msg": "YPSH のインストールが完了しました。\nインストール先: {dest}",
+                "finish_title": "Hello, World!",
+                "finish_msg": "YPSH のインストールが完了しました。ようこそ！\nインストール先: {dest}",
                 "finish_open": "インストール先を開く",
                 "finish_copy": "起動コマンドをコピー",
                 "finish_hint": "新しいターミナルを開くと PATH の更新が反映されます。",
