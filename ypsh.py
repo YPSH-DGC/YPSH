@@ -1703,15 +1703,75 @@ Those who use them wisely, without abuse, are the true users of computers.
                 for k in drop:
                     env.unset(k)
 
-            def _find_ypsh(path_id: str) -> str | None:
-                if os.path.isfile(path_id):
-                    return path_id if path_id.endswith(".ypsh") else None
-                return find_file_shallowest(YPSH_LIBS_DIR, f"{path_id}.ypsh")
+            def _cwd_candidates() -> list[str]:
+                bases = []
+                try:
+                    bases.append(SHELL_CWD)
+                except Exception:
+                    pass
+                try:
+                    cur = os.getcwd()
+                    if not bases or bases[-1] != cur:
+                        bases.append(cur)
+                except Exception:
+                    pass
+                return [b for b in bases if b and os.path.isdir(b)]
 
-            def _find_py(path_id: str) -> str | None:
-                if os.path.isfile(path_id):
-                    return path_id if path_id.endswith(".py") else None
-                return find_file_shallowest(YPSH_LIBS_DIR, f"{path_id}.py")
+            def _libs_candidates() -> list[str]:
+                return [p for p in [YPSH_LIBS_DIR] if p and os.path.isdir(p)]
+
+            def _resolve_in_dir(base_dir: str, mod_name: str) -> tuple[str, str] | None:
+                file_yp = os.path.join(base_dir, f"{mod_name}.ypsh")
+                file_py = os.path.join(base_dir, f"{mod_name}.py")
+                pkg_dir = os.path.join(base_dir, mod_name)
+
+                if os.path.isfile(file_yp):
+                    return ("ypsh_file", file_yp)
+                if os.path.isfile(file_py):
+                    return ("py_file", file_py)
+
+                if os.path.isdir(pkg_dir):
+                    init_ypsh = os.path.join(pkg_dir, "__init__.ypsh")
+                    import_ypsh = os.path.join(pkg_dir, "__import__.ypsh")
+                    init_py = os.path.join(pkg_dir, "__init__.py")
+                    import_py = os.path.join(pkg_dir, "__import__.py")
+
+                    if os.path.isfile(init_ypsh):
+                        return ("ypsh_pkg", init_ypsh)
+                    if os.path.isfile(import_ypsh):
+                        return ("ypsh_pkg", import_ypsh)
+                    if os.path.isfile(init_py):
+                        return ("py_pkg", base_dir)
+                    if os.path.isfile(import_py):
+                        return ("py_pkg", base_dir)
+
+                return None
+
+            def _resolve_pythonic_first(mod_name: str) -> tuple[str, str] | None:
+                for base in _cwd_candidates() + _libs_candidates():
+                    hit = _resolve_in_dir(base, mod_name)
+                    if hit:
+                        return hit
+                return None
+
+            def _find_file_shallowest_under_libs(filename: str) -> str | None:
+                if not YPSH_LIBS_DIR or not os.path.isdir(YPSH_LIBS_DIR):
+                    return None
+                shallowest_path = None
+                shallowest_depth = float('inf')
+                for dirpath, _, filenames in os.walk(YPSH_LIBS_DIR):
+                    if filename in filenames:
+                        depth = dirpath[len(YPSH_LIBS_DIR):].count(os.sep)
+                        if depth < shallowest_depth:
+                            shallowest_depth = depth
+                            shallowest_path = os.path.join(dirpath, filename)
+                return shallowest_path
+
+            def _find_ypsh_fallback(path_id: str) -> str | None:
+                return _find_file_shallowest_under_libs(f"{path_id}.ypsh")
+
+            def _find_py_fallback(path_id: str) -> str | None:
+                return _find_file_shallowest_under_libs(f"{path_id}.py")
 
             def _raw_import_ypsh(file_path: str):
                 if not os.path.isfile(file_path):
@@ -1790,17 +1850,32 @@ Those who use them wisely, without abuse, are the true users of computers.
             def import_main(*specs):
                 not_founds = []
                 for spec in specs:
-                    lib, alias, only, is_py, paths = _normalize_spec(spec)
+                    lib, alias, only, is_py_hint, paths = _normalize_spec(spec)
 
-                    ypsh_path = _find_ypsh(lib)
-                    py_path   = _find_py(lib)
+                    resolved = _resolve_pythonic_first(lib)
+                    if resolved:
+                        kind, data = resolved
+                        if kind == "ypsh_file":
+                            _import_ypsh_with_opts(data, alias, only)
+                            continue
+                        if kind == "ypsh_pkg":
+                            _import_ypsh_with_opts(data, alias, only)
+                            continue
+                        if kind == "py_file":
+                            _python_import_by_file(data, alias, only)
+                            continue
+                        if kind == "py_pkg":
+                            _python_import_by_name(lib, alias, only, paths=[data] + (paths or []))
+                            continue
 
-                    if ypsh_path:
-                        _import_ypsh_with_opts(ypsh_path, alias, only)
+                    ypsh_path_fb = _find_ypsh_fallback(lib)
+                    if ypsh_path_fb:
+                        _import_ypsh_with_opts(ypsh_path_fb, alias, only)
                         continue
 
-                    if py_path:
-                        _python_import_by_file(py_path, alias, only)
+                    py_path_fb = _find_py_fallback(lib)
+                    if py_path_fb:
+                        _python_import_by_file(py_path_fb, alias, only)
                         continue
 
                     if _enable_builtin_with_opts(lib, alias, only):
@@ -2575,6 +2650,8 @@ def repl():
             try:
                 prompt = ">>> " if accumulated_code == "" else "... "
                 line = session.prompt(prompt)
+                if line.strip() in ["exit", "quit"]:
+                    raise SystemExit(130)
             except KeyboardInterrupt:
                 print()
                 accumulated_code = ""
@@ -2621,6 +2698,8 @@ def repl():
                 prompt = ">>> " if accumulated_code == "" else "... "
                 try:
                     line = input(prompt)
+                    if line.strip() in ["exit", "quit"]:
+                        raise SystemExit(130)
                 except KeyboardInterrupt:
                     print()
                     accumulated_code = ""
@@ -2638,9 +2717,6 @@ def repl():
 
             if not is_code_complete(accumulated_code):
                 continue
-
-            if accumulated_code in ["exit", "quit"]:
-                raise SystemExit(0)
 
             try:
                 tokens = tokenize(accumulated_code)
