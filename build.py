@@ -96,6 +96,7 @@ def main() -> int:
         args = parser.parse_args()
 
         if args.mode.lower() == "pyinstaller":
+            log.info("(PyNABS) Started: Building with PyInstaller")
             cwd = pathlib.Path.cwd()
             script_path = pathlib.Path.joinpath(cwd, args.filepath)
             output_path = pathlib.Path.joinpath(cwd, args.output)
@@ -107,8 +108,10 @@ def main() -> int:
             install_dependencies(*args.dependencies, type="extra")
             install_dependencies("pyinstaller", type="build")
             result = build_pyinstaller(script_path, output_path)
+            log.info("(PyNABS) Completed: Building with PyInstaller")
             return result.get("returncode", 1)
         elif args.mode.lower() == "nuitka":
+            log.info("(PyNABS) Started: Building with Nuitka")
             cwd = pathlib.Path.cwd()
             script_path = pathlib.Path.joinpath(cwd, args.filepath)
             output_path = pathlib.Path.joinpath(cwd, args.output)
@@ -120,6 +123,7 @@ def main() -> int:
             install_dependencies(*args.dependencies, type="extra")
             install_dependencies("nuitka", type="build")
             result = build_nuitka(script_path, output_path)
+            log.info("(PyNABS) Completed: Building with Nuitka")
             return result.get("returncode", 1)
         else:
             parser.print_help()

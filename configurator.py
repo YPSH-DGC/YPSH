@@ -76,8 +76,8 @@ def get_interpreter_script(content: str) -> dict:
     content_cli_processing = content.split("#!checkpoint!")[2].strip()
     return {"content": content, "content.interpreter": content_interpreter, "content.cli_processing": content_cli_processing}
 
-def format_python_script(scripts: dict, platform_infos: dict, release_infos: dict, product_name: str, product_desc: str, product_id: str, build_id: str, default_language: str = "en") -> str:
-    result = f"""
+def format_python_script(scripts: dict, platform_infos: dict, release_infos: dict, product_name: str, product_desc: str, product_id: str, build_id: str, default_language: str = "en", source_mode: bool = False) -> str:
+    return f"""
 #!/usr/bin/env python3
 
 # -- PyYPSH ----------------------------------------------------- #
@@ -91,7 +91,7 @@ YPSH_OPTIONS_DICT = {{
         "name": "{product_name}",
         "desc": "{product_desc}",
         "id": "{product_id}",
-        "release": {{"version": [{release_infos.get('version_major', 0)},{release_infos.get('version_minor', 0)},{release_infos.get('version_fixes', 0)}], "type": "{release_infos.get('type', 'stable')}"}},
+        "release": {{"version": [{release_infos.get('version_major', 0)},{release_infos.get('version_minor', 0)},{release_infos.get('version_fixes', 0)}], "type": "{'source' if source_mode else release_infos.get('type', 'stable')}"}},
         "build": "{build_id}"
     }},
     "runtime.platform": {{
@@ -107,7 +107,6 @@ YPSH_OPTIONS_DICT = {{
 
 {scripts.get('content.cli_processing', '')}
 """.strip()
-    return result
 
 def main() -> int:
     try:
@@ -118,6 +117,7 @@ def main() -> int:
         parser.add_argument('-d', '--desc', default="One of the official implementations of the YPSH programming language.", help="Product Description")
         parser.add_argument('--id', default="net.diamondgotcat.ypsh.pyypsh", help="Product ID")
         parser.add_argument('-t', '--tag', default="v0.0.0", help="Release Version Tag")
+        parser.add_argument('-s', '--source', '--source-distribution', action='store_true', help="Flags to use when publishing as a Python script")
         parser.add_argument('-l', '--lang', default="en", help="Default Language of PyYPSH")
         args = parser.parse_args()
 
@@ -131,7 +131,7 @@ def main() -> int:
 
         platform_information = get_platform_information()
         release_information = get_release_information(args.tag)
-        formatted_python_script = format_python_script(scripts, platform_information, release_information, args.name, args.desc, args.id, args.tag, args.lang)
+        formatted_python_script = format_python_script(scripts, platform_information, release_information, args.name, args.desc, args.id, args.tag, args.lang, args.source)
 
         with output_path.open("w", encoding='utf-8') as f:
             f.write(formatted_python_script)
