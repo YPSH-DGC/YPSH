@@ -18,9 +18,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Update pip
+      - name: Update pip and Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install rich ulid-py
 
       - name: Configurate PyYPSH Python Script for Release Version
         shell: bash
@@ -73,7 +74,7 @@ jobs:
       - name: Update pip and Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install rich
+          pip install rich ulid-py
 
       - name: Configurate PyYPSH Python Script for Release Version
         shell: bash
