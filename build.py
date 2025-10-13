@@ -39,7 +39,7 @@ def install_dependencies(*packages, type: str):
 def build_pyinstaller(path: Path, output_path: Path) -> dict:
     log.info("[blue bold]Building...[/blue bold]")
     start_time = datetime.now(timezone.utc)
-    result = subprocess.run([sys.executable, "-m", "pyinstaller", "--onefile", "--distpath", output_path.parent, "--name", output_path.name, str(path)], check=False, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run([sys.executable, "-m", "PyInstaller", "--onefile", "--distpath", output_path.parent, "--name", output_path.name, str(path)], check=False, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     end_time = datetime.now(timezone.utc)
     delta = end_time - start_time
     duration_ms = delta.days * 24 * 3600 * 1000 + delta.seconds * 1000 + delta.microseconds // 1000
