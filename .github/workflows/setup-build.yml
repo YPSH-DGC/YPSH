@@ -66,6 +66,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install rich zstandard
 
+      - name: Set Nuitka options
+        shell: bash
+        run: |
+          echo 'NUITKA_EXTRA_OPTIONS=--enable-plugin=pyside6 --include-qt-plugins=platforms' >> "$GITHUB_ENV"
+
       - name: Build (non-windows)
         if: runner.os != 'Windows'
         shell: bash
