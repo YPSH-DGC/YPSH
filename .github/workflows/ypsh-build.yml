@@ -74,7 +74,7 @@ jobs:
       - name: Update pip and Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install rich ulid-py
+          pip install rich ulid-py zstandard
 
       - name: Configurate PyYPSH Python Script for Release Version
         shell: bash
