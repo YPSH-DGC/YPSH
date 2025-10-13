@@ -42,22 +42,22 @@ jobs:
         include:
           - os: macos-13
             platform: macOS Intel
-            filename: YPSH-macOS-AMD64
+            filename: YPSH-macos-AMD64
           - os: ubuntu-22.04
             platform: Linux Intel/AMD
-            filename: YPSH-Linux-AMD64
+            filename: YPSH-linux-AMD64
           - os: windows-2022
             platform: Windows Intel/AMD
-            filename: YPSH-Windows-AMD64
+            filename: YPSH-windows-AMD64
           - os: macos-14
             platform: macOS Apple Silicon
-            filename: YPSH-macOS-ARM64
+            filename: YPSH-macos-arm64
           - os: ubuntu-22.04-arm
             platform: Linux ARM
-            filename: YPSH-Linux-ARM64
+            filename: YPSH-linux-arm64
           - os: windows-11-arm
             platform: Windows ARM
-            filename: YPSH-Windows-ARM64
+            filename: YPSH-windows-arm64
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -81,7 +81,7 @@ jobs:
         run: |
           python configurator.py -i ypsh.py -o main.py -t ${{ github.event.release.tag_name || github.ref }}
 
-      - name: Build (non-Windows)
+      - name: Build (non-windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |
@@ -95,7 +95,7 @@ jobs:
           python build.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
           python build.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
 
-      - name: Zip (non-Windows)
+      - name: Zip (non-windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |

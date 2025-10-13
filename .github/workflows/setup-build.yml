@@ -32,22 +32,22 @@ jobs:
         include:
           - os: macos-13
             platform: macOS Intel
-            filename: SETUP-macOS-AMD64
+            filename: SETUP-macos-amd64
           - os: ubuntu-22.04
             platform: Linux Intel/AMD
-            filename: SETUP-Linux-AMD64
+            filename: SETUP-linux-amd64
           - os: windows-2022
             platform: Windows Intel/AMD
-            filename: SETUP-Windows-AMD64
+            filename: SETUP-windows-amd64
           - os: macos-14
             platform: macOS Apple Silicon
-            filename: SETUP-macOS-ARM64
+            filename: SETUP-macos-arm64
           - os: ubuntu-22.04-arm
             platform: Linux ARM
-            filename: SETUP-Linux-ARM64
+            filename: SETUP-linux-arm64
           - os: windows-11-arm
             platform: Windows ARM
-            filename: SETUP-Windows-ARM64
+            filename: SETUP-windows-arm64
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -66,7 +66,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install rich zstandard
 
-      - name: Build (non-Windows)
+      - name: Build (non-windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |
@@ -80,7 +80,7 @@ jobs:
           python build.py -f ypsh-setup.py -m pyinstaller -d PySide6,requests -o upload/${{ matrix.filename }}.exe
           python build.py -f ypsh-setup.py -m nuitka -d PySide6,requests -o upload/${{ matrix.filename }}-NUI.exe
 
-      - name: Zip (non-Windows)
+      - name: Zip (non-windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |
