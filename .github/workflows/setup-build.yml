@@ -1,198 +1,99 @@
-name: DGC-AutoBuild (YPSH Setup)
+name: NABS Workflow (PyYPSH Setup)
 
 on:
   release:
     types: [published]
 
 jobs:
-  build:
+  release-python-file:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Rename
+        shell: bash
+        run: |
+          mv ypsh-setup.py SETUP-python-3.py
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SETUP-python-3.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+  release-binary-files:
     continue-on-error: true
     strategy:
       matrix:
         include:
           - os: macos-13
             platform: macOS Intel
-            filename: SETUP-macos-amd64
+            filename: SETUP-macOS-AMD64
           - os: ubuntu-22.04
             platform: Linux Intel/AMD
-            filename: SETUP-linux-amd64
+            filename: SETUP-Linux-AMD64
           - os: windows-2022
             platform: Windows Intel/AMD
-            filename: SETUP-windows-amd64
+            filename: SETUP-Windows-AMD64
           - os: macos-14
             platform: macOS Apple Silicon
-            filename: SETUP-macos-arm64
+            filename: SETUP-macOS-ARM64
           - os: ubuntu-22.04-arm
             platform: Linux ARM
-            filename: SETUP-linux-arm64
+            filename: SETUP-Linux-ARM64
           - os: windows-11-arm
             platform: Windows ARM
-            filename: SETUP-windows-arm64
+            filename: SETUP-Windows-ARM64
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Notify build start (pending)
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "pending",
-              "progress": 0,
-              "product": "YPSH Setup"
-            }'
-
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
-
-      - name: Notify progress 5%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 5,
-              "product": "YPSH Setup"
-            }'
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      - name: Notify progress 10%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 10,
-              "product": "YPSH Setup"
-            }'
-
-      - name: Install dependencies
+      - name: Update pip and Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller ordered-set zstandard pefile pillow
+          pip install rich
 
-      - name: Notify progress 25%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 25,
-              "product": "YPSH Setup"
-            }'
-
-      - name: Prepare icon (.icns) for macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          ICON_PNG="assets/YPSH-Setup.png"
-          ICONSET="icon.iconset"
-          mkdir -p "$ICONSET"
-          sips -z 16 16     "$ICON_PNG" --out "$ICONSET/icon_16x16.png"
-          sips -z 32 32     "$ICON_PNG" --out "$ICONSET/icon_16x16@2x.png"
-          sips -z 32 32     "$ICON_PNG" --out "$ICONSET/icon_32x32.png"
-          sips -z 64 64     "$ICON_PNG" --out "$ICONSET/icon_32x32@2x.png"
-          sips -z 128 128   "$ICON_PNG" --out "$ICONSET/icon_128x128.png"
-          sips -z 256 256   "$ICON_PNG" --out "$ICONSET/icon_128x128@2x.png"
-          sips -z 256 256   "$ICON_PNG" --out "$ICONSET/icon_256x256.png"
-          sips -z 512 512   "$ICON_PNG" --out "$ICONSET/icon_256x256@2x.png"
-          sips -z 512 512   "$ICON_PNG" --out "$ICONSET/icon_512x512.png"
-          cp "$ICON_PNG" "$ICONSET/icon_512x512@2x.png"
-          iconutil -c icns "$ICONSET" -o app.icns
-
-      - name: Prepare icon (.ico) for Windows
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          python - <<'EOF'
-          from PIL import Image
-          import sys
-          src = r"assets/YPSH-Setup.png"
-          img = Image.open(src)
-          img.save("app.ico", sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
-          EOF
-
-      - name: Build with PyInstaller (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          pyinstaller --onefile --distpath dist --name ypsh-setup --icon app.icns ypsh-setup.py
-
-      - name: Build with PyInstaller (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          pyinstaller --onefile --distpath dist --name ypsh-setup --icon app.ico ypsh-setup.py
-
-      - name: Build with PyInstaller (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          pyinstaller --onefile --distpath dist --name ypsh-setup ypsh-setup.py
-
-      - name: Notify progress 70%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 70,
-              "product": "YPSH Setup"
-            }'
-
-      - name: Rename binary, Zip (non-Windows)
+      - name: Build (non-Windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          mkdir upload
-          filename="${{ matrix.filename }}"
-          mv dist/ypsh-setup "upload/${filename}"
-          cd upload
-          zip "${filename}.zip" "${filename}"
+          python build.py -f ypsh-setup.py -m pyinstaller -d PySide6,requests -o upload/${{ matrix.filename }}
+          python build.py -f ypsh-setup.py -m nuitka -o upload/${{ matrix.filename }}-NUI
 
-      - name: Rename binary, Zip (Windows)
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python build.py -f ypsh-setup.py -m pyinstaller -d PySide6,requests -o upload/${{ matrix.filename }}.exe
+          python build.py -f ypsh-setup.py -m nuitka -d PySide6,requests -o upload/${{ matrix.filename }}-NUI.exe
+
+      - name: Zip (non-Windows)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          cd upload
+          zip "${{ matrix.filename }}.zip" "${{ matrix.filename }}"
+          zip "${{ matrix.filename }}-NUI.zip" "${{ matrix.filename }}-NUI"
+
+      - name: Zip (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $filename = "${{ matrix.filename }}"
-          mkdir upload
-          Move-Item -Path dist/ypsh-setup.exe -Destination "upload/$filename.exe"
-          $filename = "${{ matrix.filename }}"
-          Compress-Archive -Path "upload/$filename.exe" -DestinationPath "upload/$filename.zip"
-
-      - name: Notify progress 80%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 80,
-              "product": "YPSH Setup"
-            }'
+          Compress-Archive -Path "upload/${{ matrix.filename }}.exe" -DestinationPath "upload/${{ matrix.filename }}.zip"
+          Compress-Archive -Path "upload/${{ matrix.filename }}-NUI.exe" -DestinationPath "upload/${{ matrix.filename }}-NUI.zip"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -200,31 +101,3 @@ jobs:
           files: upload/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
-      - name: Notify success
-        if: success()
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "completed",
-              "progress": 100,
-              "product": "YPSH Setup"
-            }'
-
-      - name: Notify failure
-        if: failure()
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "failed",
-              "progress": 100,
-              "product": "YPSH Setup"
-            }'

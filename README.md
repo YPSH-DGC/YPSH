@@ -20,9 +20,21 @@ Python has a large number of libraries, so it's only natural that you'd want to 
 The PyYPSH interpreter offers features that are only possible because it's based on Python, such as direct import of Python libraries.
 
 ## Building
-PyYPSH is built using DGC-AutoBuild, a GitHub Action. It automatically starts building immediately after a release is published.
+Currently, Using NABS (Nercone Automatic Building System) for Automatic Building.
+- **V1 (Current):** 1st version, PyInstaller + Nuitka, 6 platforms
 
-Pre-releases are automatically applied to the `beta` channel, and regular releases are automatically applied to the `stable` channel.
+**Auto-update release channels**
+Pre-releases are automatically applied to the `beta` channel, and regular releases are automatically applied to the `maybe-stable` channel.
+
+### DGC-AutoBuild
+Previously, Used "DGC-AutoBuild," an automated build system that utilizes GitHub Actions.
+
+**Versions:**
+- **V1:** 1st version, PyInstaller, 3 platforms
+- **V2:** 2nd version, Nuitka, 4 platforms
+- **V3:** 3rd version, Nuitka, 6 platforms
+- **V4 (Last):** 4th version, PyInstaller, 6 platforms
+- **V4.5:** 5th version, PyInstaller, 6 platforms, 1 experimental platforms (Reverted to V4 partway through)
 
 ## Contributions
 YPSH is under active development on GitHub.

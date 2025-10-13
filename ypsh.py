@@ -6,21 +6,42 @@
 # Copyright (c) 2025 DiamondGotCat                                #
 # ---------------------------------------------- DiamondGotCat -- #
 
-PRODUCT_ID = "YPSH"
-VERSION_ID = "python3"
-BUILD_ID = "YPSH-PYTHON-3"
-VERSION_TEXT = f"{PRODUCT_ID} {VERSION_ID} ({BUILD_ID})"
-LANG_ID = "en"
+YPSH_OPTIONS_DICT = {
+    "product.information": {
+        "name": "PyYPSH",
+        "desc": "One of the official implementations of the YPSH programming language.",
+        "id": "net.diamondgotcat.ypsh.pyypsh",
+        "release": {"version": [0,0,0], "type": "source"},
+        "build": "PyYPSH-Python3-Source"
+    },
+    "runtime.platform": {
+        "os.id": "PYTH3",
+        "arch.id": "PYANY"
+    },
+    "runtime.options": {
+        "default_language": "en"
+    }
+}
 
 #!checkpoint!
+
+class YPSH_OPTIONS:
+    def __init__(self, content: dict):
+        self.product_name: str = content.get('product.information', {}).get('name', 'PyYPSH')
+        self.product_desc: str = content.get('product.information', {}).get('desc', 'One of the official implementations of the YPSH programming language.')
+        self.product_id: str = content.get('product.information', {}).get('id', 'net.diamondgotcat.ypsh.pyypsh')
+        self.product_release_version: list = content.get('product.information', {}).get('release', {}).get('version', [0,0,0])
+        self.product_release_version_text: str = ".".join(self.product_release_version)
+        self.product_release_type: str = content.get('product.information', {}).get('release', {}).get('type', 'source')
+        self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
+        self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en')
 
 from os.path import expanduser
 from rich.console import Console
 from rich.markup import escape
 from dotenv import load_dotenv
-from next_drop_lib import FileSender, FileReceiver
-from typing import Optional, Dict, Callable, Any
-import re, sys, os, json, importlib, warnings, traceback, subprocess, sys, os, readline, inspect, platform, rlcompleter, asyncio, threading, tempfile, urllib.request, time, shlex, ssl, certifi, shutil, stat
+from typing import Optional, Callable, Any
+import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat
 try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.lexers import PygmentsLexer
@@ -36,9 +57,9 @@ load_dotenv()
 console = Console()
 rich_print = console.print
 
-SHELL_NAME = f"YPShell-{'_'.join(VERSION_ID.replace(' ', '').replace('v', '').split('.'))}".strip()
+ypsh_options = YPSH_OPTIONS(YPSH_OPTIONS_DICT)
+SHELL_NAME = f"YPShell-{''.join(ypsh_options.product_release_version)}".strip()
 SHELL_CWD = os.getcwd()
-
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
 YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
 
@@ -68,7 +89,7 @@ def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
     return shallowest_path
 
 def return_ypsh_exec_folder() -> str:
-    if BUILD_ID == "YPSH-PYTHON":
+    if ypsh_options.product_release_type == "source":
         return os.path.dirname(os.path.abspath(__file__))
     else:
         if getattr(sys, 'frozen', False):
@@ -93,8 +114,8 @@ def shell_exec(command) -> ShellExecutionResult:
     command_name = command.split(" ")[0]
     shell_env = os.environ.copy()
     shell_env["SHELL"] = SHELL_NAME
-    shell_env["YPSH_VERSION"] = VERSION_ID
-    shell_env["YPSH_BUILDID"] = BUILD_ID
+    shell_env["YPSH_VERSION"] = ypsh_options.product_release_version_text
+    shell_env["YPSH_BUILDID"] = ypsh_options.product_build
     return_code = 0
     stdout = ""
     stderr = ""
@@ -504,46 +525,6 @@ class AugAssign(ASTNode):
         self.op = op
         self.expr = expr
         self.target = target
-
-##############################
-# NextDP Integration
-# https://github.com/DiamondGotCat/NextDrop/
-##############################
-
-class NextDPManager:
-    def __init__(self, host="localhost", port=4321, save_dir="./received/"):
-        self.host = host
-        self.port = port
-        self.save_dir = save_dir
-        self._server = None
-        self._server_task = None
-        self._loop = None
-
-    async def _start_receiver(self):
-        self._server = FileReceiver(port=self.port, save_dir=self.save_dir)
-        await self._server.start_server()
-
-    def start_receiving(self):
-        def runner():
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-            self._server_task = self._loop.create_task(self._start_receiver())
-            self._loop.run_forever()
-
-        threading.Thread(target=runner, daemon=True).start()
-
-    def stop_receiving(self):
-        loop = self._loop
-        task = self._server_task
-        if loop is not None and task is not None:
-            def stopper(task=task, loop=loop):
-                task.cancel()
-                loop.stop()
-            loop.call_soon_threadsafe(stopper)
-
-    async def send_file(self, file_path):
-        sender = FileSender(self.host, port=self.port, file_path=file_path)
-        await sender.send_file()
 
 ##############################
 # Perser
@@ -1222,11 +1203,6 @@ class Interpreter:
     modules = []
     docs = {}
 
-    PRODUCT_ID = PRODUCT_ID
-    VERSION_ID = VERSION_ID
-    VERSION_TEXT = VERSION_TEXT
-    BUILD_ID = BUILD_ID
-
     _interp_pat = re.compile(r'\\\((.*?)\)')
 
     def __init__(self):
@@ -1487,12 +1463,15 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return True
             self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
 
-            self.ypsh_def("ypsh", "version", self.VERSION_TEXT, desc="Return YPSH's Full Version Name")
-            self.ypsh_def("ypsh", "version.dist", self.PRODUCT_ID, desc="Return YPSH's Product ID / Distribution ID")
-            self.ypsh_def("ypsh", "version.product", self.PRODUCT_ID, desc="Return YPSH's Product ID / Distribution ID")
-            self.ypsh_def("ypsh", "version.number", self.VERSION_ID, desc="Return Version Number/Tag as str")
-            self.ypsh_def("ypsh", "version.tag", self.VERSION_ID, desc="Return Version Number/Tag as str")
-            self.ypsh_def("ypsh", "version.build", self.BUILD_ID, desc="Return the Build ID")
+            self.ypsh_def("ypsh", "product.name", ypsh_options.product_name, desc="Return YPSH's Product Name")
+            self.ypsh_def("ypsh", "product.desc", ypsh_options.product_desc, desc="Return YPSH's Product Description")
+            self.ypsh_def("ypsh", "product.id", ypsh_options.product_id, desc="Return YPSH's Product ID")
+
+            self.ypsh_def("ypsh", "version", ypsh_options.product_release_version, desc="Return YPSH's Version")
+            self.ypsh_def("ypsh", "version.type", ypsh_options.product_release_type, desc="Return YPSH's Release Type")
+            self.ypsh_def("ypsh", "version.text", ypsh_options.product_release_version_text, desc="Return YPSH's Version as Text")
+            self.ypsh_def("ypsh", "version.build", ypsh_options.product_build, desc="Return YPSH's Build ID")
+
             self.ypsh_def("ypsh", "module", self.modules, desc="Module List / submodule 'module'")
             self.ypsh_def("ypsh", "modules", self.modules, desc="Module List / submodule 'modules'")
             self.ypsh_def("ypsh", "module.enable", self.module_enable, desc="Enable a Module on This Session")
@@ -2829,7 +2808,7 @@ if __name__ == '__main__':
                 options["main"] = code
 
     if "version" in options:
-        print(VERSION_TEXT)
+        print(ypsh_options.product_release_version_text)
 
     if "ypms-install" in options:
         print("YPSH: Install/Update YPMS-Launcher: Started")
@@ -2891,5 +2870,5 @@ if __name__ == '__main__':
             run_text(code)
 
         else:    
-            print(VERSION_TEXT + " [REPL]")
+            print(ypsh_options.product_release_version_text + " [REPL]")
             repl()

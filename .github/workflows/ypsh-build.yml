@@ -1,11 +1,11 @@
-name: DGC-AutoBuild (YPSH)
+name: NABS Workflow (PyYPSH Runtime)
 
 on:
   release:
     types: [published]
 
 jobs:
-  before:
+  release-python-file:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout source
@@ -18,20 +18,14 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Update pip
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
 
-      - name: Generate ypsh-release.py
+      - name: Configurate PyYPSH Python Script for Release Version
         shell: bash
         run: |
-          python for-autobuild.py ${{ github.event.release.tag_name || github.ref }}
-
-      - name: Rename Python Script
-        shell: bash
-        run: |
-          mv ypsh-release.py YPSH-python-3.py
+          python configurator.py -i ypsh.py -o YPSH-python-3.py -t ${{ github.event.release.tag_name || github.ref }}
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -40,218 +34,80 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
-  build:
-    needs: before
+  release-binary-files:
     continue-on-error: true
     strategy:
       matrix:
         include:
           - os: macos-13
             platform: macOS Intel
-            filename: YPSH-macos-amd64
+            filename: YPSH-macOS-AMD64
           - os: ubuntu-22.04
             platform: Linux Intel/AMD
-            filename: YPSH-linux-amd64
+            filename: YPSH-Linux-AMD64
           - os: windows-2022
             platform: Windows Intel/AMD
-            filename: YPSH-windows-amd64
+            filename: YPSH-Windows-AMD64
           - os: macos-14
             platform: macOS Apple Silicon
-            filename: YPSH-macos-arm64
+            filename: YPSH-macOS-ARM64
           - os: ubuntu-22.04-arm
             platform: Linux ARM
-            filename: YPSH-linux-arm64
+            filename: YPSH-Linux-ARM64
           - os: windows-11-arm
             platform: Windows ARM
-            filename: YPSH-windows-arm64
+            filename: YPSH-Windows-ARM64
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Notify build start (pending)
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "pending",
-              "progress": 0,
-              "product": "YPSH"
-            }'
-
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
-
-      - name: Notify progress 5%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 5,
-              "product": "YPSH"
-            }'
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      - name: Notify progress 10%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 10,
-              "product": "YPSH"
-            }'
-
-      - name: Install dependencies
+      - name: Update pip and Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller ordered-set zstandard pefile pillow
+          pip install rich
 
-      - name: Notify progress 20%
+      - name: Configurate PyYPSH Python Script for Release Version
         shell: bash
         run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 20,
-              "product": "YPSH"
-            }'
+          python configurator.py -i ypsh.py -o main.py -t ${{ github.event.release.tag_name || github.ref }}
 
-      - name: Generate ypsh-release.py
-        shell: bash
-        run: |
-          python for-autobuild-dl.py ${{ github.event.release.tag_name || github.ref }}
-
-      - name: Notify progress 25%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 25,
-              "product": "YPSH"
-            }'
-
-      - name: Prepare icon (.icns) for macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          ICON_PNG="assets/YPSH-Runtime.png"
-          ICONSET="icon.iconset"
-          mkdir -p "$ICONSET"
-          sips -z 16 16     "$ICON_PNG" --out "$ICONSET/icon_16x16.png"
-          sips -z 32 32     "$ICON_PNG" --out "$ICONSET/icon_16x16@2x.png"
-          sips -z 32 32     "$ICON_PNG" --out "$ICONSET/icon_32x32.png"
-          sips -z 64 64     "$ICON_PNG" --out "$ICONSET/icon_32x32@2x.png"
-          sips -z 128 128   "$ICON_PNG" --out "$ICONSET/icon_128x128.png"
-          sips -z 256 256   "$ICON_PNG" --out "$ICONSET/icon_128x128@2x.png"
-          sips -z 256 256   "$ICON_PNG" --out "$ICONSET/icon_256x256.png"
-          sips -z 512 512   "$ICON_PNG" --out "$ICONSET/icon_256x256@2x.png"
-          sips -z 512 512   "$ICON_PNG" --out "$ICONSET/icon_512x512.png"
-          cp "$ICON_PNG" "$ICONSET/icon_512x512@2x.png"
-          iconutil -c icns "$ICONSET" -o app.icns
-
-      - name: Prepare icon (.ico) for Windows
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          python - <<'EOF'
-          from PIL import Image
-          import sys
-          src = r"assets/YPSH-Runtime.png"
-          img = Image.open(src)
-          img.save("app.ico", sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
-          EOF
-
-      - name: Build with PyInstaller (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          pyinstaller --onefile --distpath dist --name ypsh-release --icon app.icns ypsh-release.py
-
-      - name: Build with PyInstaller (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          pyinstaller --onefile --distpath dist --name ypsh-release --icon app.ico ypsh-release.py
-
-      - name: Build with PyInstaller (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          pyinstaller --onefile --distpath dist --name ypsh-release ypsh-release.py
-
-      - name: Notify progress 70%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 70,
-              "product": "YPSH"
-            }'
-
-      - name: Rename binary, Zip (non-Windows)
+      - name: Build (non-Windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          mkdir upload
-          filename="${{ matrix.filename }}"
-          mv dist/ypsh-release "upload/${filename}"
-          cd upload
-          zip "${filename}.zip" "${filename}"
+          python build.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}
+          python build.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI
 
-      - name: Rename binary (Windows)
+      - name: Build (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: bash
         run: |
-          $filename = "${{ matrix.filename }}"
-          mkdir upload
-          Move-Item -Path dist/ypsh-release.exe -Destination "upload/$filename.exe"
+          python build.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
+          python build.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
+
+      - name: Zip (non-Windows)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          cd upload
+          zip "${{ matrix.filename }}.zip" "${{ matrix.filename }}"
+          zip "${{ matrix.filename }}-NUI.zip" "${{ matrix.filename }}-NUI"
 
       - name: Zip (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $filename = "${{ matrix.filename }}"
-          Compress-Archive -Path "upload/$filename.exe" -DestinationPath "upload/$filename.zip"
-
-      - name: Notify progress 80%
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "in_progress",
-              "progress": 80,
-              "product": "YPSH"
-            }'
+          Compress-Archive -Path "upload/${{ matrix.filename }}.exe" -DestinationPath "upload/${{ matrix.filename }}.zip"
+          Compress-Archive -Path "upload/${{ matrix.filename }}-NUI.exe" -DestinationPath "upload/${{ matrix.filename }}-NUI.zip"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -260,36 +116,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
-      - name: Notify success
-        if: success()
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "completed",
-              "progress": 100,
-              "product": "YPSH"
-            }'
-
-      - name: Notify failure
-        if: failure()
-        shell: bash
-        run: |
-          curl -X POST ${{ secrets.BUILD_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "${{ github.event.release.tag_name || github.ref_name }}",
-              "platform": "${{ matrix.platform }}",
-              "status": "failed",
-              "progress": 100,
-              "product": "YPSH"
-            }'
-
-  after:
-    needs: build
+  update-release-channels:
+    needs: [release-python-file, release-binary-files]
     runs-on: ubuntu-22.04
     if: ${{ success() && github.event_name == 'release' }}
 
@@ -302,8 +130,8 @@ jobs:
 
       - name: Set up Git
         run: |
-          git config user.name "DGC-AutoBuild"
-          git config user.email "bot@diamondgotcat.net"
+          git config user.name "NABS Workflow"
+          git config user.email "github@bots.diamondgotcat.net"
 
       - name: Update release channels
         shell: bash
@@ -313,12 +141,12 @@ jobs:
           echo "$tag" > channels/beta.txt
 
           if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
-            echo "$tag" > channels/stable.txt
+            echo "$tag" > channels/maybe-stable.txt
           fi
 
           git add channels/beta.txt
           if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
-            git add channels/stable.txt
+            git add channels/maybe-stable.txt
           fi
 
           git commit -m "Update release channels to $tag" || echo "No changes to commit"

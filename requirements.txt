@@ -1,11 +1,6 @@
 rich>=13.0.0
 requests>=2.25.0
 pyreadline3; platform_system == "Windows"
-next-drop-lib
-kamu-jp-modern
-aiohttp
-zstandard
-tqdm
 ulid-py
 python-dotenv
 certifi
