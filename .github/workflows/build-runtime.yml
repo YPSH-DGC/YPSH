@@ -26,7 +26,7 @@ jobs:
       - name: Configurate PyYPSH Python Script for Python Script Source Version
         shell: bash
         run: |
-          python configurator.py -i ypsh.py -o YPSH-python-3.py
+          python configurator.py -i ypsh.py -o YPSH-python-3.py -t ${{ github.event.release.tag_name || github.ref }}
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -79,7 +79,7 @@ jobs:
       - name: Configurate PyYPSH Python Script for Release Version
         shell: bash
         run: |
-          python configurator.py -i ypsh.py -o main.py
+          python configurator.py -i ypsh.py -o main.py -t ${{ github.event.release.tag_name || github.ref }}
 
       - name: Build (non-windows)
         if: runner.os != 'Windows'
