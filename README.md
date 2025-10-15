@@ -38,12 +38,12 @@ If you want to ensure everything works reliably, please refer to the "Manual Bui
 The pre-built executables can be downloaded from GitHub's Release tab or from the [Download the PyYPSH](https://ypsh.diamondgotcat.net/download) page.
 
 **Current status of pre-built executables:**
-|             |         | macOS                      | Windows        | Linux          | 
-| ----------- | ------- | -------------------------- | -------------- | -------------- | 
-| PyInstaller | Runtime | Works properly             | Works properly | Works properly | 
-|             | Setup   | Works properly             | Works properly | Works properly | 
-| Nuitka      | Runtime | Works properly             | Works properly | Works properly | 
-|             | Setup   | GUI does not work properly | Not tested     | Not tested     | 
+|             |         | macOS                      | Windows                    | Linux          | 
+| ----------- | ------- | -------------------------- | -------------------------- | -------------- | 
+| PyInstaller | Runtime | Works properly             | Works properly             | Works properly | 
+|             | Setup   | Works properly             | Works properly             | Works properly | 
+| Nuitka      | Runtime | Works properly             | Works properly             | Works properly | 
+|             | Setup   | GUI does not work properly | GUI does not work properly | Not tested     | 
 
 ### Manual Building on Your Env
 If you want to run and build NABS locally, follow these steps:
