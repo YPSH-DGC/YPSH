@@ -85,15 +85,15 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          python build.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}
-          python build.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI
+          python nabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}
+          python nabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          python build.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
-          python build.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
+          python nabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
+          python nabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
 
       - name: Zip (non-windows)
         if: runner.os != 'Windows'
