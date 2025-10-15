@@ -1,5 +1,5 @@
 
-<img width="1920" height="1080" alt="YPSH Logo from 2025-09-21 (Connected)" src="https://github.com/user-attachments/assets/c1cff788-fa95-49bf-965d-b4f3beb0f3f4" />
+<img width="1920" alt="YPSH Logo from 2025-09-21 (Connected)" src="https://github.com/user-attachments/assets/c1cff788-fa95-49bf-965d-b4f3beb0f3f4" />
 
 ---
 
@@ -19,12 +19,26 @@ Python has a large number of libraries, so it's only natural that you'd want to 
 
 The PyYPSH interpreter offers features that are only possible because it's based on Python, such as direct import of Python libraries.
 
-## Building
-Currently, Using NABS (Nercone Automatic Building System) for Automatic Building.
-- **V1 (Current):** 1st version, PyInstaller + Nuitka, 6 platforms
+## Building PyYPSH
 
-**Auto-update release channels**
-Pre-releases are automatically applied to the `beta` channel, and regular releases are automatically applied to the `maybe-stable` channel.
+### Pre-built Executables
+PyYPSH uses GitHub Actions to automatically run NABS after each release.<br>
+Thanks to this, in most environments you won't need to build it manually. However, in some environments, certain features may not function properly.<br>
+If you want to ensure everything works reliably, please refer to the "Manual Building on Your Env" section and build it in the environment where you plan to use it—or in an identical environment.
+
+**Current status of pre-built executables:**
+|             | macOS                      | Windows        | Linux          | 
+| ----------- | -------------------------- | -------------- | -------------- | 
+| PyInstaller | Works properly             | Works properly | Works properly | 
+| Nuitka      | GUI does not work properly | Not tested     | Not tested     | 
+
+### Manual Building on Your Env
+1. Install Python 3.9 or later (Python 3.12 or later is recommended).
+2. Create and activate a Python virtual environment (using pyenv, venv, uv, anaconda, miniconda, etc.). Since NABS installs dependencies automatically, do this if you want to build in a different environment.
+3. Prepare a configuration file (used by the Configurator to configure PyYPSH). If not provided, defaults will be applied.
+4. Install `rich` and `ulid-py` (using pip, uv, or any other package manager that supports PyPI).
+5. Run the Configurator (`configurator.py`). (You can specify the config file using the `-c` option.)
+6. Run NABS (`nabs.py`). (You can set the output directory using the `-o` option.)
 
 ### DGC-AutoBuild
 Previously, Used "DGC-AutoBuild," an automated build system that utilizes GitHub Actions.

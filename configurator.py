@@ -6,8 +6,9 @@
 # Copyright (c) 2025 DiamondGotCat                                #
 # ---------------------------------------------- DiamondGotCat -- #
 
-import pathlib, argparse, platform, ulid
+import pathlib, argparse, platform, json, ulid
 from datetime import datetime, timezone
+from pprint import pformat
 
 def get_platform_information() -> dict:
     os_tmp = platform.system().strip().lower()
@@ -44,102 +45,87 @@ def get_platform_information() -> dict:
         arch = "RISCV"
     return {"os": os, "arch": arch}
 
-def get_release_information(tag: str) -> dict:
-    versions: list = tag.replace("v","").split("b")
-    versions_tag: list = versions[0].split(".")
-    release_type: str = "stable"
-    try:
-        version_major = int(versions_tag[0])
-    except IndexError:
-        version_major = 0
-    try:
-        version_minor = int(versions_tag[1])
-    except IndexError:
-        version_minor = 0
-    try:
-        version_fixes = int(versions_tag[2])
-    except IndexError:
-        version_fixes = 0
-    try:
-        version_beta = int(versions[1])
-        release_type: str = "beta"
-    except IndexError:
-        version_beta = 0
-        release_type: str = "stable"
-    return {"tag": versions_tag, "version_major": version_major, "version_minor": version_minor, "version_fixes": version_fixes, "version_beta": version_beta, "type": release_type}
+def get_build_id(platform_infos: dict) -> str:
+    return f"YPSH@{platform_infos.get('os','UKNWN')}{platform_infos.get('arch','UKNWN')}#{ulid.from_timestamp(datetime.now(timezone.utc))}"
 
-def get_build_id(product_name: str, version_tag: str, platform_infos: dict) -> str:
-    return f"{product_name.upper()}@{platform_infos.get('os','UKNWN')}{platform_infos.get('arch','UKNWN')}#{version_tag.replace('v','').replace('.','').upper()}{ulid.from_timestamp(datetime.now(timezone.UTC))}"
+def format_python_script(scripts: dict, config: dict) -> str:
+    platform_infos = get_platform_information()
+    build_id = get_build_id(platform_infos)
 
-def get_interpreter_script(content: str) -> dict:
-    content_interpreter = content.split("#!checkpoint!")[1].strip()
-    content_cli_processing = content.split("#!checkpoint!")[2].strip()
-    return {"content": content, "content.interpreter": content_interpreter, "content.cli_processing": content_cli_processing}
+    YPSH_OPTIONS_DICT = {
+        "product.information": {
+            "name": "PyYPSH",
+            "desc": "One of the official implementations of the YPSH programming language.",
+            "id": "net.diamondgotcat.ypsh.pyypsh",
+            "release": {"version": [0,0,0], "type": "source"},
+            "build": build_id
+        },
+        "runtime.platform": {
+            "os.id": platform_infos.get("os","UKNWN"),
+            "arch.id": platform_infos.get("arch","UKNWN")
+        },
+        "runtime.options": {
+            "default_language": "en"
+        }
+    }
 
-def format_python_script(scripts: dict, platform_infos: dict, release_infos: dict, product_name: str, product_desc: str, product_id: str, build_id: str, default_language: str = "en", source_mode: bool = False) -> str:
+    YPSH_OPTIONS_DICT |= config
+    config_code = "YPSH_OPTIONS_DICT = " + repr(YPSH_OPTIONS_DICT)
+
     return f"""
 #!/usr/bin/env python3
 
 # -- PyYPSH ----------------------------------------------------- #
-# ypsh-release.py on PyYPSH [configurated]                        #
+# PyYPSH [configurated]                                           #
 # Made by DiamondGotCat, Licensed under MIT License               #
 # Copyright (c) 2025 DiamondGotCat                                #
 # ---------------------------------------------- DiamondGotCat -- #
 
-YPSH_OPTIONS_DICT = {{
-    "product.information": {{
-        "name": "{product_name}",
-        "desc": "{product_desc}",
-        "id": "{product_id}",
-        "release": {{"version": [{release_infos.get('version_major', 0)},{release_infos.get('version_minor', 0)},{release_infos.get('version_fixes', 0)}], "type": "{'source' if source_mode else release_infos.get('type', 'stable')}"}},
-        "build": "{build_id}"
-    }},
-    "runtime.platform": {{
-        "os.id": "{platform_infos.get('os','UKNWN')}",
-        "arch.id": "{platform_infos.get('arch','UKNWN')}"
-    }},
-    "runtime.options": {{
-        "default_language": "{default_language}"
-    }}
-}}
+{config_code}
 
 {scripts.get('content.interpreter', '')}
 
 {scripts.get('content.cli_processing', '')}
 """.strip()
 
+def get_interpreter_script(content: str) -> dict:
+    content_interpreter = content.split("#!checkpoint!")[1].strip()
+    content_cli_processing = content.split("#!checkpoint!")[2].strip()
+    return {"content": content, "content.interpreter": content_interpreter, "content.cli_processing": content_cli_processing}
+
 def main() -> int:
     try:
         parser = argparse.ArgumentParser(prog='PyYPSH NABS Configurator', description='CLI Tool for Configurate PyYPSH Python Script')
-        parser.add_argument('-i', '--input', default="ypsh.py", help="Input Filepath")
-        parser.add_argument('-o', '--output', default="main.py", help="Output Filepath")
-        parser.add_argument('-n', '--name', default="PyYPSH", help="Product Name")
-        parser.add_argument('-d', '--desc', default="One of the official implementations of the YPSH programming language.", help="Product Description")
-        parser.add_argument('--id', default="net.diamondgotcat.ypsh.pyypsh", help="Product ID")
-        parser.add_argument('-t', '--tag', default="v0.0.0", help="Release Version Tag")
-        parser.add_argument('-s', '--source', '--source-distribution', action='store_true', help="Flags to use when publishing as a Python script")
-        parser.add_argument('-l', '--lang', default="en", help="Default Language of PyYPSH")
+        parser.add_argument('-i', '--input', default="ypsh.py", help="Path of PyYPSH Python Script")
+        parser.add_argument('-c', '--config', default="config.json", help="Path of Configuration File")
+        parser.add_argument('-o', '--output', default="main.py", help="Path of Output Python Script")
         args = parser.parse_args()
 
         cwd = pathlib.Path.cwd()
-        input_path = pathlib.Path.joinpath(cwd, args.input)
+        input_script_path = pathlib.Path.joinpath(cwd, args.input)
+        input_config_path = pathlib.Path.joinpath(cwd, args.config)
         output_path = pathlib.Path.joinpath(cwd, args.output)
 
-        with input_path.open("r", encoding='utf-8') as f:
-            script_content = f.read()
-        scripts = get_interpreter_script(script_content)
+        if input_script_path.is_file():
+            with input_script_path.open("r", encoding='utf-8') as f:
+                script_content = f.read()
+            scripts = get_interpreter_script(script_content)
+        else:
+            scripts = ""
 
-        platform_information = get_platform_information()
-        release_information = get_release_information(args.tag)
-        formatted_python_script = format_python_script(scripts, platform_information, release_information, args.name, args.desc, args.id, args.tag, args.lang, args.source)
+        if input_config_path.is_file():
+            with input_config_path.open("r", encoding='utf-8') as f:
+                config_content = f.read()
+            config = json.loads(config_content)
+        else:
+            config = {}
 
+        formatted_python_script = format_python_script(scripts, config)
         with output_path.open("w", encoding='utf-8') as f:
             f.write(formatted_python_script)
 
     except KeyboardInterrupt:
         return 130
-    except:
-        return 1
 
 if __name__ == "__main__":
     raise SystemExit(main())

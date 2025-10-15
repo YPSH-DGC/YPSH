@@ -25,17 +25,6 @@ YPSH_OPTIONS_DICT = {
 
 #!checkpoint!
 
-class YPSH_OPTIONS:
-    def __init__(self, content: dict):
-        self.product_name: str = content.get('product.information', {}).get('name', 'PyYPSH')
-        self.product_desc: str = content.get('product.information', {}).get('desc', 'One of the official implementations of the YPSH programming language.')
-        self.product_id: str = content.get('product.information', {}).get('id', 'net.diamondgotcat.ypsh.pyypsh')
-        self.product_release_version: list = content.get('product.information', {}).get('release', {}).get('version', [0,0,0])
-        self.product_release_version_text: str = ".".join(self.product_release_version)
-        self.product_release_type: str = content.get('product.information', {}).get('release', {}).get('type', 'source')
-        self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
-        self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en')
-
 from os.path import expanduser
 from rich.console import Console
 from rich.markup import escape
@@ -57,8 +46,19 @@ load_dotenv()
 console = Console()
 rich_print = console.print
 
+class YPSH_OPTIONS:
+    def __init__(self, content: dict):
+        self.product_name: str = content.get('product.information', {}).get('name', 'PyYPSH')
+        self.product_desc: str = content.get('product.information', {}).get('desc', 'One of the official implementations of the YPSH programming language.')
+        self.product_id: str = content.get('product.information', {}).get('id', 'net.diamondgotcat.ypsh.pyypsh')
+        self.product_release_version: list = content.get('product.information', {}).get('release', {}).get('version', [0,0,0])
+        self.product_release_version_text: str = f"{self.product_name} v{'.'.join(map(str, self.product_release_version))}"
+        self.product_release_type: str = content.get('product.information', {}).get('release', {}).get('type', 'source')
+        self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
+        self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en')
+        self.runtime_autorun_script: str = content.get('runtime.options', {}).get('autorun_script', None)
 ypsh_options = YPSH_OPTIONS(YPSH_OPTIONS_DICT)
-SHELL_NAME = f"YPShell-{''.join(ypsh_options.product_release_version)}".strip()
+SHELL_NAME = f"YPShell-{''.join(map(str, ypsh_options.product_release_version))}".strip()
 SHELL_CWD = os.getcwd()
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
 YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
@@ -158,8 +158,8 @@ class YPSHException(Exception):
         super().__init__(self.__str__())
 
     def __str__(self):
-        if LANG_ID in self.desc.keys():
-            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc[LANG_ID]}"
+        if ypsh_options.runtime_default_language in self.desc.keys():
+            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc[ypsh_options.runtime_default_language]}"
         elif "default" in self.desc.keys():
             return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc['default']}"
         elif "en" in self.desc.keys():
@@ -179,7 +179,7 @@ class YPSHException(Exception):
         elif key == "name":
             return self.name
         elif key == "desc":
-            return self.desc.get(LANG_ID, self.desc.get("en", ""))
+            return self.desc.get(ypsh_options.runtime_default_language, self.desc.get("en", ""))
         else:
             raise KeyError(key)
 
@@ -1463,6 +1463,8 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return True
             self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
 
+            self.ypsh_def("ypsh", "options", ypsh_options, desc="Return YPSH's Options")
+
             self.ypsh_def("ypsh", "product.name", ypsh_options.product_name, desc="Return YPSH's Product Name")
             self.ypsh_def("ypsh", "product.desc", ypsh_options.product_desc, desc="Return YPSH's Product Description")
             self.ypsh_def("ypsh", "product.id", ypsh_options.product_id, desc="Return YPSH's Product ID")
@@ -1501,8 +1503,8 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "raise", raise_error, desc="Raise a Exception with Exception Object.")
 
             def error_lang_set(lang="en"):
-                global LANG_ID
-                LANG_ID = lang
+                global ypsh_options
+                ypsh_options.runtime_default_language = lang
             self.ypsh_def("@", "Exception.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
             self.ypsh_def("@", "Error.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
 
@@ -2751,6 +2753,10 @@ if __name__ == '__main__':
     isReceivedFromStdin = not sys.stdin.isatty()
     isReceivedGoodOption = False
     isReceivedCode = False
+
+    if ypsh_options.runtime_autorun_script != None:
+        run_text(ypsh_options.runtime_autorun_script)
+        raise SystemExit(0)
 
     if isReceivedFromStdin:
         options["main"] = sys.stdin.read()
