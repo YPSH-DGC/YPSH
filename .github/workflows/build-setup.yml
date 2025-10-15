@@ -75,15 +75,15 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          python build.py -f ypsh-setup.py -m pyinstaller -d PySide6,requests -o upload/${{ matrix.filename }}
-          python build.py -f ypsh-setup.py -m nuitka -d PySide6,requests -o upload/${{ matrix.filename }}-NUI
+          python nabs.py -f ypsh-setup.py -m pyinstaller -d PySide6,requests -o upload/${{ matrix.filename }}
+          python nabs.py -f ypsh-setup.py -m nuitka -d PySide6,requests -o upload/${{ matrix.filename }}-NUI
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          python build.py -f ypsh-setup.py -m pyinstaller -d PySide6,requests -o upload/${{ matrix.filename }}.exe
-          python build.py -f ypsh-setup.py -m nuitka -d PySide6,requests -o upload/${{ matrix.filename }}-NUI.exe
+          python nabs.py -f ypsh-setup.py -m pyinstaller -d PySide6,requests -o upload/${{ matrix.filename }}.exe
+          python nabs.py -f ypsh-setup.py -m nuitka -d PySide6,requests -o upload/${{ matrix.filename }}-NUI.exe
 
       - name: Zip (non-windows)
         if: runner.os != 'Windows'

@@ -26,7 +26,7 @@ jobs:
       - name: Configurate PyYPSH Python Script for Python Script Source Version
         shell: bash
         run: |
-          python configurator.py -i ypsh.py -o YPSH-python-3.py -t ${{ github.event.release.tag_name || github.ref }} -s
+          python configurator.py -i ypsh.py -o YPSH-python-3.py
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -79,21 +79,21 @@ jobs:
       - name: Configurate PyYPSH Python Script for Release Version
         shell: bash
         run: |
-          python configurator.py -i ypsh.py -o main.py -t ${{ github.event.release.tag_name || github.ref }}
+          python configurator.py -i ypsh.py -o main.py
 
       - name: Build (non-windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          python build.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}
-          python build.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI
+          python nabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}
+          python nabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          python build.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
-          python build.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
+          python nabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
+          python nabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
 
       - name: Zip (non-windows)
         if: runner.os != 'Windows'

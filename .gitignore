@@ -1,6 +1,26 @@
+# python virtual env
 .venv
 .venv/*
 .venv/**
+
+# python chache
 __pycache__
 __pycache__/*
 __pycache__/**
+
+# configurator
+main.py
+
+# built executables
+ypsh
+built-exec
+*.exe
+
+# nuitka
+*.build/
+*.dist/
+*.onefile-build/
+
+# pyinstaller
+build/
+*.spec
