@@ -21,6 +21,9 @@ The PyYPSH interpreter offers features that are only possible because it's based
 
 ## Building PyYPSH
 
+### NABS (Nercone Automatic Building System)
+
+
 ### Pre-built Executables
 PyYPSH uses GitHub Actions to automatically run NABS after each release.<br>
 Thanks to this, in most environments you won't need to build it manually. However, in some environments, certain features may not function properly.<br>
@@ -36,6 +39,7 @@ The pre-built executables can be downloaded from GitHub's Release tab or from th
 |             | Setup   | GUI does not work properly | Not tested     | Not tested     | 
 
 ### Manual Building on Your Env
+If you want to run and build NABS locally, follow these steps:
 1. Install Python 3.9 or later (Python 3.12 or later is recommended).
 2. Create and activate a Python virtual environment (using pyenv, venv, uv, anaconda, miniconda, etc.). Since NABS installs dependencies automatically, do this if you want to build in a different environment.
 3. Prepare a configuration file (used by the Configurator to configure PyYPSH). If not provided, defaults will be applied.

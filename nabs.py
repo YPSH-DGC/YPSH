@@ -11,12 +11,15 @@ from pathlib import Path
 from rich.logging import RichHandler
 from datetime import datetime, timezone
 
-def prepare_package(*packages, type: str):
+def prepare_package(*packages, type: str, package_manager: str = "pip"):
     if len(packages) != 0:
         log.info(f"Installing {len(packages)} {type} dependencies: {','.join(packages)}]")
         start_time = datetime.now(timezone.utc)
         for package in packages:
-            proc = subprocess.Popen([sys.executable, "-m", "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            if package_manager == "pip":
+                proc = subprocess.Popen([sys.executable, "-m", "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            elif package_manager == "uv":
+                proc = subprocess.Popen(["uv", "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             for line in proc.stdout:
                 log.debug(line.strip())
             proc.wait()
@@ -100,6 +103,7 @@ def main() -> int:
         parser = argparse.ArgumentParser(prog='NABS for Python', description='Nercone Automatically Building System for Python Script')
         parser.add_argument('-f', '--filepath', default="main.py")
         parser.add_argument('-m', '--mode', default="show_help", choices=["show_help", "pyinstaller", "nuitka"], help="Set a Mode")
+        parser.add_argument('-p', '--package-manager', default="pip", choices=["pip", "uv"], help="Select a Package Manager for Installing Dependencies")
         parser.add_argument('-d', '--dependencies', default=[], type=lambda s: s.split(','), help="Set a extra dependencies (Separate with commas)")
         parser.add_argument('-o', '--output', default="built-exec", help="Output Filepath")
         parser.add_argument('-l', '--level', default="DEBUG", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
