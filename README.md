@@ -27,10 +27,12 @@ Thanks to this, in most environments you won't need to build it manually. Howeve
 If you want to ensure everything works reliably, please refer to the "Manual Building on Your Env" section and build it in the environment where you plan to use it—or in an identical environment.
 
 **Current status of pre-built executables:**
-|             | macOS                      | Windows        | Linux          | 
-| ----------- | -------------------------- | -------------- | -------------- | 
-| PyInstaller | Works properly             | Works properly | Works properly | 
-| Nuitka      | GUI does not work properly | Not tested     | Not tested     | 
+|             |         | macOS                      | Windows        | Linux          | 
+| ----------- | ------- | -------------------------- | -------------- | -------------- | 
+| PyInstaller | Runtime | Works properly             | Works properly | Works properly | 
+|             | Setup   | Works properly             | Works properly | Works properly | 
+| Nuitka      | Runtime | Works properly             | Works properly | Works properly | 
+|             | Setup   | GUI does not work properly | Not tested     | Not tested     | 
 
 ### Manual Building on Your Env
 1. Install Python 3.9 or later (Python 3.12 or later is recommended).

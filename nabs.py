@@ -102,12 +102,12 @@ def main() -> int:
         parser.add_argument('-m', '--mode', default="show_help", choices=["show_help", "pyinstaller", "nuitka"], help="Set a Mode")
         parser.add_argument('-d', '--dependencies', default=[], type=lambda s: s.split(','), help="Set a extra dependencies (Separate with commas)")
         parser.add_argument('-o', '--output', default="built-exec", help="Output Filepath")
-        parser.add_argument('-l', '--level', default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+        parser.add_argument('-l', '--level', default="DEBUG", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
         parser.add_argument('-c', '--cleaning', action='store_false')
         args = parser.parse_args()
 
         FORMAT = "%(message)s"
-        logging.basicConfig(level="DEBUG", format=FORMAT, datefmt="[%X]", handlers=[RichHandler(markup=True, rich_tracebacks=True)])
+        logging.basicConfig(level=args.level, format=FORMAT, datefmt="[%X]", handlers=[RichHandler(markup=True, rich_tracebacks=True)])
         log = logging.getLogger("rich")
 
         if args.mode.lower() == "pyinstaller":
