@@ -24,7 +24,8 @@ The PyYPSH interpreter offers features that are only possible because it's based
 ### Pre-built Executables
 PyYPSH uses GitHub Actions to automatically run NABS after each release.<br>
 Thanks to this, in most environments you won't need to build it manually. However, in some environments, certain features may not function properly.<br>
-If you want to ensure everything works reliably, please refer to the "Manual Building on Your Env" section and build it in the environment where you plan to use it—or in an identical environment.
+If you want to ensure everything works reliably, please refer to the "Manual Building on Your Env" section and build it in the environment where you plan to use it—or in an identical environment.<br>
+The pre-built executables can be downloaded from GitHub's Release tab or from the [Download the PyYPSH](https://ypsh.diamondgotcat.net/download) page.
 
 **Current status of pre-built executables:**
 |             |         | macOS                      | Windows        | Linux          | 
