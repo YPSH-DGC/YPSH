@@ -38,12 +38,16 @@ If you want to ensure everything works reliably, please refer to the "Manual Bui
 The pre-built executables can be downloaded from GitHub's Release tab or from the [Download the PyYPSH](https://ypsh.diamondgotcat.net/download) page.
 
 **Current status of pre-built executables:**
-|             |         | macOS                      | Windows                    | Linux          | 
-| ----------- | ------- | -------------------------- | -------------------------- | -------------- | 
-| PyInstaller | Runtime | Works properly             | Works properly             | Works properly | 
-|             | Setup   | Works properly             | Works properly             | Works properly | 
-| Nuitka      | Runtime | Works properly             | Works properly             | Works properly | 
-|             | Setup   | GUI does not work properly | GUI does not work properly | Not tested     | 
+|             |         |         | macOS                      | Windows                    | Linux          | 
+| ----------- | ------- | ------- | -------------------------- | -------------------------- | -------------- | 
+| PyInstaller | Runtime | x86_64  | Not Tested                 | Works properly             | Works properly | 
+| PyInstaller | Runtime | aarch64 | Works properly             | Not Tested                 | Not Tested     | 
+|             | Setup   | x86_64  | Not Tested                 | Works properly             | Works properly | 
+|             | Setup   | aarch64 | Works properly             | Not Tested                 | Not Tested     | 
+| Nuitka      | Runtime | x86_64  | Not Tested                 | Works properly             | Works properly | 
+| Nuitka      | Runtime | aarch64 | Works properly             | Not Tested                 | Not Tested     | 
+|             | Setup   | x86_64  | Not Tested                 | GUI does not work properly | Not tested     | 
+|             | Setup   | aarch64 | GUI does not work properly | Not Tested                 | Not tested     | 
 
 ### Manual Building on Your Env
 If you want to run and build NABS locally, follow these steps:
