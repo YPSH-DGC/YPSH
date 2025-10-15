@@ -48,7 +48,7 @@ def get_platform_information() -> dict:
 def get_build_id(platform_infos: dict) -> str:
     return f"YPSH@{platform_infos.get('os','UKNWN')}{platform_infos.get('arch','UKNWN')}#{ulid.from_timestamp(datetime.now(timezone.utc))}"
 
-def format_python_script(scripts: dict, config: dict) -> str:
+def config_python_script(scripts: dict, config: dict, release_tag: str = "v0.0.0") -> str:
     platform_infos = get_platform_information()
     build_id = get_build_id(platform_infos)
 
@@ -57,7 +57,7 @@ def format_python_script(scripts: dict, config: dict) -> str:
             "name": "PyYPSH",
             "desc": "One of the official implementations of the YPSH programming language.",
             "id": "net.diamondgotcat.ypsh.pyypsh",
-            "release": {"version": [0,0,0], "type": "source"},
+            "release": {"version": release_tag.replace("v","").split("b")[0].split("."), "type": "release"},
             "build": build_id
         },
         "runtime.platform": {
@@ -98,6 +98,7 @@ def main() -> int:
         parser = argparse.ArgumentParser(prog='PyYPSH NABS Configurator', description='CLI Tool for Configurate PyYPSH Python Script')
         parser.add_argument('-i', '--input', default="ypsh.py", help="Path of PyYPSH Python Script")
         parser.add_argument('-c', '--config', default="config.json", help="Path of Configuration File")
+        parser.add_argument('-t', '--tag', default="v0.0.0", help="Release Tag")
         parser.add_argument('-o', '--output', default="main.py", help="Path of Output Python Script")
         args = parser.parse_args()
 
@@ -120,7 +121,7 @@ def main() -> int:
         else:
             config = {}
 
-        formatted_python_script = format_python_script(scripts, config)
+        formatted_python_script = config_python_script(scripts, config, args.tag)
         with output_path.open("w", encoding='utf-8') as f:
             f.write(formatted_python_script)
 
