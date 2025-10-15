@@ -42,13 +42,13 @@ jobs:
         include:
           - os: macos-13
             platform: macOS Intel
-            filename: YPSH-macos-AMD64
+            filename: YPSH-macos-amd64
           - os: ubuntu-22.04
             platform: Linux Intel/AMD
-            filename: YPSH-linux-AMD64
+            filename: YPSH-linux-amd64
           - os: windows-2022
             platform: Windows Intel/AMD
-            filename: YPSH-windows-AMD64
+            filename: YPSH-windows-amd64
           - os: macos-14
             platform: macOS Apple Silicon
             filename: YPSH-macos-arm64
