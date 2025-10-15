@@ -1,3 +1,10 @@
+> [!IMPORTANT]
+> I am developing various projects, and since I manage, maintain, and update all of them myself, there may be times when I can't attend to each project individually.
+> For example, large-scale projects like [Zeta-LLM](https://github.com/Zeta-DGC/Zeta-LLM) are very difficult to develop.
+> [PyYPSH](https://github.com/YPSH-DGC/YPSH) is also a challenging project, as it implements a custom programming language using ASTs, which is quite advanced.
+> If you would like to report bugs or suggest new features for my projects, I would greatly appreciate it if you could use pull requests and make them ready to merge, if possible.
+> Also, if someone else has already created an issue, I would be thankful if you could create a pull request that immediately addresses the problem, if you're able to.
+> (This message is displayed in some repositories created by Nercone. Translated by GPT-4o.)
 
 <img width="1920" alt="YPSH Logo from 2025-09-21 (Connected)" src="https://github.com/user-attachments/assets/c1cff788-fa95-49bf-965d-b4f3beb0f3f4" />
 
