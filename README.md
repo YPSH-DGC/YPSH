@@ -41,11 +41,11 @@ The pre-built executables can be downloaded from GitHub's Release tab or from th
 |             |         |         | macOS             | Windows           | Linux          | 
 | ----------- | ------- | ------- | ----------------- | ----------------- | -------------- | 
 | PyInstaller | Runtime | x86_64  | Not Tested        | Works properly    | Works properly | 
-| PyInstaller | Runtime | aarch64 | Works properly    | Not Tested        | Not Tested     | 
+|             | Runtime | aarch64 | Works properly    | Not Tested        | Not Tested     | 
 |             | Setup   | x86_64  | Not Tested        | Works properly    | Works properly | 
 |             | Setup   | aarch64 | Works properly    | Not Tested        | Not Tested     | 
 | Nuitka      | Runtime | x86_64  | Not Tested        | Works properly    | Works properly | 
-| Nuitka      | Runtime | aarch64 | Works properly    | Not Tested        | Not Tested     | 
+|             | Runtime | aarch64 | Works properly    | Not Tested        | Not Tested     | 
 |             | Setup   | x86_64  | Not Tested        | GUI does not work | Not tested     | 
 |             | Setup   | aarch64 | GUI does not work | Not Tested        | Not tested     | 
 
