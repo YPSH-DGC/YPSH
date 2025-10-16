@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 def prepare_package(*packages, type: str, package_manager: str = "pip"):
     if len(packages) != 0:
-        log.info(f"Installing {len(packages)} {type} dependencies: {','.join(packages)}]")
+        log.info(f"Installing {len(packages)} {type} dependencies: {','.join(packages)}")
         start_time = datetime.now(timezone.utc)
         for package in packages:
             if package_manager == "pip":
@@ -137,6 +137,7 @@ def main() -> int:
             result = build_pyinstaller(script_path, output_path)
             log.info("Completed: Building with PyInstaller")
             if args.cleaning:
+                log.info("Started: Cleaning")
                 remove_it("build/", "*.spec", "*.onefile-build/")
                 log.info("Completed: Cleaning")
             return result.get("returncode", 1)
@@ -163,6 +164,7 @@ def main() -> int:
             result = build_nuitka(script_path, output_path)
             log.info("Completed: Building with Nuitka")
             if args.cleaning:
+                log.info("Started: Cleaning")
                 remove_it("*.build/", "*.dist/", "*.onefile-build/")
                 log.info("Completed: Cleaning")
             return result.get("returncode", 1)
