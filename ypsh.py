@@ -1205,6 +1205,7 @@ class Interpreter:
 
     def __init__(self):
         self.ypsh_globals = Environment()
+        self._current_env: Environment | None = self.ypsh_globals
         self.setup_builtins()
 
     def _interpolate(self, raw: str, env: Environment) -> str:
@@ -1481,10 +1482,20 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("standard", "output", sys.stdin, desc="Standard Output")
             self.ypsh_def("standard", "error", sys.stderr, desc="Standard Error Output")
 
-            self.ypsh_def("ypsh", "def", self.ypsh_def, desc="Define Anything as Variable")
-            self.ypsh_def("ypsh", "undef", self.ypsh_undef, desc="Delete a Variable(or Function)")
+            self.ypsh_def("ypsh", "def", self.ypsh_def, desc="Define Anything")
+            self.ypsh_def("ypsh", "undef", self.ypsh_undef, desc="Delete a Variable")
+
+            def _ypsh_locals():
+                env = self._current_env or self.ypsh_globals
+                return dict(env.vars)
+            self.ypsh_def("ypsh", "locals", _ypsh_locals, desc="YPSH Local Scope")
+            def _ypsh_globals():
+                root = self.ypsh_globals._root()
+                return dict(root.vars)
+            self.ypsh_def("ypsh", "globals", _ypsh_globals, desc="YPSH Global Scope")
 
             self.ypsh_def("ypsh", "options", ypsh_options, desc="Return YPSH's Options")
+            self.ypsh_def("ypsh", "options.dict", YPSH_OPTIONS_DICT, desc="Return YPSH's Options as Dict")
             self.ypsh_def("ypsh", "product.name", ypsh_options.product_name, desc="Return YPSH's Product Name")
             self.ypsh_def("ypsh", "product.desc", ypsh_options.product_desc, desc="Return YPSH's Product Description")
             self.ypsh_def("ypsh", "product.id", ypsh_options.product_id, desc="Return YPSH's Product ID")
@@ -1850,16 +1861,20 @@ Those who use them wisely, without abuse, are the true users of computers.
         if isinstance(node, Block):
             result = None
             for stmt in node.statements:
+                self._current_env = self.ypsh_globals
                 result = self.execute(stmt, self.ypsh_globals)
             return result
+        self._current_env = self.ypsh_globals
         return self.execute(node, self.ypsh_globals)
 
     def execute(self, node, env):
+        self._current_env = env
         if isinstance(node, Block):
             env.push_block()
             try:
                 result = None
                 for stmt in node.statements:
+                    self._current_env = env
                     result = self.execute(stmt, env)
                 return result
             finally:
@@ -2013,6 +2028,7 @@ Those who use them wisely, without abuse, are the true users of computers.
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
+        self._current_env = env
         if isinstance(node, Attribute):
             def build_full_key(attr_node):
                 parts = []
