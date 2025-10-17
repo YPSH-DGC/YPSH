@@ -142,7 +142,7 @@ def shell_exec(command) -> ShellExecutionResult:
     return ShellExecutionResult(return_code=return_code, stdout=stdout, stderr=stderr)
 
 ##############################
-# Built-in Error Documentation
+# Exceptions
 ##############################
 class YPSHException(Exception):
     def __init__(self, location: str = "YPSH", level: str = "E", ecode: str = "0000", name: str = "GeneralError", desc = None):
@@ -195,9 +195,6 @@ class YPSHException(Exception):
                 self.desc[lang] = escape(self.desc[lang])
         return self
 
-##############################
-# Exceptions
-##############################
 ExceptionPrintingLevel = "W"
 
 BUILTIN_EXCEPTION_SPEC = {
@@ -1202,6 +1199,7 @@ class Instance:
 class Interpreter:
     modules = []
     docs = {}
+    enabled_builtin_modules = []
 
     _interp_pat = re.compile(r'\\\((.*?)\)')
 
@@ -1415,22 +1413,16 @@ class Interpreter:
         self.docs[key] = content
 
     def module_enable(self, id):
-        if id == "minimal":
-            self.module_enable("ypsh")
-            self.module_enable("python")
-            self.module_enable("standard")
-            self.module_enable("import")
+        if id.strip().lower().replace("-", "_") in ["min", "minimal"]:
+            self.module_enable("system")
 
-        elif id == "default":
-            self.module_enable("ypsh")
-            self.module_enable("python")
-            self.module_enable("standard")
-            self.module_enable("stdmath")
+        elif id.strip().lower().replace("-", "_") in ["", "default"]:
+            self.module_enable("minimal")
+            self.module_enable("system_extra")
+            self.module_enable("import")
             self.module_enable("docs")
-            self.module_enable("import")
-            self.module_enable("type")
 
-        elif id == "knowledge":
+        elif id.strip().lower().replace("-", "_") in ["egg", "knowledge"]:
             print("""
 Words exist to express and communicate something.
 A programming language is a syntax used to convey something to a computer.
@@ -1440,63 +1432,29 @@ Those who use them wisely, without abuse, are the true users of computers.
 - 2025 DiamondGotCat
                   """.strip())
 
-        elif id == "ypsh":
+        elif id.strip().lower().replace("-", "_") in ["sys", "system"]:
+            self.enabled_builtin_modules.append("system")
+
+            self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
+            self.ypsh_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
+            self.ypsh_def("@", "show", self.ypsh_print, desc="Show content with Simplize(e.g. 'ypsh.module ypsh.modules (list)')")
+            self.ypsh_def("@", "lookup", self.ypsh_print, desc="Show content with Simplize(e.g. 'ypsh.module ypsh.modules (list)')")
+            self.ypsh_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
+            self.ypsh_def("@", "module_enable", self.module_enable, desc="Enabling a YPSH Built-in Module")
+
             self.ypsh_def("@", "false", False)
             self.ypsh_def("@", "False", False)
             self.ypsh_def("@", "true", True)
             self.ypsh_def("@", "True", True)
             self.ypsh_def("@", "none", None)
             self.ypsh_def("@", "None", None)
-            self.ypsh_def("@", "def", self.ypsh_def, desc="Define Anything as Variable")
-            self.ypsh_def("@", "undef", self.ypsh_undef, desc="Delete a Variable(or Function)")
-            self.ypsh_def("@", "%", shell_exec)
-            self.ypsh_def("shell", "run", shell_exec)
 
-            def get_SHELL_CWD():
-                global SHELL_CWD
-                return SHELL_CWD
-            self.ypsh_def("shell", "cwd.get", get_SHELL_CWD)
-
-            def set_SHELL_CWD(new):
-                global SHELL_CWD
-                SHELL_CWD = new
-                return True
-            self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
-
-            self.ypsh_def("ypsh", "options", ypsh_options, desc="Return YPSH's Options")
-
-            self.ypsh_def("ypsh", "product.name", ypsh_options.product_name, desc="Return YPSH's Product Name")
-            self.ypsh_def("ypsh", "product.desc", ypsh_options.product_desc, desc="Return YPSH's Product Description")
-            self.ypsh_def("ypsh", "product.id", ypsh_options.product_id, desc="Return YPSH's Product ID")
-
-            self.ypsh_def("ypsh", "version", ypsh_options.product_release_version, desc="Return YPSH's Version")
-            self.ypsh_def("ypsh", "version.type", ypsh_options.product_release_type, desc="Return YPSH's Release Type")
-            self.ypsh_def("ypsh", "version.text", ypsh_options.product_release_version_text, desc="Return YPSH's Version as Text")
-            self.ypsh_def("ypsh", "version.build", ypsh_options.product_build, desc="Return YPSH's Build ID")
-
-            self.ypsh_def("ypsh", "module", self.modules, desc="Module List / submodule 'module'")
-            self.ypsh_def("ypsh", "modules", self.modules, desc="Module List / submodule 'modules'")
-            self.ypsh_def("ypsh", "module.enable", self.module_enable, desc="Enable a Module on This Session")
-            self.ypsh_def("ypsh", "modules.enable", self.module_enable, desc="Enable a Module on This Session")
-            self.ypsh_def("ypsh", "module.append", self.module_enable, desc="Enable a Module on This Session")
-            self.ypsh_def("ypsh", "modules.append", self.module_enable, desc="Enable a Module on This Session")
-
-            def ypsh_reset():
-                self.ypsh_globals = Environment()
-                self.module_enable("default")
-            self.ypsh_def("ypsh", "reset", ypsh_reset, desc="Reset all Variables(and Functions), and Enable 'default' Module")
-
-            def ypsh_minimal():
-                self.ypsh_globals = Environment()
-                self.module_enable("minimal")
-            self.ypsh_def("ypsh", "minimalize", ypsh_minimal, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
-
-            def get_ypsh_version():
-                return self.VERSION_TEXT
-            self.ypsh_def("ypsh", "version.get", get_ypsh_version, desc="Get YPSH's Full Version Name (func)")
-
-            self.ypsh_def("@", "Exception", YPSHException, desc="The Exception Object.")
             self.ypsh_def("@", "Error", YPSHException, desc="The Exception Object.")
+            self.ypsh_def("@", "Exception", YPSHException, desc="The Exception Object.")
+
+            def exit_now(code=0):
+                raise SystemExit(code)
+            self.ypsh_def("@", "exit", exit_now, desc="Exit YPSH's main Process.")
 
             def raise_error(exception: Exception):
                 exception_handler(exception)
@@ -1505,69 +1463,56 @@ Those who use them wisely, without abuse, are the true users of computers.
             def error_lang_set(lang="en"):
                 global ypsh_options
                 ypsh_options.runtime_default_language = lang
-            self.ypsh_def("@", "Exception.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
             self.ypsh_def("@", "Error.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
+            self.ypsh_def("@", "Exception.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
 
-        elif id == "docs":
-            self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Documentation")
-            self.ypsh_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'ypsh.version') and content, to YPSH's Documentation")
+        elif id.strip().lower().replace("-", "_") in ["extra", "system_extra"]:
+            self.enabled_builtin_modules.append("system_extra")
 
-        elif id == "standard":
-            self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
-            self.ypsh_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
-            self.ypsh_def("@", "show", self.ypsh_print, desc="Show content with Simplize(e.g. 'ypsh.module ypsh.modules (list)')")
-            self.ypsh_def("@", "lookup", self.ypsh_print, desc="Show content with Simplize(e.g. 'ypsh.module ypsh.modules (list)')")
-            self.ypsh_def("@", "ask", input, desc="Ask User Interactive (e.g. 'What your name> ')")
-
-            def exit_now(code=0):
-                raise SystemExit(code)
-            self.ypsh_def("@", "exit", exit_now, desc="Exit YPSH's main Process.")
-
-            def read_stdin():
-                return sys.stdin.read()
-            self.ypsh_def("standard", "input", read_stdin, desc="Read stdin (all lines)")
-            self.ypsh_def("stdin", "all", read_stdin, desc="Read stdin (all lines)")
-
-            def read_stdin_oneline():
-                return sys.stdin.readline()
-            self.ypsh_def("standard", "input.oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
-            self.ypsh_def("stdin", "oneline", read_stdin_oneline, desc="Read stdin (only [next] 1 line)")
-
-            def stdin_isatty():
-                if sys.stdin.isatty():
-                    return True
-                else:
-                    return False
-            self.ypsh_def("stdin", "isatty", stdin_isatty)
-
-            self.ypsh_def("standard", "output", self.normal_print, desc="Directly Printing to stdout")
-            self.ypsh_def("@", "stdout", self.normal_print, desc="Directly Printing to stdout")
-
-        elif id == "exstr":
-            def exstr_unicode_uplus(s):
-                return ''.join(f'U+{ord(c):04X}' for c in s)
-            self.ypsh_def("exstr", "unicode.uplus", exstr_unicode_uplus, desc="Text to Unicode U+ (U+****)")
-
-            def exstr_unicode_uplus_whitespace(s):
-                return ' '.join(f'U+{ord(c):04X}' for c in s)
-            self.ypsh_def("exstr", "unicode.uplus.whitespace", exstr_unicode_uplus_whitespace, desc="Text to Unicode U+ (U+****), split with Whitespace")
-
-            def exstr_unicode_bsu(s):
-                return ''.join(f'\\u{ord(c):04X}' for c in s)
-            self.ypsh_def("exstr", "unicode.bsu", exstr_unicode_bsu, desc="Text to Unicode \\u (\\u****)")
-
-            def exstr_unicode_bsu_whitespace(s):
-                return ' '.join(f'\\u{ord(c):04X}' for c in s)
-            self.ypsh_def("exstr", "unicode.bsu.whitespace", exstr_unicode_bsu_whitespace, desc="Text to Unicode \\u (\\u****), split with Whitespace")
-
-        elif id == "stdmath":
             self.ypsh_def("@", "min", min)
             self.ypsh_def("@", "max", max)
+            self.ypsh_def("@", "range", range)
             self.ypsh_def("@", "mod", lambda a, b: a % b)
+
+            self.ypsh_def("@", "stdin", sys.stdin, desc="Standard Input")
+            self.ypsh_def("@", "stdout", sys.stdin, desc="Standard Output")
+            self.ypsh_def("@", "stderr", sys.stderr, desc="Standard Error Output")
+            self.ypsh_def("standard", "input", sys.stdin, desc="Standard Input")
+            self.ypsh_def("standard", "output", sys.stdin, desc="Standard Output")
+            self.ypsh_def("standard", "error", sys.stderr, desc="Standard Error Output")
+
+            self.ypsh_def("ypsh", "def", self.ypsh_def, desc="Define Anything as Variable")
+            self.ypsh_def("ypsh", "undef", self.ypsh_undef, desc="Delete a Variable(or Function)")
+
+            self.ypsh_def("ypsh", "options", ypsh_options, desc="Return YPSH's Options")
+            self.ypsh_def("ypsh", "product.name", ypsh_options.product_name, desc="Return YPSH's Product Name")
+            self.ypsh_def("ypsh", "product.desc", ypsh_options.product_desc, desc="Return YPSH's Product Description")
+            self.ypsh_def("ypsh", "product.id", ypsh_options.product_id, desc="Return YPSH's Product ID")
+            self.ypsh_def("ypsh", "version", ypsh_options.product_release_version, desc="Return YPSH's Version")
+            self.ypsh_def("ypsh", "version.type", ypsh_options.product_release_type, desc="Return YPSH's Release Type")
+            self.ypsh_def("ypsh", "version.text", ypsh_options.product_release_version_text, desc="Return YPSH's Version as Text")
+            self.ypsh_def("ypsh", "version.build", ypsh_options.product_build, desc="Return YPSH's Build ID")
 
             def count_func(input):
                 return len(input)
             self.ypsh_def("@", "count", count_func)
+
+            def ypsh_exec(code_string):
+                tokens = tokenize(code_string)
+                parser = Parser(tokens)
+                ast = parser.parse()
+                self.interpret(ast)
+            self.ypsh_def("@", "exec", ypsh_exec)
+
+            def ypsh_reset():
+                self.ypsh_globals = Environment()
+                self.module_enable("default")
+            self.ypsh_def("ypsh", "reset", ypsh_reset, desc="Reset all Variables(and Functions), and Enable 'default' Module")
+
+            def ypsh_minimalize():
+                self.ypsh_globals = Environment()
+                self.module_enable("minimal")
+            self.ypsh_def("ypsh", "minimalize", ypsh_minimalize, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
 
             def ypsh_range(start=1, end=None):
                 if end == None:
@@ -1576,88 +1521,10 @@ Those who use them wisely, without abuse, are the true users of computers.
                     return range(start, end+1)
             self.ypsh_def("@", "range", ypsh_range)
 
-        elif id == "env":
-            global get_system_env
-            def get_system_env(id):
-                load_dotenv()
-                return os.environ.get(id, None)
-            self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
-
-        elif id == "type":
-            self.ypsh_def("@", "str", str)
-            self.ypsh_def("@", "int", int)
-            self.ypsh_def("@", "float", float)
-            self.ypsh_def("@", "list", list)
-            self.ypsh_def("@", "dict", dict)
-
-        elif id == "python":
-            import importlib
-            self.ypsh_def("python", "str", str)
-            self.ypsh_def("python", "int", int)
-            self.ypsh_def("python", "float", float)
-            self.ypsh_def("python", "list", list)
-            self.ypsh_def("python", "dict", dict)
-
-            def python_path_add(path: str):
-                p = os.path.expanduser(os.path.expandvars(path))
-                if p and p not in sys.path:
-                    sys.path.insert(0, p)
-                return True
-            self.ypsh_def("python", "path.add", python_path_add, desc="Add a directory to sys.path for Python imports")
-
-            extra = os.environ.get("YPSH_PY_EXTLIBS", "")
-            for p in [p for p in extra.split(os.pathsep) if p]:
-                python_path_add(p)
-
-            def import_py(file_path):
-                if not os.path.isfile(file_path):
-                    exception_handler(get_builtin_exception("E0015", {"file_path": file_path}))
-                local_dict = {}
-                with open(file_path, encoding='utf-8') as f:
-                    code = f.read()
-                exec(code, local_dict)
-                for key, value in local_dict.items():
-                    self.ypsh_globals.set(key, value)
-            self.ypsh_def("python", "import", import_py, desc="Exec a .py file into YPSH env")
-
-            def import_main_python(*specs):
-                core_import = self.ypsh_globals.get("@.import")
-                normalized = []
-                for s in specs:
-                    if isinstance(s, str):
-                        normalized.append({"lib": s, "py": True})
-                    elif isinstance(s, dict):
-                        d = dict(s)
-                        d.setdefault("py", True)
-                        normalized.append(d)
-                    else:
-                        raise TypeError("python.import accepts string or dict spec")
-                return core_import(*normalized)
-
-            self.ypsh_def("python", "module", import_main_python, desc="Python import sugar; same options as @.import with py:true")
-
-        elif id == "conv":
-            def convert_to_decimal(value) -> str:
-                if isinstance(value, str):
-                    value = int(value)
-                return str(value)
-            self.ypsh_def("conv", "decimal", convert_to_decimal)
-
-            def convert_to_binary(value) -> str:
-                if isinstance(value, str):
-                    value = int(value)
-                return bin(value)[2:]
-            self.ypsh_def("conv", "binary", convert_to_binary)
-
-            def convert_to_hexadecimal(value) -> str:
-                if isinstance(value, str):
-                    value = int(value)
-                return hex(value)[2:]
-            self.ypsh_def("conv", "hexadecimal", convert_to_hexadecimal)
-
         elif id == "import":
-            self.module_enable("env")
             import importlib
+            self.module_enable("env")
+            self.enabled_builtin_modules.append("import")
 
             def _snap_keys():
                 env = self.ypsh_globals
@@ -1828,6 +1695,28 @@ Those who use them wisely, without abuse, are the true users of computers.
                 else:
                     raise TypeError("import accepts string or dict spec")
 
+            def import_path_add(path: str):
+                p = os.path.expanduser(os.path.expandvars(path))
+                if p and p not in sys.path:
+                    sys.path.insert(0, p)
+                return True
+            self.ypsh_def("import", "path.add", import_path_add, desc="Add a directory to sys.path for Imports")
+
+            extra = os.environ.get("YPSH_PY_EXTLIBS", "")
+            for p in [p for p in extra.split(os.pathsep) if p]:
+                import_path_add(p)
+
+            def import_py(file_path):
+                if not os.path.isfile(file_path):
+                    exception_handler(get_builtin_exception("E0015", {"file_path": file_path}))
+                local_dict = {}
+                with open(file_path, encoding='utf-8') as f:
+                    code = f.read()
+                exec(code, local_dict)
+                for key, value in local_dict.items():
+                    self.ypsh_globals.set(key, value)
+            self.ypsh_def("import", "python", import_py, desc="Import a .py file into YPSH env")
+
             def import_main(*specs):
                 not_founds = []
                 for spec in specs:
@@ -1874,43 +1763,41 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             self.ypsh_def("@", "import", import_main)
 
-        elif id == "exec":
-            def ypsh_exec(code_string):
-                tokens = tokenize(code_string)
-                parser = Parser(tokens)
-                ast = parser.parse()
-                self.interpret(ast)
-            self.ypsh_def("@", "exec", ypsh_exec)
+        elif id.strip().lower().replace("-", "_") in ["docs"]:
+            self.enabled_builtin_modules.append("docs")
+            self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Built-in Documentation")
+            self.ypsh_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'ypsh.version') and content, to YPSH's Built-in Documentation")
 
-        elif id == "file":
+        elif id.strip().lower().replace("-", "_") in ["env"]:
+            self.enabled_builtin_modules.append("env")
+            global get_system_env
+            def get_system_env(id):
+                load_dotenv()
+                return os.environ.get(id, None)
+            self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
-            def file_isexist(path):
-                if os.path.exists(path):
-                    return True
-                else:
-                    return False
-            self.ypsh_def("file", "isexist", file_isexist)
+        elif id.strip().lower().replace("-", "_") in ["shell"]:
+            self.enabled_builtin_modules.append("shell")
+            self.ypsh_def("@", "%", shell_exec)
+            self.ypsh_def("shell", "run", shell_exec)
+            self.ypsh_def("shell", "cwd", SHELL_CWD)
+            def set_SHELL_CWD(new):
+                global SHELL_CWD
+                SHELL_CWD = new
+                return True
+            self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
 
-            def file_isfile(path):
-                if os.path.isfile(path):
-                    return True
-                else:
-                    return False
-            self.ypsh_def("file", "isfile", file_isfile)
-
-            def file_isdir(path):
-                if os.path.isdir(path):
-                    return True
-                else:
-                    return False
-            self.ypsh_def("file", "isdir", file_isdir)
-
-            def file_remove(path):
-                os.remove(path)
-            self.ypsh_def("file", "remove", file_remove)
+        elif id.strip().lower().replace("-", "_") in ["types"]:
+            self.enabled_builtin_modules.append("types")
+            self.ypsh_def("@", "str", str)
+            self.ypsh_def("@", "int", int)
+            self.ypsh_def("@", "float", float)
+            self.ypsh_def("@", "list", list)
+            self.ypsh_def("@", "dict", dict)
 
         elif id == "dgce":
             from datetime import datetime, timezone, timedelta
+            self.enabled_builtin_modules.append("dgce")
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
             def datetime_to_dgc_epoch48(dt: datetime) -> str:
