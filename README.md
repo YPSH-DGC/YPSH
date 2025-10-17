@@ -56,7 +56,7 @@ If you want to run and build NABS locally, follow these steps:
 3. Prepare a configuration file (used by the Configurator to configure PyYPSH). If not provided, defaults will be applied.
 4. Install `rich` and `ulid-py` (using pip, uv, or any other package manager that supports PyPI).
 5. Run the Configurator (`configurator.py`). (You can specify the config file using the `-c` option.)
-6. Run NABS (`nabs.py`). (You can set the output directory using the `-o` option.)
+6. Run NABS (`nabs.py`). (You can set the output filepath using the `-o` option.)
 
 ### DGC-AutoBuild
 Previously, Used "DGC-AutoBuild," an automated build system that utilizes GitHub Actions.
