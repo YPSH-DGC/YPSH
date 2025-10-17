@@ -131,9 +131,9 @@ def main() -> int:
             with requirements_path.open(encoding='utf-8') as f:
                 requirements_content = f.read()
             project_dependencies = requirements_content.strip().split("\n")
-            prepare_package(*project_dependencies, type="project")
-            prepare_package(*args.dependencies, type="extra")
-            prepare_package("pyinstaller", type="build")
+            prepare_package(*project_dependencies, type="project", package_manager=args.package_manager)
+            prepare_package(*args.dependencies, type="extra", package_manager=args.package_manager)
+            prepare_package("pyinstaller", type="build", package_manager=args.package_manager)
             result = build_pyinstaller(script_path, output_path)
             log.info("Completed: Building with PyInstaller")
             if args.cleaning:
@@ -158,9 +158,9 @@ def main() -> int:
             with requirements_path.open(encoding='utf-8') as f:
                 requirements_content = f.read()
             project_dependencies = requirements_content.strip().split("\n")
-            prepare_package(*project_dependencies, type="project")
-            prepare_package(*args.dependencies, type="extra")
-            prepare_package("nuitka", type="build")
+            prepare_package(*project_dependencies, type="project", package_manager=args.package_manager)
+            prepare_package(*args.dependencies, type="extra", package_manager=args.package_manager)
+            prepare_package("nuitka", type="build", package_manager=args.package_manager)
             result = build_nuitka(script_path, output_path)
             log.info("Completed: Building with Nuitka")
             if args.cleaning:
