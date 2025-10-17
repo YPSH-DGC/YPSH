@@ -109,10 +109,10 @@ class ShellExecutionResult():
         self.stdout = stdout
         self.stderr = stderr
 
-def shell_exec(command) -> ShellExecutionResult:
+def shell_exec(command: str, check: bool = True, env: dict = os.environ.copy()) -> ShellExecutionResult:
     global SHELL_CWD
     command_name = command.split(" ")[0]
-    shell_env = os.environ.copy()
+    shell_env = env
     shell_env["SHELL"] = SHELL_NAME
     shell_env["YPSH_VERSION"] = ypsh_options.product_release_version_text
     shell_env["YPSH_BUILDID"] = ypsh_options.product_build
@@ -131,7 +131,7 @@ def shell_exec(command) -> ShellExecutionResult:
         return ShellExecutionResult(return_code=0, stdout="YPShell: Successfully Changed CWD.")
     else:
         try:
-            result = subprocess.run(os.path.expanduser(os.path.expandvars(command)), shell=True, check=True, text=True, capture_output=True, cwd=SHELL_CWD, env=shell_env)
+            result = subprocess.run(os.path.expanduser(os.path.expandvars(command)), shell=True, check=check, text=True, capture_output=True, cwd=SHELL_CWD, env=shell_env)
             return_code = result.returncode
             stdout = result.stdout
             stderr = result.stderr
@@ -1300,13 +1300,13 @@ class Interpreter:
             env = env.parent
         return matching_keys
 
-    def normal_print(self, content, end="\n"):
+    def normal_print(self, content="", end: str = "\n"):
         print(str(content), end=end)
 
-    def color_print(self, content, end="\n"):
+    def color_print(self, content="", end: str = "\n"):
         rich_print(str(content), end=end)
 
-    def ypsh_print(self, content, end="\n"):
+    def ypsh_print(self, content="", end: str = "\n"):
         returnValue = ""
         foundKeys_list = self.get_ids_from_content(content)
         foundKeys = ", ".join(foundKeys_list)
@@ -1413,7 +1413,7 @@ class Interpreter:
     def set_doc(self, key, content):
         self.docs[key] = content
 
-    def module_enable(self, id):
+    def module_enable(self, id: str):
         if id.strip().lower().replace("-", "_").replace(" ", "_") in ["min", "minimal"]:
             self.module_enable("system")
 
@@ -2652,6 +2652,7 @@ def check_ypsh_scripts(*path_list, base: str = return_ypsh_exec_folder()) -> str
 if __name__ == '__main__':
     args = sys.argv[1:]
     options = {}
+    options["main"] = None
     readNextArg = None
     isReceivedFromStdin = not sys.stdin.isatty()
     isReceivedGoodOption = False
@@ -2664,8 +2665,6 @@ if __name__ == '__main__':
     if isReceivedFromStdin:
         options["main"] = sys.stdin.read()
         isReceivedCode = True
-    else:
-        options["main"] = None
 
     for arg in args:
         arg2 = arg.replace("-", "").lower()

@@ -2,7 +2,7 @@
 
 # -- PyYPSH ----------------------------------------------------- #
 # setup.py on PyYPSH                                              #
-# Refactored by LLM (2025-10-14)                                  #
+# Refactored by LLM (2025-10-17)                                  #
 # Edited by DiamondGotCat, Licensed under MIT License             #
 # Copyright (c) 2025 DiamondGotCat                                #
 # ---------------------------------------------- DiamondGotCat -- #
@@ -500,7 +500,7 @@ if PYSIDE_AVAILABLE:
                     "options_title": "Advanced Options",
                     "opt_path": "Add YPSH folder to PATH (recommended)",
                     "opt_gate": "Do not clear Gatekeeper quarantine (macOS)",
-                    "opt_debug": "Enable verbose logging (debug)",
+                    "opt_debug": "Enable verbose logging to stdout/stderr",
                     "options_hint": "Click “Next” to review your choices.",
 
                     "summary_title": "Review",
@@ -685,48 +685,68 @@ if PYSIDE_AVAILABLE:
             pass
 
         palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#0e1116"))
-        palette.setColor(QPalette.Base, QColor("#0b0e14"))
-        palette.setColor(QPalette.AlternateBase, QColor("#11151c"))
-        palette.setColor(QPalette.ToolTipBase, QColor("#11151c"))
-        palette.setColor(QPalette.ToolTipText, QColor("#e6edf3"))
-        palette.setColor(QPalette.Text, QColor("#e6edf3"))
-        palette.setColor(QPalette.WindowText, QColor("#e6edf3"))
-        palette.setColor(QPalette.Button, QColor("#1f6feb"))
+        palette.setColor(QPalette.Window, QColor("#000000"))
+        palette.setColor(QPalette.Base, QColor("#000000"))
+        palette.setColor(QPalette.AlternateBase, QColor("#0a0a0a"))
+        palette.setColor(QPalette.ToolTipBase, QColor("#000000"))
+        palette.setColor(QPalette.ToolTipText, QColor("#ffffff"))
+
+        palette.setColor(QPalette.Text, QColor("#ffffff"))
+        palette.setColor(QPalette.WindowText, QColor("#ffffff"))
+
+        palette.setColor(QPalette.Button, QColor("#111111"))
         palette.setColor(QPalette.ButtonText, QColor("#ffffff"))
-        palette.setColor(QPalette.Highlight, QColor("#2f81f7"))
-        palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
-        palette.setColor(QPalette.PlaceholderText, QColor("#9aa4b2"))
+        palette.setColor(QPalette.Highlight, QColor("#ffffff"))        # 選択背景：白
+        palette.setColor(QPalette.HighlightedText, QColor("#000000"))  # 選択文字：黒
+
+        palette.setColor(QPalette.PlaceholderText, QColor("#888888"))
         app.setPalette(palette)
 
     BASE_QSS = """
     * { font-size: 14px; }
-    QWizard { background: #0e1116; }
-    QWizard QWidget { color: #e6edf3; }
+    QWizard { background: #000000; }
+    QWizard QWidget { color: #ffffff; }
+
     QLabel#Brand {
-        font-size: 36px; font-weight: 800; color: #e6edf3;
+        font-size: 36px; font-weight: 800; color: #ffffff;
         letter-spacing: .5px; margin: 4px 0 12px 0;
     }
+
     QWizardPage {
-        background: #0f131a;
-        border: 1px solid #232936; border-radius: 12px;
+        background: #000000;
+        border: 1px solid #333333; border-radius: 12px;
         padding: 16px; margin: 12px;
     }
-    QLineEdit, QTextEdit, QComboBox {
-        background: #0b0e14; border: 1px solid #2b3343; border-radius: 8px;
-        padding: 8px; selection-background-color: #2f81f7;
+
+    QLineEdit, QTextEdit, QComboBox, QListWidget {
+        background: #000000;
+        color: #ffffff;
+        border: 1px solid #333333; border-radius: 8px;
+        padding: 8px;
+        selection-background-color: #ffffff;
+        selection-color: #000000;
     }
-    QCheckBox, QRadioButton { spacing: 8px; }
+
+    QCheckBox, QRadioButton { spacing: 8px; color: #ffffff; }
+
     QPushButton {
-        border-radius: 10px; padding: 8px 14px; background: #1f6feb; color: white; border: none;
+        border-radius: 10px;
+        padding: 8px 14px;
+        background: #000000;
+        color: #ffffff;
+        border: 1px solid #444444;
     }
-    QPushButton:hover { background: #2b80ff; }
-    QPushButton:disabled { background: #2b3343; color: #9aa4b2; }
+    QPushButton:hover { background: #111111; }
+    QPushButton:disabled { background: #0a0a0a; color: #666666; border: 1px solid #222222; }
+
     QProgressBar {
-        background: #0b0e14; border: 1px solid #2b3343; border-radius: 8px; text-align: center;
+        background: #000000;
+        border: 1px solid #333333; border-radius: 8px; text-align: center;
+        color: #ffffff;
     }
-    QProgressBar::chunk { background-color: #2f81f7; border-radius: 8px; margin: 1px; }
-    QFrame#line { background: #232936; min-height: 1px; max-height: 1px; }
+    QProgressBar::chunk { background-color: #ffffff; border-radius: 8px; margin: 1px; }
+
+    QFrame#line { background: #333333; min-height: 1px; max-height: 1px; }
     """
 
     # ── Common base page ───────────────────────────────────────────────────

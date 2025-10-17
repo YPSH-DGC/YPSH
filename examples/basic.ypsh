@@ -1,0 +1,16 @@
+#!/usr/bin/env ypsh
+
+# -- PyYPSH ----------------------------------------------------- #
+# basic.ypsh on PyYPSH                                            #
+# Made by DiamondGotCat, Licensed under MIT License               #
+# Copyright (c) 2025 DiamondGotCat                                #
+# ---------------------------------------------- DiamondGotCat -- #
+
+print("Welcome to PyYPSH's Example Script: basic.ypsh")
+
+func greetings(name: str) {
+    print("Hello, \(name)!")
+}
+
+import("shell")
+greetings(%("whoami").stdout.strip())

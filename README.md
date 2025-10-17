@@ -26,6 +26,10 @@ Python has a large number of libraries, so it's only natural that you'd want to 
 
 The PyYPSH interpreter offers features that are only possible because it's based on Python, such as direct import of Python libraries.
 
+## About Windows 11
+Windows 11 has recently caused many issues, and I do not believe that PyYPSH will continue to function properly.
+It might work, but I will not address any issues that arise on Windows 11 in the future.
+
 ## Building PyYPSH
 
 ### NABS (Nercone Automatic Building System)

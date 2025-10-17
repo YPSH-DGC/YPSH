@@ -1,9 +1,0 @@
-template X {
-    func hello(self) {
-        print("hello")
-    }
-}
-class Y: X {
-}
-var y1 = Y()
-y1.hello()
