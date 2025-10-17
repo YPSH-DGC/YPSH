@@ -30,7 +30,6 @@ The PyYPSH interpreter offers features that are only possible because it's based
 
 ### NABS (Nercone Automatic Building System)
 
-
 ### Pre-built Executables
 PyYPSH uses GitHub Actions to automatically run NABS after each release.<br>
 Thanks to this, in most environments you won't need to build it manually. However, in some environments, certain features may not function properly.<br>
@@ -49,14 +48,22 @@ The pre-built executables can be downloaded from GitHub's Release tab or from th
 |             | Setup   | x86_64  | Not Tested        | GUI does not work | Not tested     | 
 |             | Setup   | aarch64 | GUI does not work | Not Tested        | Not tested     | 
 
-### Manual Building on Your Env
+### Building on Your Env
 If you want to run and build NABS locally, follow these steps:
 1. Install Python 3.9 or later (Python 3.12 or later is recommended).
 2. Create and activate a Python virtual environment (using pyenv, venv, uv, anaconda, miniconda, etc.). Since NABS installs dependencies automatically, do this if you want to build in a different environment.
-3. Prepare a configuration file (used by the Configurator to configure PyYPSH). If not provided, defaults will be applied.
+3. Prepare a configuration file (used by the configurator.py` to configure PyYPSH). If not provided, defaults will be applied.
 4. Install `rich` and `ulid-py` (using pip, uv, or any other package manager that supports PyPI).
-5. Run the Configurator (`configurator.py`). (You can specify the config file using the `-c` option.)
-6. Run NABS (`nabs.py`). (You can set the output filepath using the `-o` option.)
+5. Run the `configurator.py`. (You can specify the config file using the `-c` option.)
+6. Run `nabs.py` (with `-m pyinstaller` or `-m nuitka`). (You can set the output filepath using the `-o` option.)
+
+### PyInstaller vs Nuitka
+Both PyInstaller and Nuitka are tools for distributing Python scripts as executable files, but they work in completely different ways.
+PyInstaller converts Python scripts into executable files while maintaining full compatibility by including the Python interpreter and all necessary modules.
+Nuitka uses the Python interpreter's C API to control most Python functions from C.
+Python syntax and functions that Nuitka does not support cannot be executed.
+However, Nuitka uses C language more extensively than PyInstaller, making it somewhat faster to run.
+If compatibility is important, use PyInstaller; if speed is important, use Nuitka.
 
 ### DGC-AutoBuild
 Previously, Used "DGC-AutoBuild," an automated build system that utilizes GitHub Actions.
