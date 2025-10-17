@@ -1414,16 +1414,16 @@ class Interpreter:
         self.docs[key] = content
 
     def module_enable(self, id):
-        if id.strip().lower().replace("-", "_") in ["min", "minimal"]:
+        if id.strip().lower().replace("-", "_").replace(" ", "_") in ["min", "minimal"]:
             self.module_enable("system")
 
-        elif id.strip().lower().replace("-", "_") in ["", "default"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["", "default"]:
             self.module_enable("minimal")
             self.module_enable("system_extra")
             self.module_enable("import")
             self.module_enable("docs")
 
-        elif id.strip().lower().replace("-", "_") in ["egg", "knowledge"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["egg", "knowledge"]:
             print("""
 Words exist to express and communicate something.
 A programming language is a syntax used to convey something to a computer.
@@ -1433,7 +1433,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 - 2025 DiamondGotCat
                   """.strip())
 
-        elif id.strip().lower().replace("-", "_") in ["sys", "system"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["sys", "system"]:
             self.enabled_builtin_modules.append("system")
 
             self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
@@ -1467,7 +1467,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "Error.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
             self.ypsh_def("@", "Exception.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
 
-        elif id.strip().lower().replace("-", "_") in ["extra", "system_extra"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["extra", "system_extra"]:
             self.enabled_builtin_modules.append("system_extra")
 
             self.ypsh_def("@", "min", min)
@@ -1774,12 +1774,12 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             self.ypsh_def("@", "import", import_main)
 
-        elif id.strip().lower().replace("-", "_") in ["docs"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["docs"]:
             self.enabled_builtin_modules.append("docs")
             self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Built-in Documentation")
             self.ypsh_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'ypsh.version') and content, to YPSH's Built-in Documentation")
 
-        elif id.strip().lower().replace("-", "_") in ["env"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["env"]:
             self.enabled_builtin_modules.append("env")
             global get_system_env
             def get_system_env(id):
@@ -1787,7 +1787,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return os.environ.get(id, None)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
-        elif id.strip().lower().replace("-", "_") in ["shell"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["shell"]:
             self.enabled_builtin_modules.append("shell")
             self.ypsh_def("@", "%", shell_exec)
             self.ypsh_def("shell", "run", shell_exec)
@@ -1798,7 +1798,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return True
             self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
 
-        elif id.strip().lower().replace("-", "_") in ["types"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["types"]:
             self.enabled_builtin_modules.append("types")
             self.ypsh_def("@", "str", str)
             self.ypsh_def("@", "int", int)
