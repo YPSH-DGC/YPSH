@@ -59,10 +59,10 @@ If you want to run and build NABS locally, follow these steps:
 
 ### PyInstaller vs Nuitka
 Both PyInstaller and Nuitka are tools for distributing Python scripts as executable files, but they work in completely different ways.
-PyInstaller converts Python scripts into executable files while maintaining full compatibility by including the Python interpreter and all necessary modules.
-Nuitka uses the Python interpreter's C API to control most Python functions from C.
-Python syntax and functions that Nuitka does not support cannot be executed.
-However, Nuitka uses C language more extensively than PyInstaller, making it somewhat faster to run.
+PyInstaller bundles Python scripts with the Python interpreter and all required modules into a single executable, ensuring full compatibility.
+Nuitka translates Python code into C code that uses the CPython C API to execute Python semantics at the C level.
+Nuitka supports almost all Python syntax and standard libraries, though a few highly dynamic features may have limited support.
+Because Nuitka compiles Python code into C and then into machine code, it can run faster than PyInstaller-based executables.
 If compatibility is important, use PyInstaller; if speed is important, use Nuitka.
 
 ### DGC-AutoBuild
