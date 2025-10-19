@@ -6,7 +6,7 @@
 > Also, if someone else has already created an issue, I would be thankful if you could create a pull request that immediately addresses the problem, if you're able to.
 > (This message is displayed in some repositories created by Nercone. Translated by GPT-4o.)
 
-<img width="1920" alt="YPSH Logo from 2025-09-21 (Connected)" src="https://github.com/user-attachments/assets/c1cff788-fa95-49bf-965d-b4f3beb0f3f4" />
+<img width="1920" alt="YPSH Header Black v26" src="https://github.com/user-attachments/assets/a5f7b3e5-97df-4eca-9062-44ef649ce923" />
 
 ---
 
