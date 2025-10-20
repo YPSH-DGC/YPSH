@@ -7,5 +7,3 @@ certifi
 prompt_toolkit
 pygments
 psutil
-pynvml; platform_system != "Darwin"
-torch
