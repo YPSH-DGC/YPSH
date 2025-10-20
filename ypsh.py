@@ -2787,6 +2787,8 @@ def repl():
                 result = interpreter.interpret(ast)
                 if result is not None:
                     print(result)
+            except KeyboardInterrupt:
+                print()
             except Exception as e:
                 rich_print(f"[red]{e}[/red]")
             finally:
@@ -2843,6 +2845,8 @@ def repl():
                 result = interpreter.interpret(ast)
                 if result is not None:
                     print(result)
+            except KeyboardInterrupt:
+                print()
             except Exception as e:
                 rich_print(f"[red]{e}[/red]")
             finally:
