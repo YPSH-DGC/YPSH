@@ -2264,7 +2264,7 @@ class MemoryManager:
     @staticmethod
     def _vram_info():
         try:
-            import pynvml
+            import pynvml # type: ignore
             pynvml.nvmlInit()
             h = pynvml.nvmlDeviceGetHandleByIndex(0)
             mem = pynvml.nvmlDeviceGetMemoryInfo(h)
