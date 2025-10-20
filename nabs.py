@@ -140,7 +140,7 @@ def main() -> int:
                 log.info("Started: Cleaning")
                 remove_it("build/", "*.spec", "*.onefile-build/")
                 log.info("Completed: Cleaning")
-            return result.get("returncode", 1)
+            return result.get("returncode", 0)
         elif args.mode.lower() == "nuitka":
             log.info("Started: Building with Nuitka")
             cwd = pathlib.Path.cwd()
@@ -167,7 +167,7 @@ def main() -> int:
                 log.info("Started: Cleaning")
                 remove_it("*.build/", "*.dist/", "*.onefile-build/")
                 log.info("Completed: Cleaning")
-            return result.get("returncode", 1)
+            return result.get("returncode", 0)
         elif args.mode.lower() == "show_help":
             parser.print_help()
             return 1
