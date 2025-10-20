@@ -19,7 +19,9 @@ YPSH_OPTIONS_DICT = {
         "arch.id": "PYANY"
     },
     "runtime.options": {
-        "default_language": "en"
+        "default_language": "en",
+        "auto_gc": True,
+        "collect_after_toplevel": False
     }
 }
 
@@ -28,15 +30,18 @@ YPSH_OPTIONS_DICT = {
 from os.path import expanduser
 from rich.console import Console
 from rich.markup import escape
+from rich.traceback import Traceback
+import traceback as py_tb
 from dotenv import load_dotenv
 from typing import Optional, Callable, Any
-import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat
+import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat, gc, weakref, tracemalloc
 try:
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.lexers import PygmentsLexer
+    from prompt_toolkit.lexers import Lexer, PygmentsLexer
     from prompt_toolkit.completion import Completer, Completion
     from prompt_toolkit.styles.pygments import style_from_pygments_dict
     from pygments.lexer import RegexLexer, bygroups
+    from pygments.lexers import get_lexer_by_name
     import pygments.token as PygTok
     _YPSH_HAS_PTK = True
 except Exception:
@@ -57,15 +62,15 @@ class YPSH_OPTIONS:
         self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
         self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en')
         self.runtime_autorun_script: str = content.get('runtime.options', {}).get('autorun_script', None)
+        self.runtime_auto_gc: str = content.get('runtime.options', {}).get('auto_gc', True)
+        self.runtime_collect_after_toplevel: str = content.get('runtime.options', {}).get('collect_after_toplevel', False)
 ypsh_options = YPSH_OPTIONS(YPSH_OPTIONS_DICT)
 SHELL_NAME = f"YPShell-{''.join(map(str, ypsh_options.product_release_version))}".strip()
 SHELL_CWD = os.getcwd()
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
 YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
 
-##############################
-# Helper
-##############################
+# -- Helpers ----------------------------------------
 def unescape_string_literal(s: str) -> str:
      with warnings.catch_warnings():
          warnings.filterwarnings(
@@ -97,9 +102,17 @@ def return_ypsh_exec_folder() -> str:
         else:
             return os.path.dirname(os.path.abspath(__file__))
 
-##############################
-# Shell Execution
-##############################
+def _pygments_token_to_style_str(tok):
+    parts = []
+    t = tok
+    while getattr(t, "parent", None) is not None:
+        if getattr(t, "shortname", None):
+            parts.append(t.shortname)
+        t = t.parent
+    parts.reverse()
+    return "class:pygments." + ".".join(p.lower() for p in parts) if parts else "class:pygments.text"
+
+# -- Shell Execution --------------------------------
 class ShellExecutionResult():
     def __init__(self, return_code: int = 0, stdout: str = "", stderr: str = ""):
         self.code = return_code
@@ -141,11 +154,9 @@ def shell_exec(command: str, check: bool = True, env: dict = os.environ.copy()) 
             stderr = e.stderr
     return ShellExecutionResult(return_code=return_code, stdout=stdout, stderr=stderr)
 
-##############################
-# Exceptions
-##############################
+# -- Exceptions -------------------------------------
 class YPSHException(Exception):
-    def __init__(self, location: str = "YPSH", level: str = "E", ecode: str = "0000", name: str = "GeneralError", desc = None):
+    def __init__(self, location: str = "APP", level: str = "C", ecode: str = "0000", name: str = "GeneralError", desc = None):
         if isinstance(name, dict) and desc is None:
             desc, name = name, "GeneralError"
         if desc is None:
@@ -198,34 +209,34 @@ class YPSHException(Exception):
 ExceptionPrintingLevel = "W"
 
 BUILTIN_EXCEPTION_SPEC = {
-    "E0000": YPSHException("YPSH", "E", "0000", "UnknownError", {"en": "Unknown Error", "ja": "不明なエラー"}),
-    "E0001": YPSHException("YPSH", "E", "0001", "SyntaxError", {"en": "Unexpected character {value!r} at line {line_num}.", "ja": "予想外の文字「{value!r}」が{line_num}行目に存在します。"}),
-    "E0002": YPSHException("YPSH", "E", "0002", "SyntaxError", {"en": "Unexpected end of input.", "ja": "入力の終端に達しました。"}),
-    "E0003": YPSHException("YPSH", "E", "0003", "SyntaxError", {"en": "Expected token {token_type} but got {token}.", "ja": "{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"}),
-    "E0004": YPSHException("YPSH", "E", "0004", "SyntaxError", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"}),
-    "E0005": YPSHException("YPSH", "E", "0005", "SyntaxError", {"en": "Expected 'catch' after 'do' block.","ja": "'do' ブロックの後に 'catch' が必要です。"}),
-    "E0006": YPSHException("YPSH", "E", "0006", "SyntaxError", {"en": "Unexpected token {token}.", "ja": "予想外のトークン: {token}"}),
-    "E0007": YPSHException("YPSH", "E", "0007", "KeyError", {"en": "Invalid dictionary key: {key_token}.", "ja": "辞書のキーが無効です: {key_token}"}),
-    "E0008": YPSHException("YPSH", "E", "0008", "ScopeError", {"en": "Cannot find '{name}' in scope.", "ja": "'{name}'がスコープに見つかりません。"}),
-    "E0009": YPSHException("YPSH", "E", "0009", "ArgumentError", {"en": "Function argument count mismatch.", "ja": "関数で定義されている引数の設定と、実際に受け取った引数が一致しません。"}),
-    "E0010": YPSHException("YPSH", "E", "0010", "TypeError", {"en": "Return type mismatch in function '{self.decl.name}': expected '{return_type}', got '{type(e.value).__name__}'", "ja": "関数 '{self.decl.name}' の戻り値の型が一致しません: '{return_type}' を期待していましたが、'{type(e.value).__name__}' でした。"}),
-    "E0011": YPSHException("YPSH", "E", "0011", "ArgumentError", {"en": "__init__ expects {len(params)-1} arg(s)", "ja": "__init__ は {len(params)-1} 個の引数を要求します"}),
-    "E0012": YPSHException("YPSH", "E", "0012", "ExpressionError", {"en": "Invalid embedded expression: {expr_src}", "ja": "埋め込み式が不正です: {expr_src}"}),
-    "E0013": YPSHException("YPSH", "E", "0013", "InterpolationError", {"en": "String interpolation failed: {e}", "ja": "文字列埋め込みの評価に失敗しました: {e}"}),
-    "E0014": YPSHException("YPSH", "E", "0014", "TypeError", {"en": "Expected '{id}' to be a list.", "ja": "'{id}' の種類はlistではありません。"}),
-    "E0015": YPSHException("YPSH", "E", "0015", "ImportError", {"en": "File not found: {file_path}.", "ja": "ファイルが存在しません: {file_path}"}),
-    "E0016": YPSHException("YPSH", "E", "0016", "ImportError", {"en": "Cannot find this Module(s)/Library(s): [{', '.join(not_founds)}]", "ja": "次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]"}),
-    "E0017": YPSHException("YPSH", "E", "0017", "TypeError", {"en": "Type mismatch for variable '{node.name}': expected '{expected_type}', got '{type(value).__name__}'", "ja": "変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{type(value).__name__}' でした。"}),
-    "E0018": YPSHException("YPSH", "E", "0018", "TypeError", {"en": "Base {node.base} is not template", "ja": "基底 {node.base} は template ではありません"}),
-    "E0019": YPSHException("YPSH", "E", "0019", "TypeError", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"}),
-    "E0020": YPSHException("YPSH", "E", "0020", "KeyError", {"en": "Object has no attribute '{node.name}'", "ja": "属性 '{node.name}' は存在しません"}),
-    "E0021": YPSHException("YPSH", "E", "0021", "KeyError", {"en": "Cannot access index/key '{index}' on {collection}", "ja": "{collection} に対してインデックス/キー '{index}' を取得できません"}),
-    "E0022": YPSHException("YPSH", "E", "0022", "SyntaxError", {"en": "Unknown operator: {node.op}.", "ja": "未知の演算子: {node.op}"}),
-    "E0023": YPSHException("YPSH", "E", "0023", "SyntaxError", {"en": "Unknown unary operator {node.op}.", "ja": "未知の単項演算子: {node.op}"}),
-    "E0024": YPSHException("YPSH", "E", "0024", "TypeError", {"en": "Attempting to call a non-callable object.", "ja": "呼び出し不可能なオブジェクトを呼び出そうとしました。"}),
-    "E0025": YPSHException("YPSH", "E", "0025", "EvaluationError", {"en": "Cannot evaluate node {node}.", "ja": "{node} を処理できません。"}),
-    "E0026": YPSHException("YPSH", "E", "0026", "ScopeError", {"en": "Cannot find function '{name}' in scope.", "ja": "関数 '{name}' がスコープ内に存在しません。"}),
-    "E0027": YPSHException("YPSH", "E", "0027", "ConstAssignmentError", {"en": "Cannot assign to read-only variable '{name}'.", "ja": "読み取り専用変数 '{name}' には代入できません。"})
+    "E0000": YPSHException("YPSH", "C", "0000", "UnknownError", {"en": "Unknown Error", "ja": "不明なエラー"}),
+    "E0001": YPSHException("YPSH", "C", "0001", "SyntaxError", {"en": "Unexpected character {value!r} at line {line_num}.", "ja": "予想外の文字「{value!r}」が{line_num}行目に存在します。"}),
+    "E0002": YPSHException("YPSH", "C", "0002", "SyntaxError", {"en": "Unexpected end of input.", "ja": "入力の終端に達しました。"}),
+    "E0003": YPSHException("YPSH", "C", "0003", "SyntaxError", {"en": "Expected token {token_type} but got {token}.", "ja": "{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"}),
+    "E0004": YPSHException("YPSH", "C", "0004", "SyntaxError", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"}),
+    "E0005": YPSHException("YPSH", "C", "0005", "SyntaxError", {"en": "Expected 'catch' after 'do' block.","ja": "'do' ブロックの後に 'catch' が必要です。"}),
+    "E0006": YPSHException("YPSH", "C", "0006", "SyntaxError", {"en": "Unexpected token {token}.", "ja": "予想外のトークン: {token}"}),
+    "E0007": YPSHException("YPSH", "C", "0007", "KeyError", {"en": "Invalid dictionary key: {key_token}.", "ja": "辞書のキーが無効です: {key_token}"}),
+    "E0008": YPSHException("YPSH", "C", "0008", "ScopeError", {"en": "Cannot find '{name}' in scope.", "ja": "'{name}'がスコープに見つかりません。"}),
+    "E0009": YPSHException("YPSH", "C", "0009", "ArgumentError", {"en": "Function argument count mismatch.", "ja": "関数で定義されている引数の設定と、実際に受け取った引数が一致しません。"}),
+    "E0010": YPSHException("YPSH", "C", "0010", "TypeError", {"en": "Return type mismatch in function '{self.decl.name}': expected '{return_type}', got '{type(e.value).__name__}'", "ja": "関数 '{self.decl.name}' の戻り値の型が一致しません: '{return_type}' を期待していましたが、'{type(e.value).__name__}' でした。"}),
+    "E0011": YPSHException("YPSH", "C", "0011", "ArgumentError", {"en": "__init__ expects {len(params)-1} arg(s)", "ja": "__init__ は {len(params)-1} 個の引数を要求します"}),
+    "E0012": YPSHException("YPSH", "C", "0012", "ExpressionError", {"en": "Invalid embedded expression: {expr_src}", "ja": "埋め込み式が不正です: {expr_src}"}),
+    "E0013": YPSHException("YPSH", "C", "0013", "InterpolationError", {"en": "String interpolation failed: {e}", "ja": "文字列埋め込みの評価に失敗しました: {e}"}),
+    "E0014": YPSHException("YPSH", "C", "0014", "TypeError", {"en": "Expected '{id}' to be a list.", "ja": "'{id}' の種類はlistではありません。"}),
+    "E0015": YPSHException("YPSH", "C", "0015", "ImportError", {"en": "File not found: {file_path}.", "ja": "ファイルが存在しません: {file_path}"}),
+    "E0016": YPSHException("YPSH", "C", "0016", "ImportError", {"en": "Cannot find Module(s)/Library(s): [{', '.join(not_founds)}]", "ja": "次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]"}),
+    "E0017": YPSHException("YPSH", "C", "0017", "TypeError", {"en": "Type mismatch for variable '{node.name}': expected '{expected_type}', got '{type(value).__name__}'", "ja": "変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{type(value).__name__}' でした。"}),
+    "E0018": YPSHException("YPSH", "C", "0018", "TypeError", {"en": "Base {node.base} is not template", "ja": "基底 {node.base} は template ではありません"}),
+    "E0019": YPSHException("YPSH", "C", "0019", "TypeError", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"}),
+    "E0020": YPSHException("YPSH", "C", "0020", "KeyError", {"en": "Object has no attribute '{node.name}'", "ja": "属性 '{node.name}' は存在しません"}),
+    "E0021": YPSHException("YPSH", "C", "0021", "KeyError", {"en": "Cannot access index/key '{index}' on {collection}", "ja": "{collection} に対してインデックス/キー '{index}' を取得できません"}),
+    "E0022": YPSHException("YPSH", "C", "0022", "SyntaxError", {"en": "Unknown operator: {node.op}.", "ja": "未知の演算子: {node.op}"}),
+    "E0023": YPSHException("YPSH", "C", "0023", "SyntaxError", {"en": "Unknown unary operator {node.op}.", "ja": "未知の単項演算子: {node.op}"}),
+    "E0024": YPSHException("YPSH", "C", "0024", "TypeError", {"en": "Attempting to call a non-callable object.", "ja": "呼び出し不可能なオブジェクトを呼び出そうとしました。"}),
+    "E0025": YPSHException("YPSH", "C", "0025", "EvaluationError", {"en": "Cannot evaluate node {node}.", "ja": "{node} を処理できません。"}),
+    "E0026": YPSHException("YPSH", "C", "0026", "ScopeError", {"en": "Cannot find function '{name}' in scope.", "ja": "関数 '{name}' がスコープ内に存在しません。"}),
+    "E0027": YPSHException("YPSH", "C", "0027", "ConstAssignmentError", {"en": "Cannot assign to read-only variable '{name}'.", "ja": "読み取り専用変数 '{name}' には代入できません。"})
 }
 
 def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_escape: bool = False) -> YPSHException:
@@ -241,24 +252,29 @@ def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_esca
         args = {}
     return new_exc.format(args).escape(need_escape)
 
-def exception_handler(exception: Exception, level: str = None):
+def exception_handler(exception: Exception, level: str = None, check: bool = True):
     final_level = "W"
     if isinstance(exception, YPSHException):
         final_level = exception.level[0].upper()
     if level:
         final_level = level[0].upper()
-    if final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
-        raise exception
+    if final_level == "C" and not check:
+        final_level = "E"
+        if isinstance(exception, YPSHException):
+            exception.level = "E"
+    if final_level == "C" and ExceptionPrintingLevel in ["C", "E", "W", "I", "D"]:
+        rich_print(f"[on red]{str(exception)}[/]")
+        if check: raise SystemExit(1)
+    elif final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
+        rich_print(f"[red]{str(exception)}[/]")
     elif final_level == "W" and ExceptionPrintingLevel in ["W", "I", "D"]:
-        print(str(exception))
+        rich_print(f"[yellow]{str(exception)}[/]")
     elif final_level == "I" and ExceptionPrintingLevel in ["I", "D"]:
-        print(str(exception))
+        rich_print(f"[blue]{str(exception)}[/]")
     elif final_level == "D" and ExceptionPrintingLevel in ["D"]:
-        print(str(exception))
+        rich_print(f"[cyan]{str(exception)}[/]")
 
-##############################
-# Tokens
-##############################
+# -- Tokens -----------------------------------------
 TOKEN_SPEC = [
     ('NEWLINE',  r'\n'),
     ('SKIP',     r'[ \t]+'),
@@ -331,9 +347,7 @@ def tokenize(code, collect_errors=False):
             tokens.append(Token(kind, value, line_num))
     return (tokens, errors) if collect_errors else tokens
 
-##############################
-# AST
-##############################
+# -- AST --------------------------------------------
 class ASTNode:
     pass
 
@@ -523,9 +537,7 @@ class AugAssign(ASTNode):
         self.expr = expr
         self.target = target
 
-##############################
-# Perser
-##############################
+# -- Parser -----------------------------------------
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -1017,9 +1029,7 @@ class BreakException(Exception):
 class ContinueException(Exception):
     pass
 
-##############################
-# Interpreter
-##############################
+# -- Interpreter ------------------------------------
 class Environment:
     def __init__(self, parent=None):
         self.vars = {}
@@ -1062,12 +1072,12 @@ class Environment:
         target = self._root() if intent == 'global' else self
         target._declare_here(name, value, const=is_const, record_local=(target is self))
 
-    def get(self, name: str):
+    def get(self, name: str, check: bool = True):
         if name in self.vars:
             return self.vars[name]
         if self.parent:
-            return self.parent.get(name)
-        exception_handler(get_builtin_exception("E0008", {"name": name}))
+            return self.parent.get(name, check=True)
+        exception_handler(get_builtin_exception("E0008", {"name": name}), check=check)
 
     def get_intent(self, name: str) -> Optional[str]:
         env = self
@@ -1101,6 +1111,11 @@ class Environment:
         dying = self._block_stack.pop()
         for name in dying:
             self.unset(name)
+        if ypsh_options.runtime_auto_gc:
+            try:
+                gc.collect()
+            except Exception:
+                pass
 
 class Function:
     def __init__(self, decl, env):
@@ -1341,13 +1356,9 @@ class Interpreter:
 
     def ypsh_def(self, module, id, content, desc=None):
         if module in ["@", "root"]:
-            try:
-                self.ypsh_globals.get("root")
-            except YPSHException:
+            if self.ypsh_globals._find_holder("root") is None:
                 self.ypsh_globals.set("root", [])
-            try:
-                self.ypsh_globals.get("@")
-            except YPSHException:
+            if self.ypsh_globals._find_holder("@") is None:
                 self.ypsh_globals.set("@", [])
 
             self.append_global_env_var_list("root", id)
@@ -1358,9 +1369,7 @@ class Interpreter:
             self.docs[f"root.{id}"] = desc
             self.docs[f"@.{id}"] = desc
         else:
-            try:
-                self.ypsh_globals.get(module)
-            except YPSHException:
+            if self.ypsh_globals._find_holder(module) is None:
                 self.ypsh_globals.set(module, [])
 
             self.append_global_env_var_list(module, id)
@@ -1372,14 +1381,14 @@ class Interpreter:
             self.ypsh_globals.unset(f"root.{id}")
             self.ypsh_globals.unset(f"@.{id}")
             self.ypsh_globals.unset(f"{id}")
-            self.docs.pop(f"root.{id}")
-            self.docs.pop(f"@.{id}")
+            self.docs.pop(f"root.{id}", None)
+            self.docs.pop(f"@.{id}", None)
 
         elif (module == id) or (id is None):
-            try:
-                members = list(self.ypsh_globals.get(module))
-            except YPSHException:
+            holder = self.ypsh_globals._find_holder(module)
+            if holder is None:
                 return
+            members = list(holder.vars.get(module, []))
 
             for member in members:
                 full_key = f"{module}.{member}"
@@ -1390,17 +1399,17 @@ class Interpreter:
             self.docs.pop(module, None)
 
         else:
-            try:
-                members = list(self.ypsh_globals.get(module))
-            except YPSHException:
+            holder = self.ypsh_globals._find_holder(module)
+            if holder is None:
                 return
+            members = list(holder.vars.get(module, []))
 
             if id in members:
                 members.remove(id)
                 self.ypsh_globals.set(module, members)
 
             self.ypsh_globals.unset(f"{module}.{id}")
-            self.docs.pop(f"{module}.{id}")
+            self.docs.pop(f"{module}.{id}", None)
 
     def get_doc(self, key):
         try:
@@ -1467,6 +1476,12 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "Error.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
             self.ypsh_def("@", "Exception.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
 
+            def error_level_set(level="W"):
+                global ExceptionPrintingLevel
+                ExceptionPrintingLevel = level
+            self.ypsh_def("@", "Error.level.set", error_level_set, desc="Set a Exception Level for Exception Printing.")
+            self.ypsh_def("@", "Exception.level.set", error_level_set, desc="Set a Exception Level for Exception Printing.")
+
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["extra", "system_extra"]:
             self.enabled_builtin_modules.append("system_extra")
 
@@ -1531,6 +1546,32 @@ Those who use them wisely, without abuse, are the true users of computers.
                 else:
                     return range(start, end+1)
             self.ypsh_def("@", "range", ypsh_range)
+
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["memory"]:
+            self.enabled_builtin_modules.append("memory")
+            mem = MemoryManager(self)
+
+            self.ypsh_def("memory", "info", mem.info, desc="Return RAM/VRAM/process memory usage.")
+            self.ypsh_def("memory", "gc", mem.gc, desc="Force Python GC (and CUDA cache if available).")
+            self.ypsh_def("memory", "deep_size", mem.deep_size, desc="Approximate deep size of an object.")
+            self.ypsh_def("memory", "vars.usage", mem.vars_usage, desc="List variable sizes across environments.")
+            self.ypsh_def("memory", "clear", mem.clear, desc="Delete variables and run GC. ('all' or [names])")
+            self.ypsh_def("memory", "limit.set", mem.set_limit, desc="Set soft limit (bytes or percent).")
+            self.ypsh_def("memory", "alloc", mem.alloc, desc="Allocate a bytearray of size n.")
+            self.ypsh_def("memory", "free", mem.free, desc="Free an allocated object by dropping references.")
+
+            def _auto_gc_set(flag=True):
+                global ypsh_options
+                ypsh_options.runtime_auto_gc = bool(flag)
+                return ypsh_options.runtime_auto_gc
+            self.ypsh_def("memory", "auto_gc.set", _auto_gc_set, desc="Enable/disable automatic GC after block exit.")
+
+            def _collect_after_toplevel(flag=False):
+                global ypsh_options
+                ypsh_options.runtime_collect_after_toplevel = bool(flag)
+                return ypsh_options.runtime_collect_after_toplevel
+            self.ypsh_def("memory", "collect.after_toplevel", _collect_after_toplevel,
+                          desc="Run GC after each top-level statement (may be slow).")
 
         elif id == "import":
             import importlib
@@ -1863,9 +1904,20 @@ Those who use them wisely, without abuse, are the true users of computers.
             for stmt in node.statements:
                 self._current_env = self.ypsh_globals
                 result = self.execute(stmt, self.ypsh_globals)
+                if ypsh_options.runtime_collect_after_toplevel:
+                    try:
+                        gc.collect()
+                    except Exception:
+                        pass
             return result
         self._current_env = self.ypsh_globals
-        return self.execute(node, self.ypsh_globals)
+        result = self.execute(node, self.ypsh_globals)
+        if ypsh_options.runtime_collect_after_toplevel:
+            try:
+                gc.collect()
+            except Exception:
+                pass
+        return result
 
     def execute(self, node, env):
         self._current_env = env
@@ -2156,9 +2208,178 @@ Those who use them wisely, without abuse, are the true users of computers.
         else:
             exception_handler(get_builtin_exception("E0025", {"node": node}))
 
-##############################
-# YPSH Linting System
-##############################
+# -- RAM/VRAM Management ----------------------------
+class MemoryManager:
+    def __init__(self, interpreter: "Interpreter"):
+        self.interp = interpreter
+        self._soft_limit_bytes = None
+        self._track = True
+        try:
+            tracemalloc.start()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _psutil_mem():
+        try:
+            import psutil
+            vm = psutil.virtual_memory()
+            proc = psutil.Process(os.getpid()).memory_info()
+            return {
+                "ram_total": vm.total,
+                "ram_available": vm.available,
+                "ram_used": vm.used,
+                "ram_percent": vm.percent,
+                "proc_rss": proc.rss,
+                "proc_vms": proc.vms
+            }
+        except Exception:
+            info = {"ram_total": None, "ram_available": None, "ram_used": None, "ram_percent": None,
+                    "proc_rss": None, "proc_vms": None}
+            try:
+                import resource
+                usage = resource.getrusage(resource.RUSAGE_SELF)
+                info["proc_rss"] = getattr(usage, "ru_maxrss", None)
+            except Exception:
+                pass
+            return info
+
+    @staticmethod
+    def _vram_info():
+        try:
+            import pynvml
+            pynvml.nvmlInit()
+            h = pynvml.nvmlDeviceGetHandleByIndex(0)
+            mem = pynvml.nvmlDeviceGetMemoryInfo(h)
+            total, used, free = mem.total, mem.used, mem.free
+            pynvml.nvmlShutdown()
+            return {"vram_total": total, "vram_used": used, "vram_free": free}
+        except Exception:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    i = torch.cuda.current_device()
+                    total = torch.cuda.get_device_properties(i).total_memory
+                    reserved = torch.cuda.memory_reserved(i)
+                    allocated = torch.cuda.memory_allocated(i)
+                    return {"vram_total": total, "vram_used": allocated, "vram_free": total - reserved}
+            except Exception:
+                pass
+        return {"vram_total": None, "vram_used": None, "vram_free": None}
+
+    def info(self):
+        data = self._psutil_mem()
+        data.update(self._vram_info())
+        try:
+            cur, peak = tracemalloc.get_traced_memory()
+            data["py_tracemalloc_current"] = cur
+            data["py_tracemalloc_peak"] = peak
+        except Exception:
+            pass
+        return data
+
+    def gc(self):
+        try:
+            return gc.collect()
+        finally:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+
+    def deep_size(self, obj, seen=None):
+        if seen is None:
+            seen = set()
+        try:
+            from sys import getsizeof
+        except Exception:
+            return 0
+        obj_id = id(obj)
+        if obj_id in seen:
+            return 0
+        seen.add(obj_id)
+        size = 0
+        try:
+            size += getsizeof(obj)
+        except Exception:
+            pass
+        from collections.abc import Mapping, Sequence
+        if isinstance(obj, Mapping):
+            for k, v in obj.items():
+                size += self.deep_size(k, seen) + self.deep_size(v, seen)
+        elif isinstance(obj, (set, frozenset, tuple, list, bytearray, bytes, memoryview, Sequence)) and not isinstance(obj, (str, bytes, bytearray)):
+            for it in obj:
+                size += self.deep_size(it, seen)
+        elif hasattr(obj, "__dict__"):
+            size += self.deep_size(vars(obj), seen)
+        return size
+
+    def _env_vars(self, env: Environment):
+        cur = env
+        while cur:
+            for k, v in cur.vars.items():
+                yield (cur, k, v)
+            cur = cur.parent
+
+    def vars_usage(self):
+        usage = []
+        root = self.interp.ypsh_globals._root()
+        for holder, name, val in self._env_vars(root):
+            usage.append({"name": name, "bytes": self.deep_size(val)})
+        usage.sort(key=lambda x: x["bytes"] or 0, reverse=True)
+        return usage
+
+    def clear(self, names=None):
+        root = self.interp.ypsh_globals._root()
+        protected_prefixes = {"@", "root", "ypsh", "docs"}
+        if names == "all":
+            targets = [n for n in list(root.vars.keys())
+                       if not any(n == p or n.startswith(p + ".") for p in protected_prefixes)]
+        elif isinstance(names, list):
+            targets = names
+        else:
+            return False
+
+        for n in targets:
+            root.unset(n)
+        self.gc()
+        return True
+
+    def set_limit(self, bytes: int | None = None, percent: float | None = None):
+        if bytes is not None:
+            self._soft_limit_bytes = int(bytes)
+            return self._soft_limit_bytes
+        if percent is not None:
+            mem = self._psutil_mem()
+            if mem["ram_total"]:
+                self._soft_limit_bytes = int(mem["ram_total"] * (percent / 100.0))
+                return self._soft_limit_bytes
+        return self._soft_limit_bytes
+
+    def alloc(self, n: int):
+        return bytearray(int(n))
+
+    def free(self, obj):
+        try:
+            del obj
+        except Exception:
+            pass
+        return self.gc()
+
+    def enable_tracking(self, flag: bool = True):
+        self._track = bool(flag)
+        try:
+            if self._track and not tracemalloc.is_tracing():
+                tracemalloc.start()
+            if not self._track and tracemalloc.is_tracing():
+                tracemalloc.stop()
+        except Exception:
+            pass
+        return self._track
+
+# -- YPSH Linting System ----------------------------
 
 class SemanticAnalyzer:
     def __init__(self):
@@ -2478,9 +2699,7 @@ if _YPSH_HAS_PTK:
             PygTok.Keyword:          "fg:#FFFFFF",
         })
 
-##############################
-# REPL / Script Executing / Other
-##############################
+# -- Script Executing -------------------------------
 def is_code_complete(code):
     try:
         tokens = tokenize(code)
@@ -2552,7 +2771,9 @@ def repl():
                 tokens = tokenize(accumulated_code)
                 parser = Parser(tokens)
                 ast    = parser.parse()
-                interpreter.interpret(ast)
+                result = interpreter.interpret(ast)
+                if result is not None:
+                    print(result)
             except Exception as e:
                 rich_print(f"[red]{e}[/red]")
             finally:
@@ -2606,7 +2827,9 @@ def repl():
                 tokens = tokenize(accumulated_code)
                 parser = Parser(tokens)
                 ast    = parser.parse()
-                interpreter.interpret(ast)
+                result = interpreter.interpret(ast)
+                if result is not None:
+                    print(result)
             except Exception as e:
                 rich_print(f"[red]{e}[/red]")
             finally:
@@ -2630,7 +2853,7 @@ def run_lint(code):
         console.print(f"[green]Lint Passed[/green]")
         raise SystemExit(0)
     else:
-        console.print(f"[red]Lint Failed ({len(errors)} Errors)[/red]")
+        console.print(f"[red]Lint Failed ({len(errors)} exception{'s' if len(errors) != 1 else ''})[/red]")
         counter = 1
         for err in errors:
             console.print(f"[red]{counter}. {err}[/red]")
@@ -2646,9 +2869,7 @@ def check_ypsh_scripts(*path_list, base: str = return_ypsh_exec_folder()) -> str
 
 #!checkpoint!
 
-##############################
-# Main
-##############################
+# -- Entry ------------------------------------------
 if __name__ == '__main__':
     args = sys.argv[1:]
     options = {}
