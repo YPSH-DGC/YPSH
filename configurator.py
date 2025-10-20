@@ -65,7 +65,7 @@ def config_python_script(scripts: dict, config: dict, release_tag: str = "v0.0.0
             "arch.id": platform_infos.get("arch","UKNWN")
         },
         "runtime.options": {
-            "default_language": "en"
+            "default_language": "en_US"
         }
     }
 

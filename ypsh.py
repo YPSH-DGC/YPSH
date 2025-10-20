@@ -19,7 +19,7 @@ YPSH_OPTIONS_DICT = {
         "arch.id": "PYANY"
     },
     "runtime.options": {
-        "default_language": "en",
+        "default_language": "en_US",
         "auto_gc": True,
         "collect_after_toplevel": False
     }
@@ -60,7 +60,7 @@ class YPSH_OPTIONS:
         self.product_release_version_text: str = f"{self.product_name} v{'.'.join(map(str, self.product_release_version))}"
         self.product_release_type: str = content.get('product.information', {}).get('release', {}).get('type', 'source')
         self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
-        self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en')
+        self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en_US')
         self.runtime_autorun_script: str = content.get('runtime.options', {}).get('autorun_script', None)
         self.runtime_auto_gc: str = content.get('runtime.options', {}).get('auto_gc', True)
         self.runtime_collect_after_toplevel: str = content.get('runtime.options', {}).get('collect_after_toplevel', False)
@@ -157,8 +157,6 @@ def shell_exec(command: str, check: bool = True, env: dict = os.environ.copy()) 
 # -- Exceptions -------------------------------------
 class YPSHException(Exception):
     def __init__(self, location: str = "APP", level: str = "C", ecode: str = "0000", name: str = "GeneralError", desc = None):
-        if isinstance(name, dict) and desc is None:
-            desc, name = name, "GeneralError"
         if desc is None:
             desc = {"en": "Unknown Error", "ja": "不明なエラー"}
         self.location = location
@@ -168,15 +166,33 @@ class YPSHException(Exception):
         self.desc = desc
         super().__init__(self.__str__())
 
+    def _pick_desc_text(self, preferred_lang: Optional[str]) -> str:
+        d = self.desc if isinstance(self.desc, dict) else {}
+        if not d:
+            return "No Description"
+        if preferred_lang and preferred_lang in d:
+            return d[preferred_lang]
+        def _primary(tag: str) -> str:
+            return str(tag).replace("_", "-").split("-")[0].lower()
+        if preferred_lang:
+            pref_primary = _primary(preferred_lang)
+            for k in d.keys():
+                if _primary(k) == pref_primary:
+                    return d[k]
+        if "en" in d:
+            return d["en"]
+        if "default" in d:
+            return d["default"]
+        try:
+            return next(iter(d.values()))
+        except StopIteration:
+            pass
+        return "No Description"
+
     def __str__(self):
-        if ypsh_options.runtime_default_language in self.desc.keys():
-            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc[ypsh_options.runtime_default_language]}"
-        elif "default" in self.desc.keys():
-            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc['default']}"
-        elif "en" in self.desc.keys():
-            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {self.desc['en']}"
-        else:
-            return f"<{self.location}:{self.level}{self.ecode}> {self.name}: No Description"
+        lang = ypsh_options.runtime_default_language
+        text = self._pick_desc_text(lang)
+        return f"<{self.location}:{self.level}{self.ecode}> {self.name}: {text}"
 
     def __getitem__(self, key: str):
         if key == "full":
@@ -190,18 +206,19 @@ class YPSHException(Exception):
         elif key == "name":
             return self.name
         elif key == "desc":
-            return self.desc.get(ypsh_options.runtime_default_language, self.desc.get("en", ""))
+            lang = ypsh_options.runtime_default_language
+            return self._pick_desc_text(lang)
         else:
             raise KeyError(key)
 
     def format(self, items: dict[str, Any] = {}):
-        for lang in self.desc.keys():
+        for lang in (self.desc.keys() if isinstance(self.desc, dict) else []):
             for key in items:
                 self.desc[lang] = self.desc[lang].replace("{" + key + "}", str(items[key]))
         return self
 
     def escape(self, flag: bool = False):
-        if flag:
+        if flag and isinstance(self.desc, dict):
             for lang in self.desc.keys():
                 self.desc[lang] = escape(self.desc[lang])
         return self

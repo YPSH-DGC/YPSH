@@ -41,17 +41,21 @@ Thanks to this, in most environments you won't need to build it manually. Howeve
 If you want to ensure everything works reliably, please refer to the "Manual Building on Your Env" section and build it in the environment where you plan to use it—or in an identical environment.<br>
 The pre-built executables can be downloaded from GitHub's Release tab or from the [Download the PyYPSH](https://ypsh.diamondgotcat.net/download) page.
 
-**Current status of pre-built executables:**
+**Build status of the pre-built executables:**
+
+You can see the pre-build status of PyYPSH Runtime [here](https://github.com/YPSH-DGC/YPSH/actions/workflows/build-runtime.yml), and PyYPSH Setup [here](https://github.com/YPSH-DGC/YPSH/actions/workflows/build-setup.yml).
+
+**Verification results of the pre-built executables:**
 |             |         |         | macOS             | Windows           | Linux          | 
 | ----------- | ------- | ------- | ----------------- | ----------------- | -------------- | 
 | PyInstaller | Runtime | x86_64  | Not Tested        | Works properly    | Works properly | 
-|             | Runtime | aarch64 | Works properly    | Not Tested        | Not Tested     | 
+|             |         | aarch64 | Works properly    | Not Tested        | Not Tested     | 
 |             | Setup   | x86_64  | Not Tested        | Works properly    | Works properly | 
-|             | Setup   | aarch64 | Works properly    | Not Tested        | Not Tested     | 
+|             |         | aarch64 | Works properly    | Not Tested        | Not Tested     | 
 | Nuitka      | Runtime | x86_64  | Not Tested        | Works properly    | Works properly | 
-|             | Runtime | aarch64 | Works properly    | Not Tested        | Not Tested     | 
+|             |         | aarch64 | Works properly    | Not Tested        | Not Tested     | 
 |             | Setup   | x86_64  | Not Tested        | GUI does not work | Not tested     | 
-|             | Setup   | aarch64 | GUI does not work | Not Tested        | Not tested     | 
+|             |         | aarch64 | GUI does not work | Not Tested        | Not tested     | 
 
 ### Building on Your Env
 If you want to run and build NABS locally, follow these steps:
