@@ -94,3 +94,6 @@ Your contributions are welcome.
 ---
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/YPSH-DGC/YPSH) [![DGC-AutoBuild (YPSH)](https://github.com/YPSH-DGC/YPSH/actions/workflows/build-runtime.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/build-runtime.yml) [![DGC-AutoBuild (YPSH Setup)](https://github.com/YPSH-DGC/YPSH/actions/workflows/build-setup.yml/badge.svg?event=release)](https://github.com/YPSH-DGC/YPSH/actions/workflows/build-setup.yml)
+
+#### Translated by LLM/Translation Services
+Some texts have been translated from ja-JP using LLM or translation services.
