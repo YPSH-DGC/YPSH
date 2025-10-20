@@ -27,21 +27,17 @@ YPSH_OPTIONS_DICT = {
 
 #!checkpoint!
 
-from os.path import expanduser
 from rich.console import Console
 from rich.markup import escape
-from rich.traceback import Traceback
-import traceback as py_tb
 from dotenv import load_dotenv
 from typing import Optional, Callable, Any
-import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat, gc, weakref, tracemalloc
+import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat, gc, tracemalloc
 try:
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.lexers import Lexer, PygmentsLexer
+    from prompt_toolkit.lexers import PygmentsLexer
     from prompt_toolkit.completion import Completer, Completion
     from prompt_toolkit.styles.pygments import style_from_pygments_dict
     from pygments.lexer import RegexLexer, bygroups
-    from pygments.lexers import get_lexer_by_name
     import pygments.token as PygTok
     _YPSH_HAS_PTK = True
 except Exception:
