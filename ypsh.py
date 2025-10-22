@@ -265,15 +265,16 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
         if check:
             raise exception
         return
+    if not isinstance(exception, YPSHException):
+        if isinstance(exception, Warning):
+            exception = YPSHException(location="PYTHON", level="W", ecode="0000", name=type(exception).__name__, desc={"default": str(exception)})
+        else:
+            exception = YPSHException(location="PYTHON", level="C", ecode="0000", name=type(exception).__name__, desc={"default": str(exception)})
     final_level = "W"
     if isinstance(exception, YPSHException):
         final_level = exception.level[0].upper()
     if level:
         final_level = level[0].upper()
-    if final_level == "C" and not check:
-        final_level = "E"
-        if isinstance(exception, YPSHException):
-            exception.level = "E"
     if final_level == "C" and ExceptionPrintingLevel in ["C", "E", "W", "I", "D"]:
         rich_print(f"[on red]{str(exception)}[/]")
     elif final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
@@ -2117,25 +2118,15 @@ Those who use them wisely, without abuse, are the true users of computers.
                     parts.append(cur)
                     return ".".join(reversed(parts))
                 return None
-
             full_key = build_full_key(node)
             if full_key:
-                try:
-                    return env.get(full_key)
-                except YPSHException:
-                    pass
-
-            if isinstance(node.obj, str):
-                dotted = f"{node.obj}.{node.name}"
-                try:
-                    return env.get(dotted)
-                except YPSHException:
-                    pass
-
+                holder = env._find_holder(full_key)
+                if holder:
+                    return holder.vars[full_key]
             base = self.evaluate(node.obj, env)
-            base_any: Any = base  # type: ignore[assignment]
+            base_any: Any = base
             try:
-                return getattr(base_any, node.name)  # type: ignore[attr-defined]
+                return getattr(base_any, node.name)
             except AttributeError:
                 exception_handler(get_builtin_exception("E0020", {"node.name": node.name}))
         elif isinstance(node, Number):
@@ -2794,8 +2785,10 @@ def repl():
                     print(result)
             except KeyboardInterrupt:
                 print()
+            except YPSHException:
+                pass
             except Exception as e:
-                rich_print(f"[red]{e}[/red]")
+                exception_handler(e, check=False)
             finally:
                 accumulated_code = ""
 
@@ -2852,8 +2845,10 @@ def repl():
                     print(result)
             except KeyboardInterrupt:
                 print()
+            except YPSHException:
+                pass
             except Exception as e:
-                rich_print(f"[red]{e}[/red]")
+                exception_handler(e, check=False)
             finally:
                 accumulated_code = ""
 
