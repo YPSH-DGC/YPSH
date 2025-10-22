@@ -20,7 +20,8 @@ YPSH_OPTIONS_DICT = {
     },
     "runtime.options": {
         "default_language": "en_US",
-        "auto_gc": True,
+        "auto_gc": False,
+        "autorun_script": None,
         "collect_after_toplevel": False
     }
 }
@@ -31,7 +32,7 @@ from rich.console import Console
 from rich.markup import escape
 from dotenv import load_dotenv
 from typing import Optional, Callable, Any
-import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat, gc, tracemalloc
+import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat, gc, tracemalloc, pickle
 try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.lexers import PygmentsLexer
@@ -65,6 +66,7 @@ SHELL_NAME = f"YPShell-{''.join(map(str, ypsh_options.product_release_version))}
 SHELL_CWD = os.getcwd()
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
 YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
+_YPSH_TRY_CATCH_DEPTH = 0
 
 # -- Helpers ----------------------------------------
 def unescape_string_literal(s: str) -> str:
@@ -97,16 +99,6 @@ def return_ypsh_exec_folder() -> str:
             return os.path.dirname(sys.executable)
         else:
             return os.path.dirname(os.path.abspath(__file__))
-
-def _pygments_token_to_style_str(tok):
-    parts = []
-    t = tok
-    while getattr(t, "parent", None) is not None:
-        if getattr(t, "shortname", None):
-            parts.append(t.shortname)
-        t = t.parent
-    parts.reverse()
-    return "class:pygments." + ".".join(p.lower() for p in parts) if parts else "class:pygments.text"
 
 # -- Shell Execution --------------------------------
 class ShellExecutionResult():
@@ -265,7 +257,14 @@ def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_esca
         args = {}
     return new_exc.format(args).escape(need_escape)
 
-def exception_handler(exception: Exception, level: str = None, check: bool = True):
+def exception_handler(exception: Exception, level: str = None, check: bool = True, display: bool = True):
+    global _YPSH_TRY_CATCH_DEPTH
+    if _YPSH_TRY_CATCH_DEPTH > 0:
+        display = False
+    if not display:
+        if check:
+            raise exception
+        return
     final_level = "W"
     if isinstance(exception, YPSHException):
         final_level = exception.level[0].upper()
@@ -277,7 +276,6 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
             exception.level = "E"
     if final_level == "C" and ExceptionPrintingLevel in ["C", "E", "W", "I", "D"]:
         rich_print(f"[on red]{str(exception)}[/]")
-        if check: raise SystemExit(1)
     elif final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
         rich_print(f"[red]{str(exception)}[/]")
     elif final_level == "W" and ExceptionPrintingLevel in ["W", "I", "D"]:
@@ -286,6 +284,8 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
         rich_print(f"[blue]{str(exception)}[/]")
     elif final_level == "D" and ExceptionPrintingLevel in ["D"]:
         rich_print(f"[cyan]{str(exception)}[/]")
+    if final_level == "C" and check:
+        raise exception
 
 # -- Tokens -----------------------------------------
 TOKEN_SPEC = [
@@ -625,8 +625,13 @@ class Parser:
 
             return Intent(kind, name)
 
-        if token and token.type == 'ID' and token.value in ('template', 'class', 'do'):
-            pass
+        if token and token.type == 'ID':
+            if token.value == 'template':
+                return self.template_decl()
+            elif token.value == 'class':
+                return self.class_decl()
+            elif token.value == 'do':
+                return self.try_catch_stmt()
 
         if token and token.type == 'ID' and token.value in ('var', 'let'):
             is_let = (token.value == 'let')
@@ -1323,6 +1328,8 @@ class Interpreter:
         env = self.ypsh_globals
         while env is not None:
             for key, value in env.vars.items():
+                if type(value) is not type(content):
+                    continue
                 if value == content:
                     matching_keys.append(key)
             env = env.parent
@@ -2078,9 +2085,14 @@ Those who use them wisely, without abuse, are the true users of computers.
         elif isinstance(node, ContinueStmt):
             raise ContinueException()
         elif isinstance(node, TryCatchStmt):
+            global _YPSH_TRY_CATCH_DEPTH
             try:
                 env.push_block()
-                return self.execute(node.try_block, env)
+                _YPSH_TRY_CATCH_DEPTH += 1
+                try:
+                    return self.execute(node.try_block, env)
+                finally:
+                    _YPSH_TRY_CATCH_DEPTH -= 1
             except Exception as e:
                 try:
                     env.push_block()
@@ -2202,14 +2214,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             else:
                 exception_handler(get_builtin_exception("E0024"))
         elif isinstance(node, str):
-            value = env.get(node)
-            if value == False:
-                return False
-            elif value == True:
-                return True
-            elif value == None:
-                return None
-            return value
+            return env.get(node)
         elif isinstance(node, DictLiteral):
             return {key: self.evaluate(value, env) for key, value in node.pairs}
         elif isinstance(node, TernaryOp):
@@ -2884,6 +2889,28 @@ def check_ypsh_scripts(*path_list, base: str = return_ypsh_exec_folder()) -> str
             return full_path
     return None
 
+def compile_source(code: str, output_path: str):
+    try:
+        tokens = tokenize(code)
+        parser = Parser(tokens)
+        ast = parser.parse()
+        with open(output_path, 'wb') as f:
+            pickle.dump(ast, f)
+        console.print(f"[green]Successfully compiled to {output_path}[/green]")
+    except Exception as e:
+        rich_print(f"[red]Compilation failed: {str(e)}[/red]")
+        raise SystemExit(1)
+
+def run_compiled(filepath):
+    try:
+        with open(filepath, 'rb') as f:
+            ast = pickle.load(f)
+        interpreter = Interpreter()
+        interpreter.interpret(ast)
+    except Exception as e:
+        rich_print(f"[red]{str(e)}[/red]")
+        raise SystemExit(1)
+
 #!checkpoint!
 
 # -- Entry ------------------------------------------
@@ -2895,6 +2922,7 @@ if __name__ == '__main__':
     isReceivedFromStdin = not sys.stdin.isatty()
     isReceivedGoodOption = False
     isReceivedCode = False
+    isCompiled = False
 
     if ypsh_options.runtime_autorun_script != None:
         run_text(ypsh_options.runtime_autorun_script)
@@ -2932,6 +2960,14 @@ if __name__ == '__main__':
             isReceivedGoodOption = True
             options["repl"] = True
 
+        elif arg2 in ["ypshc", "compile"]:
+            isReceivedGoodOption = True
+            options["compile"] = True
+
+        elif arg2 in ["o", "output"]:
+            isReceivedGoodOption = True
+            readNextArg = "output"
+
         elif arg2 in ["ypms", "ypms-install"]:
             isReceivedGoodOption = True
             options["ypms-install"] = True
@@ -2942,19 +2978,28 @@ if __name__ == '__main__':
                 isReceivedCode = True
                 options["main"] = arg
             else:
-                if not os.path.isfile(arg):
+                if arg.endswith('.ypshc'):
+                    isReceivedGoodOption = True
+                    isReceivedCode = True
+                    isCompiled = True
+                    options["main"] = arg
+                elif not os.path.isfile(arg):
                     console.print(f"[red]File not found: {arg}[/red]")
                     raise SystemExit(1)
-
-                with open(arg, encoding='utf-8') as f:
-                    code = f.read()
-
-                isReceivedGoodOption = True
-                isReceivedCode = True
-                options["main"] = code
+                else:
+                    with open(arg, encoding='utf-8') as f:
+                        code = f.read()
+                    isReceivedGoodOption = True
+                    isReceivedCode = True
+                    options["main"] = code
 
     if "version" in options:
         print(ypsh_options.product_release_version_text)
+
+    if "compile" in options:
+        output_file = options.get("output", "compiled.ypshc")
+        compile_source(options["main"], output_file)
+        raise SystemExit(0)
 
     if "ypms-install" in options:
         print("YPSH: Install/Update YPMS-Launcher: Started")
@@ -3006,7 +3051,10 @@ if __name__ == '__main__':
         repl()
 
     if isReceivedCode:
-        run_text(options["main"])
+        if isCompiled:
+            run_compiled(options["main"])
+        else:
+            run_text(options["main"])
 
     elif not isReceivedGoodOption:
         found_ypsh_script = check_ypsh_scripts("__autorun__.ypsh", "autorun.ypsh", "__main__.ypsh", "main.ypsh")
