@@ -27,6 +27,25 @@ Python has a large number of libraries, so it's only natural that you'd want to 
 
 The PyYPSH interpreter offers features that are only possible because it's based on Python, such as direct import of Python libraries.
 
+## Requirements
+- CPython (Behavior on other Python implementations has not been tested)
+- pip/uv, rich, ulid-py, zstandard (for NABS)
+- psutil, prompt_toolkit, rich, python‑dotenv (for PyYPSH Runtime)
+- pyside6, requests (for PyYPSH Setup)
+
+**Supported Python Versions:**
+|       | Status      | Reason                                                                                           | 
+| ----- | ----------- | ------------------------------------------------------------------------------------------------ | 
+| 3.6   | Unsupported | Union type, rich, and python-dotenv are not supported.                                           | 
+| 3.7   | Unsupported | Union type, rich, and python-dotenv are not supported.                                           | 
+| 3.8   | Unsupported | Union type and python-dotenv are not supported.                                                  | 
+| 3.9   | Unsupported | Union type are not supported.                                                                    | 
+| 3.10  | Supported   | psutil ≥3.6, prompt_toolkit ≥3.6, rich ≥3.8, python‑dotenv ≥3.9 are met and PEP604 is available. | 
+| 3.11  | Recommended | Same as above                                                                                    | 
+| 3.12  | Recommended | Same as above                                                                                    | 
+| 3.13  | Supported   | Same as above                                                                                    | 
+| 3.14+ | Maybe       | Some libraries do not report support for this Python version.                                    | 
+
 ## About Windows 11
 Windows 11 has recently caused many issues, and I do not believe that PyYPSH will continue to function properly.
 It might work, but I will not address any issues that arise on Windows 11 in the future.
@@ -59,7 +78,7 @@ You can see the pre-build status of PyYPSH Runtime [here](https://github.com/YPS
 
 ### Building on Your Env
 If you want to run and build NABS locally, follow these steps:
-1. Install Python 3.9 or later (Python 3.12 or later is recommended).
+1. Install Python. (See *Supported Python Versions* Section to Check supported Python's version.)
 2. Create and activate a Python virtual environment (using pyenv, venv, uv, anaconda, miniconda, etc.). Since NABS installs dependencies automatically, do this if you want to build in a different environment.
 3. Prepare a configuration file (used by the configurator.py` to configure PyYPSH). If not provided, defaults will be applied.
 4. Install `rich` and `ulid-py` (using pip, uv, or any other package manager that supports PyPI).
