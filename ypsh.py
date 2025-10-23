@@ -1467,6 +1467,10 @@ Those who use them wisely, without abuse, are the true users of computers.
 - 2025 DiamondGotCat
                   """.strip())
 
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["love", "t3tra"]:
+            while True:
+                print("てとらさんと結婚したい", end="")
+
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["sys", "system"]:
             self.enabled_builtin_modules.append("system")
 
