@@ -288,6 +288,10 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
     if final_level == "C" and check:
         raise exception
 
+def _ypsh_warning_handler(message, category, filename, lineno, file=None, line=None):
+    exception_handler(message, level="W", check=False, display=True)
+warnings.showwarning = _ypsh_warning_handler
+
 # -- Tokens -----------------------------------------
 TOKEN_SPEC = [
     ('NEWLINE',  r'\n'),
