@@ -33,7 +33,7 @@ The PyYPSH interpreter offers features that are only possible because it's based
 - psutil, prompt_toolkit, rich, python‑dotenv (for PyYPSH Runtime)
 - pyside6, requests (for PyYPSH Setup)
 
-**Supported Python Versions:**
+**Supported Python Versions (Based on PyYPSH Runtime dependencies):**
 |       | Status      | Reason                                                                                           | 
 | ----- | ----------- | ------------------------------------------------------------------------------------------------ | 
 | 3.6   | Unsupported | Union type, rich, and python-dotenv are not supported.                                           | 
