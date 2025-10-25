@@ -555,6 +555,34 @@ class AugAssign(ASTNode):
         self.expr = expr
         self.target = target
 
+class EnumDecl(ASTNode):
+    def __init__(self, name, body):
+        self.name = name
+        self.body = body
+    def __repr__(self):
+        return f'EnumDecl({self.name})'
+
+class EnumCaseDecl(ASTNode):
+    def __init__(self, names):
+        self.names = names
+    def __repr__(self):
+        return f'EnumCaseDecl({self.names})'
+
+class SwitchStmt(ASTNode):
+    def __init__(self, expression, cases, default_block):
+        self.expression = expression
+        self.cases = cases
+        self.default_block = default_block
+    def __repr__(self):
+        return f'SwitchStmt({self.expression})'
+
+class CaseStmt(ASTNode):
+    def __init__(self, value, body):
+        self.value = value
+        self.body = body
+    def __repr__(self):
+        return f'CaseStmt({self.value})'
+
 # -- Parser -----------------------------------------
 class Parser:
     def __init__(self, tokens):
@@ -637,6 +665,10 @@ class Parser:
                 return self.class_decl()
             elif token.value == 'do':
                 return self.try_catch_stmt()
+            elif token.value == 'enum':
+                return self.enum_decl()
+            elif token.value == 'switch':
+                return self.switch_stmt()
 
         if token and token.type == 'ID' and token.value in ('var', 'let'):
             is_let = (token.value == 'let')
@@ -1042,6 +1074,59 @@ class Parser:
 
         return node
 
+    def enum_decl(self):
+        self.eat('ID')
+        name = self.eat('ID').value
+        self.eat('LBRACE')
+        body = []
+        while self.current() and self.current().type != 'RBRACE':
+            self._consume_semicolons()
+            if self.current() and self.current().type == 'RBRACE': break
+            
+            if self.match('ID', 'case'):
+                self.eat('ID') # case
+                names = [self.eat('ID').value]
+                while self.current() and self.current().type == 'COMMA':
+                    self.eat('COMMA')
+                    names.append(self.eat('ID').value)
+                body.append(EnumCaseDecl(names))
+            elif self.match('ID', 'var') or self.match('ID', 'let'):
+                body.append(self.var_decl())
+            else:
+                exception_handler(get_builtin_exception("E0006", {"token": self.current()}))
+
+            self._consume_semicolons()
+        self.eat('RBRACE')
+        return EnumDecl(name, body)
+
+    def switch_stmt(self):
+        self.eat('ID')
+        expression = self.expr()
+        self.eat('LBRACE')
+        cases = []
+        default_block = None
+
+        while self.current() and self.current().type != 'RBRACE':
+            self._consume_semicolons()
+            if self.current() and self.current().type == 'RBRACE': break
+            
+            if self.match('ID', 'case'):
+                self.eat('ID') # case
+                value = self.expr()
+                body = self.block()
+                cases.append(CaseStmt(value, body))
+            elif self.match('ID', 'default'):
+                self.eat('ID') # default
+                if default_block is not None:
+                    exception_handler(YPSHException(desc={"en": "Multiple default cases in switch statement."}))
+                default_block = self.block()
+            else:
+                exception_handler(get_builtin_exception("E0006", {"token": self.current()}))
+            
+            self._consume_semicolons()
+        self.eat('RBRACE')
+        return SwitchStmt(expression, cases, default_block)
+
 class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
@@ -1051,6 +1136,43 @@ class BreakException(Exception):
 
 class ContinueException(Exception):
     pass
+
+class YPSHEnum:
+    def __init__(self, name):
+        self.name = name
+        self._members = {}
+
+    def __getattr__(self, item):
+        members = self.__dict__.get('_members', {})
+        if item in members:
+            return members[item]
+        raise AttributeError(f"'{self.name}' enum has no member '{item}'")
+
+    def __setattr__(self, key, value):
+        if key.startswith('_') or key == 'name':
+            super().__setattr__(key, value)
+        else:
+            self.__dict__['_members'][key] = value
+
+    def __repr__(self):
+        return f"<enum '{self.name}'>"
+
+class YPSHEnumMember:
+    def __init__(self, enum_obj, name, value):
+        self.enum = enum_obj
+        self.name = name
+        self.value = value
+
+    def __repr__(self):
+        return f"<{self.enum.name}.{self.name}>"
+
+    def __eq__(self, other):
+        if isinstance(other, YPSHEnumMember):
+            return self.enum is other.enum and self.name == other.name
+        return False
+
+    def __hash__(self):
+        return hash((id(self.enum), self.name))
 
 # -- Interpreter ------------------------------------
 class Environment:
@@ -1448,11 +1570,8 @@ class Interpreter:
         self.docs[key] = content
 
     def module_enable(self, id: str):
-        if id.strip().lower().replace("-", "_").replace(" ", "_") in ["min", "minimal"]:
-            self.module_enable("system")
-
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["", "default"]:
-            self.module_enable("minimal")
+        if id.strip().lower().replace("-", "_").replace(" ", "_") in ["def", "default"]:
+            self.module_enable("system_core")
             self.module_enable("system_extra")
             self.module_enable("import")
             self.module_enable("docs")
@@ -1467,12 +1586,8 @@ Those who use them wisely, without abuse, are the true users of computers.
 - 2025 DiamondGotCat
                   """.strip())
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["love", "t3tra"]:
-            while True:
-                print("てとらさんと結婚したい", end="")
-
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["sys", "system"]:
-            self.enabled_builtin_modules.append("system")
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["core", "system", "system_core"]:
+            self.enabled_builtin_modules.append("system_core")
 
             self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
             self.ypsh_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
@@ -1520,7 +1635,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "mod", lambda a, b: a % b)
 
             self.ypsh_def("@", "stdin", sys.stdin, desc="Standard Input")
-            self.ypsh_def("@", "stdout", sys.stdin, desc="Standard Output")
+            self.ypsh_def("@", "stdout", sys.stdout, desc="Standard Output")
             self.ypsh_def("@", "stderr", sys.stderr, desc="Standard Error Output")
             self.ypsh_def("standard", "input", sys.stdin, desc="Standard Input")
             self.ypsh_def("standard", "output", sys.stdin, desc="Standard Output")
@@ -1566,8 +1681,8 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             def ypsh_minimalize():
                 self.ypsh_globals = Environment()
-                self.module_enable("minimal")
-            self.ypsh_def("ypsh", "minimalize", ypsh_minimalize, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
+                self.module_enable("system_core")
+            self.ypsh_def("ypsh", "minimalize", ypsh_minimalize, desc="Reset all Variables(and Functions), and Enable 'system_core' Module")
 
             def ypsh_range(start=1, end=None):
                 if end == None:
@@ -1576,7 +1691,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                     return range(start, end+1)
             self.ypsh_def("@", "range", ypsh_range)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["memory"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["mem", "memory"]:
             self.enabled_builtin_modules.append("memory")
             mem = MemoryManager(self)
 
@@ -1593,16 +1708,15 @@ Those who use them wisely, without abuse, are the true users of computers.
                 global ypsh_options
                 ypsh_options.runtime_auto_gc = bool(flag)
                 return ypsh_options.runtime_auto_gc
-            self.ypsh_def("memory", "auto_gc.set", _auto_gc_set, desc="Enable/disable automatic GC after block exit.")
+            self.ypsh_def("memory", "gc.auto", _auto_gc_set, desc="Enable/disable automatic GC after block exit.")
 
             def _collect_after_toplevel(flag=False):
                 global ypsh_options
                 ypsh_options.runtime_collect_after_toplevel = bool(flag)
                 return ypsh_options.runtime_collect_after_toplevel
-            self.ypsh_def("memory", "collect.after_toplevel", _collect_after_toplevel,
-                          desc="Run GC after each top-level statement (may be slow).")
+            self.ypsh_def("memory", "gc.after_toplevel", _collect_after_toplevel, desc="Run GC after each top-level statement (may be slow).")
 
-        elif id == "import":
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["imp", "import"]:
             import importlib
             self.module_enable("env")
             self.enabled_builtin_modules.append("import")
@@ -1844,21 +1958,21 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             self.ypsh_def("@", "import", import_main)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["docs"]:
-            self.enabled_builtin_modules.append("docs")
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["doc", "docs", "documentation"]:
+            self.enabled_builtin_modules.append("documentation")
             self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Built-in Documentation")
             self.ypsh_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'ypsh.version') and content, to YPSH's Built-in Documentation")
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["env"]:
-            self.enabled_builtin_modules.append("env")
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["env", "environ", "environment"]:
+            self.enabled_builtin_modules.append("environment")
             global get_system_env
             def get_system_env(id):
                 load_dotenv()
                 return os.environ.get(id, None)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["shell"]:
-            self.enabled_builtin_modules.append("shell")
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["sh", "shell", "ypshell"]:
+            self.enabled_builtin_modules.append("ypshell")
             self.ypsh_def("@", "%", shell_exec)
             self.ypsh_def("shell", "run", shell_exec)
             self.ypsh_def("shell", "cwd", SHELL_CWD)
@@ -1868,15 +1982,15 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return True
             self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["types"]:
-            self.enabled_builtin_modules.append("types")
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["types", "pytypes"]:
+            self.enabled_builtin_modules.append("pytypes")
             self.ypsh_def("@", "str", str)
             self.ypsh_def("@", "int", int)
             self.ypsh_def("@", "float", float)
             self.ypsh_def("@", "list", list)
             self.ypsh_def("@", "dict", dict)
 
-        elif id == "dgce":
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["dgce", "dgc_epoch"]:
             from datetime import datetime, timezone, timedelta
             self.enabled_builtin_modules.append("dgce")
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
@@ -1906,6 +2020,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
         else:
             return False
+        return True
 
     def setup_builtins(self):
         self.module_enable("default")
@@ -2111,6 +2226,36 @@ Those who use them wisely, without abuse, are the true users of computers.
                     env.pop_block()
             finally:
                 env.pop_block()
+        elif isinstance(node, EnumDecl):
+            enum_obj = YPSHEnum(node.name)
+            auto_value = 0
+            for member_decl in node.body:
+                if isinstance(member_decl, EnumCaseDecl):
+                    for name in member_decl.names:
+                        member_obj = YPSHEnumMember(enum_obj, name, auto_value)
+                        setattr(enum_obj, name, member_obj)
+                        auto_value += 1
+                elif isinstance(member_decl, Assign) and member_decl.declare:
+                    value = self.evaluate(member_decl.expr, env)
+                    member_obj = YPSHEnumMember(enum_obj, member_decl.name, value)
+                    setattr(enum_obj, member_decl.name, member_obj)
+            env.set(node.name, enum_obj)
+        elif isinstance(node, SwitchStmt):
+            switch_value = self.evaluate(node.expression, env)
+            switch_cmp_value = switch_value.value if isinstance(switch_value, YPSHEnumMember) else switch_value
+
+            matched = False
+            for case_node in node.cases:
+                case_value = self.evaluate(case_node.value, env)
+                case_cmp_value = case_value.value if isinstance(case_value, YPSHEnumMember) else case_value
+                
+                if switch_cmp_value == case_cmp_value:
+                    self.execute(case_node.body, env)
+                    matched = True
+                    break
+            
+            if not matched and node.default_block:
+                self.execute(node.default_block, env)
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
@@ -2604,7 +2749,7 @@ if _YPSH_HAS_PTK:
                  bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
                 (r'\b(template)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
                  bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
-                (r'\b(template|if|elif|else|for|while|do|catch|return|break|continue|var|in)\b',
+                (r'\b(template|if|elif|else|for|while|do|catch|return|break|continue|global|local|var|let|in|enum|switch|case|default)\b',
                  BlockKwToken),
                 (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
                  bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name.Function)),
