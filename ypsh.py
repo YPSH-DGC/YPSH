@@ -1515,6 +1515,7 @@ class Interpreter:
             self.ypsh_globals.set(f"{id}", content)
             self.docs[f"root.{id}"] = desc
             self.docs[f"@.{id}"] = desc
+            self.docs[f"{id}"] = desc
         else:
             if self.ypsh_globals._find_holder(module) is None:
                 self.ypsh_globals.set(module, [])
@@ -1530,6 +1531,7 @@ class Interpreter:
             self.ypsh_globals.unset(f"{id}")
             self.docs.pop(f"root.{id}", None)
             self.docs.pop(f"@.{id}", None)
+            self.docs.pop(f"{id}", None)
 
         elif (module == id) or (id is None):
             holder = self.ypsh_globals._find_holder(module)
