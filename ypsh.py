@@ -1640,7 +1640,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "stdout", sys.stdout, desc="Standard Output")
             self.ypsh_def("@", "stderr", sys.stderr, desc="Standard Error Output")
             self.ypsh_def("standard", "input", sys.stdin, desc="Standard Input")
-            self.ypsh_def("standard", "output", sys.stdin, desc="Standard Output")
+            self.ypsh_def("standard", "output", sys.stdout, desc="Standard Output")
             self.ypsh_def("standard", "error", sys.stderr, desc="Standard Error Output")
 
             self.ypsh_def("ypsh", "def", self.ypsh_def, desc="Define Anything")
