@@ -19,7 +19,7 @@ def prepare_package(*packages, type: str, package_manager: str = "pip"):
             if package_manager == "pip":
                 proc = subprocess.Popen([sys.executable, "-m", "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             elif package_manager == "uv":
-                proc = subprocess.Popen(["uv", "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                proc = subprocess.Popen([shutil.which("uv"), "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             for line in proc.stdout:
                 log.debug(line.strip())
             proc.wait()
