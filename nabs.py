@@ -16,13 +16,20 @@ def prepare_package(*packages, type: str, package_manager: str = "pip"):
         log.info(f"Installing {len(packages)} {type} dependencies: {','.join(packages)}")
         start_time = datetime.now(timezone.utc)
         for package in packages:
+            output = ""
             if package_manager == "pip":
                 proc = subprocess.Popen([sys.executable, "-m", "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             elif package_manager == "uv":
                 proc = subprocess.Popen([shutil.which("uv"), "pip", "install", package], encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             for line in proc.stdout:
                 log.debug(line.strip())
+                output += line
             proc.wait()
+            if proc.returncode != 0:
+                log.critical(f"Failed to Installing {package}. (code: {proc.returncode})")
+                log.critical("---- OUTPUT ----")
+                log.critical(output)
+                raise SystemExit(1)
         end_time = datetime.now(timezone.utc)
         delta = end_time - start_time
         duration_ms = delta.days*24*3600*1000 + delta.seconds*1000 + delta.microseconds//1000
@@ -45,7 +52,7 @@ def build_pyinstaller(path: Path, output_path: Path) -> dict:
         log.info(f"[green bold]Build Completed in {duration_ms}ms. (code: {proc.returncode})[/green bold]")
     else:
         log.error(f"[red bold]Build Failed in {duration_ms}ms. (code: {proc.returncode})[/red bold]")
-    log.info("---- STDOUT ----")
+    log.info("---- OUTPUT ----")
     log.info(output)
 
     return {
@@ -72,7 +79,7 @@ def build_nuitka(path: Path, output_path: Path) -> dict:
         log.info(f"[green bold]Build Completed in {duration_ms}ms. (code: {proc.returncode})[/green bold]")
     else:
         log.error(f"[red bold]Build Failed in {duration_ms}ms. (code: {proc.returncode})[/red bold]")
-    log.info("---- STDOUT ----")
+    log.info("---- OUTPUT ----")
     log.info(output)
 
     return {
@@ -127,7 +134,7 @@ def main() -> int:
                 log.critical(f"Not found: {requirements_path}")
                 return 1
             if output_path.is_file():
-                log.error(f"Found: {output_path}")
+                log.warning(f"Found: {output_path}")
             with requirements_path.open(encoding='utf-8') as f:
                 requirements_content = f.read()
             project_dependencies = requirements_content.strip().split("\n")

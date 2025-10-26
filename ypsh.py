@@ -3144,7 +3144,9 @@ if __name__ == '__main__':
                     options["main"] = code
 
     if "version" in options:
-        print(ypsh_options.product_release_version_text)
+        rich_print(f"[bold][deep_sky_blue1]{ypsh_options.product_release_version_text}[/deep_sky_blue1] Version Information[/]")
+        rich_print(f"{ypsh_options.product_desc}")
+        rich_print(f"[dim][bold]{ypsh_options.product_build}[/bold] {ypsh_options.product_release_type}[/]")
 
     if "compile" in options:
         output_file = options.get("output", "compiled.ypshc")
