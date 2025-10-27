@@ -59,7 +59,7 @@ class YPSH_OPTIONS:
         self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
         self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en_US')
         self.runtime_autorun_script: str = content.get('runtime.options', {}).get('autorun_script', None)
-        self.runtime_auto_gc: str = content.get('runtime.options', {}).get('auto_gc', True)
+        self.runtime_auto_gc: str = content.get('runtime.options', {}).get('auto_gc', False)
         self.runtime_collect_after_toplevel: str = content.get('runtime.options', {}).get('collect_after_toplevel', False)
 ypsh_options = YPSH_OPTIONS(YPSH_OPTIONS_DICT)
 SHELL_NAME = f"YPShell-{''.join(map(str, ypsh_options.product_release_version))}".strip()
