@@ -57,6 +57,7 @@ class YPSH_OPTIONS:
         self.product_release_version_text: str = f"{self.product_name} v{'.'.join(map(str, self.product_release_version))}"
         self.product_release_type: str = content.get('product.information', {}).get('release', {}).get('type', 'source')
         self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
+        self.runtime_sandbox_mode: bool = content.get('runtime.options', {}).get('sandbox_mode', False)
         self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en_US')
         self.runtime_autorun_script: str = content.get('runtime.options', {}).get('autorun_script', None)
         self.runtime_auto_gc: str = content.get('runtime.options', {}).get('auto_gc', False)
@@ -67,80 +68,6 @@ SHELL_CWD = os.getcwd()
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
 YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "libs")
 _YPSH_TRY_CATCH_DEPTH = 0
-
-# -- Helpers ----------------------------------------
-def unescape_string_literal(s: str) -> str:
-     with warnings.catch_warnings():
-         warnings.filterwarnings(
-             "ignore",
-             category=DeprecationWarning,
-             message=r"invalid escape sequence .*",
-         )
-         return bytes(s, "utf-8").decode("unicode_escape")
-
-def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
-    shallowest_path = None
-    shallowest_depth = float('inf')
-
-    for dirpath, _, filenames in os.walk(root_dir):
-        if target_filename in filenames:
-            depth = dirpath[len(root_dir):].count(os.sep)
-            if depth < shallowest_depth:
-                shallowest_depth = depth
-                shallowest_path = os.path.join(dirpath, target_filename)
-
-    return shallowest_path
-
-def return_ypsh_exec_folder() -> str:
-    if ypsh_options.product_release_type == "source":
-        return os.path.dirname(os.path.abspath(__file__))
-    else:
-        if getattr(sys, 'frozen', False):
-            return os.path.dirname(sys.executable)
-        else:
-            return os.path.dirname(os.path.abspath(__file__))
-
-# -- Shell Execution --------------------------------
-class ShellExecutionResult():
-    def __init__(self, return_code: int = 0, stdout: str = "", stderr: str = ""):
-        self.code = return_code
-        self.return_code = return_code
-        self.zero = return_code == 0
-        self.non_zero = not return_code == 0
-        self.stdout = stdout
-        self.stderr = stderr
-
-def shell_exec(command: str, check: bool = True, env: dict = os.environ.copy()) -> ShellExecutionResult:
-    global SHELL_CWD
-    command_name = command.split(" ")[0]
-    shell_env = env
-    shell_env["SHELL"] = SHELL_NAME
-    shell_env["YPSH_VERSION"] = ypsh_options.product_release_version_text
-    shell_env["YPSH_BUILDID"] = ypsh_options.product_build
-    return_code = 0
-    stdout = ""
-    stderr = ""
-    if command_name == "cd":
-        changeto: str = os.path.expanduser(os.path.expandvars(command.split(" ")[1]))
-        if changeto.startswith("/"):
-            SHELL_CWD_TMP = changeto
-        else:
-            SHELL_CWD_TMP = os.path.abspath(os.path.join(SHELL_CWD, changeto))
-        if not os.path.exists(SHELL_CWD_TMP):
-            return ShellExecutionResult(return_code=1, stderr="YPShell: No such file or directory.")
-        SHELL_CWD = SHELL_CWD_TMP
-        return ShellExecutionResult(return_code=0, stdout="YPShell: Successfully Changed CWD.")
-    else:
-        try:
-            result = subprocess.run(os.path.expanduser(os.path.expandvars(command)), shell=True, check=check, text=True, capture_output=True, cwd=SHELL_CWD, env=shell_env)
-            return_code = result.returncode
-            stdout = result.stdout
-            stderr = result.stderr
-        except subprocess.CalledProcessError as e:
-            return_code = e.returncode
-            stdout = e.stdout
-            stderr = e.stderr
-    return ShellExecutionResult(return_code=return_code, stdout=stdout, stderr=stderr)
 
 # -- Exceptions -------------------------------------
 class YPSHException(Exception):
@@ -230,7 +157,7 @@ BUILTIN_EXCEPTION_SPEC = {
     "E0013": YPSHException("YPSH", "C", "0013", "InterpolationError", {"en": "String interpolation failed: {e}", "ja": "文字列埋め込みの評価に失敗しました: {e}"}),
     "E0014": YPSHException("YPSH", "C", "0014", "TypeError", {"en": "Expected '{id}' to be a list.", "ja": "'{id}' の種類はlistではありません。"}),
     "E0015": YPSHException("YPSH", "C", "0015", "ImportError", {"en": "File not found: {file_path}.", "ja": "ファイルが存在しません: {file_path}"}),
-    "E0016": YPSHException("YPSH", "C", "0016", "ImportError", {"en": "Cannot find Module(s)/Library(s): [{', '.join(not_founds)}]", "ja": "次のモジュール/ライブラリを検出できませんでした: [{', '.join(not_founds)}]"}),
+    "E0016": YPSHException("YPSH", "C", "0016", "ImportError", {"en": "Cannot find Module(s)/Library(s): {', '.join(not_founds)}", "ja": "次のモジュール/ライブラリを検出できませんでした: {', '.join(not_founds)}"}),
     "E0017": YPSHException("YPSH", "C", "0017", "TypeError", {"en": "Type mismatch for variable '{node.name}': expected '{expected_type}', got '{type(value).__name__}'", "ja": "変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{type(value).__name__}' でした。"}),
     "E0018": YPSHException("YPSH", "C", "0018", "TypeError", {"en": "Base {node.base} is not template", "ja": "基底 {node.base} は template ではありません"}),
     "E0019": YPSHException("YPSH", "C", "0019", "TypeError", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"}),
@@ -241,7 +168,8 @@ BUILTIN_EXCEPTION_SPEC = {
     "E0024": YPSHException("YPSH", "C", "0024", "TypeError", {"en": "Attempting to call a non-callable object.", "ja": "呼び出し不可能なオブジェクトを呼び出そうとしました。"}),
     "E0025": YPSHException("YPSH", "C", "0025", "EvaluationError", {"en": "Cannot evaluate node {node}.", "ja": "{node} を処理できません。"}),
     "E0026": YPSHException("YPSH", "C", "0026", "ScopeError", {"en": "Cannot find function '{name}' in scope.", "ja": "関数 '{name}' がスコープ内に存在しません。"}),
-    "E0027": YPSHException("YPSH", "C", "0027", "ConstAssignmentError", {"en": "Cannot assign to read-only variable '{name}'.", "ja": "読み取り専用変数 '{name}' には代入できません。"})
+    "E0027": YPSHException("YPSH", "C", "0027", "ConstAssignmentError", {"en": "Cannot assign to read-only variable '{name}'.", "ja": "読み取り専用変数 '{name}' には代入できません。"}),
+    "E0028": YPSHException("YPSH", "C", "0028", "SandboxRestriction", {"en": "Following action are restricted because Sandbox mode is Enabled: {action}", "ja": "サンドボックスモードが有効のため次の動作が制限されました: {action}"})
 }
 
 def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_escape: bool = False) -> YPSHException:
@@ -275,6 +203,7 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
         final_level = exception.level[0].upper()
     if level:
         final_level = level[0].upper()
+    exception.level = final_level
     if final_level == "C" and ExceptionPrintingLevel in ["C", "E", "W", "I", "D"]:
         rich_print(f"[on red]{str(exception)}[/]")
     elif final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
@@ -291,6 +220,82 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
 def _ypsh_warning_handler(message, category, filename, lineno, file=None, line=None):
     exception_handler(message, level="W", check=False, display=True)
 warnings.showwarning = _ypsh_warning_handler
+
+# -- Shell Execution --------------------------------
+class ShellExecutionResult():
+    def __init__(self, return_code: int = 0, stdout: str = "", stderr: str = ""):
+        self.code = return_code
+        self.return_code = return_code
+        self.zero = return_code == 0
+        self.non_zero = not return_code == 0
+        self.stdout = stdout
+        self.stderr = stderr
+
+def shell_exec(command: str, check: bool = True, env: dict = os.environ.copy()) -> ShellExecutionResult:
+    if ypsh_options.runtime_sandbox_mode:
+        exception_handler(get_builtin_exception("E0028", {"action": "Shell Execution (YPShell)"}))
+    global SHELL_CWD
+    command_name = command.split(" ")[0]
+    shell_env = env
+    shell_env["SHELL"] = SHELL_NAME
+    shell_env["YPSH_VERSION"] = ypsh_options.product_release_version_text
+    shell_env["YPSH_BUILDID"] = ypsh_options.product_build
+    return_code = 0
+    stdout = ""
+    stderr = ""
+    if command_name == "cd":
+        changeto: str = os.path.expanduser(os.path.expandvars(command.split(" ")[1]))
+        if changeto.startswith("/"):
+            SHELL_CWD_TMP = changeto
+        else:
+            SHELL_CWD_TMP = os.path.abspath(os.path.join(SHELL_CWD, changeto))
+        if not os.path.exists(SHELL_CWD_TMP):
+            return ShellExecutionResult(return_code=1, stderr="YPShell: No such file or directory.")
+        SHELL_CWD = SHELL_CWD_TMP
+        return ShellExecutionResult(return_code=0, stdout="YPShell: Successfully Changed CWD.")
+    else:
+        try:
+            result = subprocess.run(os.path.expanduser(os.path.expandvars(command)), shell=True, check=check, text=True, capture_output=True, cwd=SHELL_CWD, env=shell_env)
+            return_code = result.returncode
+            stdout = result.stdout
+            stderr = result.stderr
+        except subprocess.CalledProcessError as e:
+            return_code = e.returncode
+            stdout = e.stdout
+            stderr = e.stderr
+    return ShellExecutionResult(return_code=return_code, stdout=stdout, stderr=stderr)
+
+# -- Helpers ----------------------------------------
+def unescape_string_literal(s: str) -> str:
+     with warnings.catch_warnings():
+         warnings.filterwarnings(
+             "ignore",
+             category=DeprecationWarning,
+             message=r"invalid escape sequence .*",
+         )
+         return bytes(s, "utf-8").decode("unicode_escape")
+
+def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
+    shallowest_path = None
+    shallowest_depth = float('inf')
+
+    for dirpath, _, filenames in os.walk(root_dir):
+        if target_filename in filenames:
+            depth = dirpath[len(root_dir):].count(os.sep)
+            if depth < shallowest_depth:
+                shallowest_depth = depth
+                shallowest_path = os.path.join(dirpath, target_filename)
+
+    return shallowest_path
+
+def return_ypsh_exec_folder() -> str:
+    if ypsh_options.product_release_type == "source":
+        return os.path.dirname(os.path.abspath(__file__))
+    else:
+        if getattr(sys, 'frozen', False):
+            return os.path.dirname(sys.executable)
+        else:
+            return os.path.dirname(os.path.abspath(__file__))
 
 # -- Tokens -----------------------------------------
 TOKEN_SPEC = [
@@ -1923,40 +1928,60 @@ Those who use them wisely, without abuse, are the true users of computers.
                     if resolved:
                         kind, data = resolved
                         if kind == "ypsh_file":
-                            _import_ypsh_with_opts(data, alias, only)
+                            if ypsh_options.runtime_sandbox_mode:
+                                exception_handler(get_builtin_exception("E0028", {"action": f"Import a YPSH Script: {lib}"}), level="W")
+                            else:
+                                _import_ypsh_with_opts(data, alias, only)
                             continue
                         if kind == "ypsh_pkg":
-                            _import_ypsh_with_opts(data, alias, only)
+                            if ypsh_options.runtime_sandbox_mode:
+                                exception_handler(get_builtin_exception("E0028", {"action": f"Import a YPSH Package: {lib}"}), level="W")
+                            else:
+                                _import_ypsh_with_opts(data, alias, only)
                             continue
                         if kind == "py_file":
-                            _python_import_by_file(data, alias, only)
+                            if ypsh_options.runtime_sandbox_mode:
+                                exception_handler(get_builtin_exception("E0028", {"action": f"Import a Python File: {lib}"}), level="W")
+                            else:
+                                _python_import_by_file(data, alias, only)
                             continue
                         if kind == "py_pkg":
-                            _python_import_by_name(lib, alias, only, paths=[data] + (paths or []))
+                            if ypsh_options.runtime_sandbox_mode:
+                                exception_handler(get_builtin_exception("E0028", {"action": f"Import a Python Module: {lib}"}), level="W")
+                            else:
+                                _python_import_by_name(lib, alias, only, paths=[data] + (paths or []))
                             continue
 
                     ypsh_path_fb = _find_ypsh_fallback(lib)
                     if ypsh_path_fb:
-                        _import_ypsh_with_opts(ypsh_path_fb, alias, only)
+                        if ypsh_options.runtime_sandbox_mode:
+                            exception_handler(get_builtin_exception("E0028", {"action": f"Import a External YPSH Script/Package: {lib}"}), level="W")
+                        else:
+                            _import_ypsh_with_opts(ypsh_path_fb, alias, only)
                         continue
 
                     py_path_fb = _find_py_fallback(lib)
                     if py_path_fb:
-                        _python_import_by_file(py_path_fb, alias, only)
+                        if ypsh_options.runtime_sandbox_mode:
+                            exception_handler(get_builtin_exception("E0028", {"action": f"Import a Python File: {lib}"}), level="W")
+                        else:
+                            _python_import_by_file(py_path_fb, alias, only)
                         continue
 
                     if _enable_builtin_with_opts(lib, alias, only):
                         continue
 
                     try:
-                        _python_import_by_name(lib, alias, only, paths)
+                        if ypsh_options.runtime_sandbox_mode:
+                            exception_handler(get_builtin_exception("E0028", {"action": f"Import a Python Module: {lib}"}), level="W")
+                        else:
+                            _python_import_by_name(lib, alias, only, paths)
                         continue
                     except Exception:
                         not_founds.append(f"'{lib}'")
 
                 if not_founds:
-                    exc = get_builtin_exception("E0016", {"', '.join(not_founds)": ", ".join(not_founds)}, True)
-                    exception_handler(exc)
+                    exception_handler(get_builtin_exception("E0016", {"', '.join(not_founds)": ", ".join(not_founds)}))
 
             self.ypsh_def("@", "import", import_main)
 
@@ -1994,7 +2019,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["dgce", "dgc_epoch"]:
             from datetime import datetime, timezone, timedelta
-            self.enabled_builtin_modules.append("dgce")
+            self.enabled_builtin_modules.append("dgc_epoch")
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
             def datetime_to_dgc_epoch48(dt: datetime) -> str:
@@ -2004,7 +2029,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '048b')
                 return binary_str
-            self.ypsh_def("conv", "dgce48", datetime_to_dgc_epoch48)
+            self.ypsh_def("dgce", "dgce48", datetime_to_dgc_epoch48)
 
             def datetime_to_dgc_epoch64(dt: datetime) -> str:
                 if dt.tzinfo is None:
@@ -2013,12 +2038,12 @@ Those who use them wisely, without abuse, are the true users of computers.
                 milliseconds = int(delta.total_seconds() * 1000)
                 binary_str = format(milliseconds, '064b')
                 return binary_str
-            self.ypsh_def("conv", "dgce64", datetime_to_dgc_epoch64)
+            self.ypsh_def("dgce", "dgce64", datetime_to_dgc_epoch64)
 
             def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
                 milliseconds = int(dgc_epoch_str, 2)
                 return DGC_EPOCH_BASE + timedelta(milliseconds=milliseconds)
-            self.ypsh_def("conv", "datetime", dgc_epoch64_to_datetime)
+            self.ypsh_def("dgce", "datetime", dgc_epoch64_to_datetime)
 
         else:
             return False
@@ -2889,6 +2914,56 @@ def is_code_complete(code):
             bracket_count += 1
         elif token.type == 'RBRACKET':
             bracket_count -= 1
+
+    in_s_string = False   # '...'
+    in_d_string = False   # "..."
+    in_ts_string = False  # '''...'''
+    in_td_string = False  # """..."""
+    in_ml_comment = False # /* ... */
+
+    i = 0
+    while i < len(code):
+        if in_ml_comment:
+            if code[i:i+2] == '*/':
+                in_ml_comment = False
+                i += 1
+        elif in_td_string:
+            if code[i:i+3] == '"""':
+                in_td_string = False
+                i += 2
+        elif in_ts_string:
+            if code[i:i+3] == "'''":
+                in_ts_string = False
+                i += 2
+        elif in_d_string:
+            if code[i] == '\\':
+                i += 1
+            elif code[i] == '"':
+                in_d_string = False
+        elif in_s_string:
+            if code[i] == '\\':
+                i += 1
+            elif code[i] == "'":
+                in_s_string = False
+        else:
+            if code[i:i+2] == '/*':
+                in_ml_comment = True
+                i += 1
+            elif code[i:i+3] == '"""':
+                in_td_string = True
+                i += 2
+            elif code[i:i+3] == "'''":
+                in_ts_string = True
+                i += 2
+            elif code[i] == '"':
+                in_d_string = True
+            elif code[i] == "'":
+                in_s_string = True
+        
+        i += 1
+        
+    if in_ml_comment or in_td_string or in_ts_string or in_d_string or in_s_string:
+        return False
 
     return brace_count == 0 and paren_count == 0 and bracket_count == 0
 
