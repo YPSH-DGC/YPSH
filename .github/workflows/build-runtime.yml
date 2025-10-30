@@ -81,19 +81,24 @@ jobs:
         run: |
           python configurator.py -i ypsh.py -o main.py -t ${{ github.event.release.tag_name || github.ref }}
 
+      - name: Download NABS
+        shell: bash
+        run: |
+          curl -O https://raw.githubusercontent.com/DiamondGotCat/NABS/refs/heads/main/pynabs.py
+
       - name: Build (non-windows)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          python nabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}
-          python nabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI
+          python pynabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}
+          python pynabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          python nabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
-          python nabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
+          python pynabs.py -f main.py -m pyinstaller -o upload/${{ matrix.filename }}.exe
+          python pynabs.py -f main.py -m nuitka -o upload/${{ matrix.filename }}-NUI.exe
 
       - name: Zip (non-windows)
         if: runner.os != 'Windows'
