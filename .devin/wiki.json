@@ -1,0 +1,183 @@
+{
+  "repo_notes": [
+    {
+      "content": "The official feature-rich interpreter written on Python for the homebrew language \"YPSH\", created, developed and maintained by Nercone (formerly known as DiamondGotCat)."
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Introduce PyYPSH, explaining what it is, its design goals (combining best parts of various languages), and high-level architecture including the interpreter, build system, and release management",
+      "page_notes": [
+        {
+          "content": "Overview and structure of PyYPSH and explanation of basic syntax of the YPSH language"
+        }
+      ]
+    },
+    {
+      "title": "Installation",
+      "purpose": "Guide users through installing PyYPSH, including pre-built executables, manual installation, and system requirements",
+      "page_notes": [
+        {
+          "content": "PyYPSH prerequisites and installation instructions"
+        }
+      ]
+    },
+    {
+      "title": "Using the YPSH Setup Installer",
+      "purpose": "Detailed guide on using setup.py for GUI and CLI installation, including platform-specific considerations, Gatekeeper handling, and PATH modification",
+      "parent": "Installation",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Release Channels",
+      "purpose": "Explain the three release channels (stable, maybe-stable, beta), their purposes, promotion workflow, and how to select the appropriate channel for different use cases",
+      "parent": "Installation",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "YPSH Language Reference",
+      "purpose": "Comprehensive reference for the YPSH programming language, its syntax, semantics, and integration with Python",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Core Language Features",
+      "purpose": "Document YPSH syntax including variable declaration, functions, classes, control flow, operators, string interpolation, and the tokenizer/parser/interpreter pipeline",
+      "parent": "YPSH Language Reference",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Built-in Modules and Functions",
+      "purpose": "Reference for all built-in modules (system, system_extra, import, shell, types, dgce, docs, env) and their functions, including the module_enable system",
+      "parent": "YPSH Language Reference",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Python Integration",
+      "purpose": "Explain how YPSH integrates with Python, including importing Python modules, calling Python functions, and the relationship between YPSH and the Python interpreter",
+      "parent": "YPSH Language Reference",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "REPL and CLI Usage",
+      "purpose": "Guide to using the YPSH REPL, command-line options (--version, --lint, --repl, --stdin, --code, file execution), and autorun script behavior",
+      "parent": "YPSH Language Reference",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Error Handling and Linting",
+      "purpose": "Document the YPSHException system, multilingual error messages, exception levels, the semantic analyzer, and the --lint functionality",
+      "parent": "YPSH Language Reference",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Examples and Tutorials",
+      "purpose": "Provide example YPSH scripts demonstrating basic usage, function definitions, shell integration, and common patterns",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Build and Release System",
+      "purpose": "Overview of the NABS (Nercone Automatic Building System), GitHub Actions workflows, and the complete release pipeline from code to distributed binaries",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Version Management and Release Channels",
+      "purpose": "Deep dive into the channel file system (beta.txt, maybe-stable.txt, stable.txt), how they are updated by CI/CD, version promotion workflow, and their critical role in distribution",
+      "parent": "Build and Release System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "YPSH Runtime Build Workflow",
+      "purpose": "Detailed explanation of build-runtime.yml, how configurator.py embeds version tags, NABS execution for PyInstaller and Nuitka builds, and cross-platform artifact generation",
+      "parent": "Build and Release System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Setup Installer Build Workflow",
+      "purpose": "Explain build-setup.yml, how setup.py is compiled with GUI dependencies (PySide6), and differences from runtime build process",
+      "parent": "Build and Release System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Build Scripts and Tools",
+      "purpose": "Reference documentation for nabs.py command-line options, configurator.py usage, requirements.txt dependencies, and local build procedures",
+      "parent": "Build and Release System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Development Guide",
+      "purpose": "Guide for developers who want to contribute to PyYPSH, including environment setup, code organization, and development workflows",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Development Environment Setup",
+      "purpose": "Instructions for setting up a development environment, including Python version requirements, virtual environments, dependency installation, and understanding build artifacts",
+      "parent": "Development Guide",
+      "page_notes": [
+        {
+          "content": "Detailed explanations and guides on how to install Python (e.g., anaconda/miniconda, pyenv, uv's python subcommand), create a Python virtual environment (e.g., conda create/python -m venv/uv venv), and install dependencies (e.g., pip3 install, uv pip install)."
+        }
+      ]
+    }
+  ]
+}
