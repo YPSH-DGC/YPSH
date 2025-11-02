@@ -11,6 +11,9 @@ __pycache__/**
 # configurator
 main.py
 
+# nabs
+pynabs.py
+
 # built executables
 ypsh
 built-exec
