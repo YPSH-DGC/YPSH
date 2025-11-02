@@ -20,8 +20,8 @@ YPSH_OPTIONS_DICT = {
     },
     "runtime.options": {
         "default_language": "en_US",
-        "auto_gc": False,
         "autorun_script": None,
+        "auto_gc": False,
         "collect_after_toplevel": False
     }
 }
@@ -1212,6 +1212,8 @@ class Environment:
             self._block_stack[-1].append(name)
 
     def declare(self, name, value, *, is_const=False, force_global=False, force_local=False):
+        if name == '_':
+            return
         if force_global:
             self._root()._declare_here(name, value, const=is_const, record_local=False)
             return
@@ -1238,6 +1240,8 @@ class Environment:
         return None
 
     def set(self, name, value):
+        if name == '_':
+            return
         holder = self._find_holder(name)
         if holder:
             if holder._meta.get(name, {}).get('const', False):
@@ -1577,13 +1581,18 @@ class Interpreter:
         self.docs[key] = content
 
     def module_enable(self, id: str):
-        if id.strip().lower().replace("-", "_").replace(" ", "_") in ["def", "default"]:
+        normalized_id = id.strip().lower().replace("-", "_").replace(" ", "_")
+
+        if normalized_id in self.enabled_builtin_modules and normalized_id not in ["def", "default"]:
+            return True 
+
+        if normalized_id in ["def", "default"]:
             self.module_enable("system_core")
             self.module_enable("system_extra")
             self.module_enable("import")
             self.module_enable("docs")
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["egg", "knowledge"]:
+        elif normalized_id in ["egg", "knowledge"]:
             print("""
 Words exist to express and communicate something.
 A programming language is a syntax used to convey something to a computer.
@@ -1593,7 +1602,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 - 2025 DiamondGotCat
                   """.strip())
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["core", "system", "system_core"]:
+        elif normalized_id in ["core", "system", "system_core"]:
             self.enabled_builtin_modules.append("system_core")
 
             self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
@@ -1633,7 +1642,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "Error.level.set", error_level_set, desc="Set a Exception Level for Exception Printing.")
             self.ypsh_def("@", "Exception.level.set", error_level_set, desc="Set a Exception Level for Exception Printing.")
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["extra", "system_extra"]:
+        elif normalized_id in ["extra", "system_extra"]:
             self.enabled_builtin_modules.append("system_extra")
 
             self.ypsh_def("@", "min", min)
@@ -1674,11 +1683,11 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return len(input)
             self.ypsh_def("@", "count", count_func)
 
-            def ypsh_exec(code_string):
+            def ypsh_exec(code_string) -> Any | None:
                 tokens = tokenize(code_string)
                 parser = Parser(tokens)
                 ast = parser.parse()
-                self.interpret(ast)
+                return self.interpret(ast)
             self.ypsh_def("@", "exec", ypsh_exec)
 
             def ypsh_reset():
@@ -1698,11 +1707,11 @@ Those who use them wisely, without abuse, are the true users of computers.
                     return range(start, end+1)
             self.ypsh_def("@", "range", ypsh_range)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["mem", "memory"]:
+        elif normalized_id in ["mem", "memory"]:
             self.enabled_builtin_modules.append("memory")
             mem = MemoryManager(self)
 
-            self.ypsh_def("memory", "info", mem.info, desc="Return RAM/VRAM/process memory usage.")
+            self.ypsh_def("memory", "info", mem.info, desc="Return RAM/process memory usage.")
             self.ypsh_def("memory", "gc", mem.gc, desc="Force Python GC (and CUDA cache if available).")
             self.ypsh_def("memory", "deep_size", mem.deep_size, desc="Approximate deep size of an object.")
             self.ypsh_def("memory", "vars.usage", mem.vars_usage, desc="List variable sizes across environments.")
@@ -1723,7 +1732,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return ypsh_options.runtime_collect_after_toplevel
             self.ypsh_def("memory", "gc.after_toplevel", _collect_after_toplevel, desc="Run GC after each top-level statement (may be slow).")
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["imp", "import"]:
+        elif normalized_id in ["imp", "import"]:
             import importlib
             self.module_enable("env")
             self.enabled_builtin_modules.append("import")
@@ -1985,12 +1994,12 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             self.ypsh_def("@", "import", import_main)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["doc", "docs", "documentation"]:
+        elif normalized_id in ["doc", "docs", "documentation"]:
             self.enabled_builtin_modules.append("documentation")
             self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Built-in Documentation")
             self.ypsh_def("docs", "set", self.set_doc, desc="Set description with key(e.g. 'ypsh.version') and content, to YPSH's Built-in Documentation")
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["env", "environ", "environment"]:
+        elif normalized_id in ["env", "environ", "environment"]:
             self.enabled_builtin_modules.append("environment")
             global get_system_env
             def get_system_env(id):
@@ -1998,7 +2007,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return os.environ.get(id, None)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["sh", "shell", "ypshell"]:
+        elif normalized_id in ["sh", "shell", "ypshell"]:
             self.enabled_builtin_modules.append("ypshell")
             self.ypsh_def("@", "%", shell_exec)
             self.ypsh_def("shell", "run", shell_exec)
@@ -2009,15 +2018,29 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return True
             self.ypsh_def("shell", "cwd.set", set_SHELL_CWD)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["types", "pytypes"]:
+        elif normalized_id in ["types", "pytypes"]:
             self.enabled_builtin_modules.append("pytypes")
-            self.ypsh_def("@", "str", str)
-            self.ypsh_def("@", "int", int)
-            self.ypsh_def("@", "float", float)
-            self.ypsh_def("@", "list", list)
-            self.ypsh_def("@", "dict", dict)
+            self.ypsh_def("pytypes", "type", type)
+            self.ypsh_def("pytypes", "int", int)
+            self.ypsh_def("pytypes", "float", float)
+            self.ypsh_def("pytypes", "complex", complex)
+            self.ypsh_def("pytypes", "bool", bool)
+            self.ypsh_def("pytypes", "iter", iter)
+            self.ypsh_def("pytypes", "next", next)
+            self.ypsh_def("pytypes", "type", type)
+            self.ypsh_def("pytypes", "list", list)
+            self.ypsh_def("pytypes", "tuple", tuple)
+            self.ypsh_def("pytypes", "range", range)
+            self.ypsh_def("pytypes", "str", str)
+            self.ypsh_def("pytypes", "bytes", bytes)
+            self.ypsh_def("pytypes", "bytearray", bytearray)
+            self.ypsh_def("pytypes", "memoryview", memoryview)
+            self.ypsh_def("pytypes", "set", set)
+            self.ypsh_def("pytypes", "frozenset", frozenset)
+            self.ypsh_def("pytypes", "dict", dict)
+            self.ypsh_def("pytypes", "none", None)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["dgce", "dgc_epoch"]:
+        elif normalized_id in ["dgce", "dgc_epoch"]:
             from datetime import datetime, timezone, timedelta
             self.enabled_builtin_modules.append("dgc_epoch")
             DGC_EPOCH_BASE = datetime(2000, 1, 1, tzinfo=timezone.utc)
@@ -2397,7 +2420,7 @@ Those who use them wisely, without abuse, are the true users of computers.
         else:
             exception_handler(get_builtin_exception("E0025", {"node": node}))
 
-# -- RAM/VRAM Management ----------------------------
+# -- RAM Management ----------------------------
 class MemoryManager:
     def __init__(self, interpreter: "Interpreter"):
         self.interp = interpreter
@@ -2433,32 +2456,8 @@ class MemoryManager:
                 pass
             return info
 
-    @staticmethod
-    def _vram_info():
-        try:
-            import pynvml # type: ignore
-            pynvml.nvmlInit()
-            h = pynvml.nvmlDeviceGetHandleByIndex(0)
-            mem = pynvml.nvmlDeviceGetMemoryInfo(h)
-            total, used, free = mem.total, mem.used, mem.free
-            pynvml.nvmlShutdown()
-            return {"vram_total": total, "vram_used": used, "vram_free": free}
-        except Exception:
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    i = torch.cuda.current_device()
-                    total = torch.cuda.get_device_properties(i).total_memory
-                    reserved = torch.cuda.memory_reserved(i)
-                    allocated = torch.cuda.memory_allocated(i)
-                    return {"vram_total": total, "vram_used": allocated, "vram_free": total - reserved}
-            except Exception:
-                pass
-        return {"vram_total": None, "vram_used": None, "vram_free": None}
-
     def info(self):
         data = self._psutil_mem()
-        data.update(self._vram_info())
         try:
             cur, peak = tracemalloc.get_traced_memory()
             data["py_tracemalloc_current"] = cur
@@ -2470,13 +2469,8 @@ class MemoryManager:
     def gc(self):
         try:
             return gc.collect()
-        finally:
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except Exception:
-                pass
+        except:
+            pass
 
     def deep_size(self, obj, seen=None):
         if seen is None:
@@ -2591,27 +2585,50 @@ class SemanticAnalyzer:
         return any(name in scope for scope in reversed(self.scopes))
 
     def analyze(self, node):
+        if node is None:
+            return
         method = f'analyze_{type(node).__name__}'
-        return getattr(self, method, self.generic_analyze)(node)
+        visitor = getattr(self, method, self.generic_analyze)
+        return visitor(node)
 
     def generic_analyze(self, node):
         if hasattr(node, '__dict__'):
             for value in vars(node).values():
-                if isinstance(value, list):
-                    for item in value:
-                        self.analyze(item)
-                elif isinstance(value, ASTNode):
+                if isinstance(value, ASTNode):
                     self.analyze(value)
-
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, ASTNode):
+                            self.analyze(item)
+                        elif isinstance(item, tuple):
+                            for sub_item in item:
+                                if isinstance(sub_item, ASTNode):
+                                    self.analyze(sub_item)
+    
     def analyze_Block(self, node):
         self.push_scope()
         for stmt in node.statements:
             self.analyze(stmt)
         self.pop_scope()
 
-    def analyze_VarDecl(self, node):
+    def analyze_Assign(self, node):
         self.analyze(node.expr)
-        self.declare(node.name)
+        if node.target is not None:
+            self.analyze(node.target)
+        elif node.name:
+            if getattr(node, 'declare', False):
+                self.declare(node.name)
+            else:
+                if not self.is_declared(node.name):
+                    self.declare(node.name)
+
+    def analyze_AugAssign(self, node):
+        self.analyze(node.expr)
+        if node.target is not None:
+            self.analyze(node.target)
+        elif node.name:
+            if not self.is_declared(node.name):
+                self.errors.append(get_builtin_exception("E0008", {"name": node.name}))
 
     def analyze_FuncDecl(self, node):
         self.declare(node.name)
@@ -2624,25 +2641,30 @@ class SemanticAnalyzer:
             self.analyze(stmt)
         self.pop_scope()
 
-    def analyze_ClassDecl(self, node):
+    def analyze_TemplateDecl(self, node):
         self.declare(node.name)
         self.push_scope()
         for stmt in node.body:
             self.analyze(stmt)
         self.pop_scope()
 
-    def analyze_TemplateDecl(self, node):
+    def analyze_ClassDecl(self, node):
         self.declare(node.name)
+        if node.base:
+            if not self.is_declared(node.base):
+                self.errors.append(get_builtin_exception("E0008", {"name": node.base}))
+        self.push_scope()
+        for stmt in node.body:
+            self.analyze(stmt)
+        self.pop_scope()
+    
+    def analyze_Attribute(self, node):
+        self.analyze(node.obj)
 
-    def analyze_IfStmt(self, node):
-        self.analyze(node.condition)
-        self.analyze(node.then_block)
-        if node.else_block:
-            self.analyze(node.else_block)
-
-    def analyze_WhileStmt(self, node):
-        self.analyze(node.condition)
-        self.analyze(node.body)
+    def analyze_FuncCall(self, node):
+        self.analyze(node.name)
+        for arg in node.args:
+            self.analyze(arg)
 
     def analyze_ForStmt(self, node):
         self.analyze(node.iterable)
@@ -2650,52 +2672,7 @@ class SemanticAnalyzer:
         self.declare(node.var_name)
         self.analyze(node.body)
         self.pop_scope()
-
-    def analyze_ReturnStmt(self, node):
-        self.analyze(node.value)
-
-    def analyze_ExpressionStmt(self, node):
-        self.analyze(node.expr)
-
-    def analyze_BinOp(self, node):
-        self.analyze(node.left)
-        self.analyze(node.right)
-
-    def analyze_UnaryOp(self, node):
-        self.analyze(node.operand)
-
-    def analyze_TernaryOp(self, node):
-        self.analyze(node.condition)
-        self.analyze(node.if_true)
-        self.analyze(node.if_false)
-
-    def analyze_FuncCall(self, node):
-        if isinstance(node.name, Attribute):
-            self.analyze(node.name.obj)
-        else:
-            if not self.is_declared(node.name):
-                self.errors.append(get_builtin_exception("E0026", {"name": node.name}))
-        for arg in node.args:
-            if isinstance(arg, KeywordArg):
-                self.analyze(arg.value)
-            else:
-                self.analyze(arg)
-
-    def analyze_KeywordArg(self, node):
-        self.analyze(node.value)
-
-    def analyze_str(self, node):
-        if not self.is_declared(node):
-            self.errors.append(get_builtin_exception("E0008", {"name": node}))
-
-    def analyze_ListLiteral(self, node):
-        for elem in node.elements:
-            self.analyze(elem)
-
-    def analyze_DictLiteral(self, node):
-        for _, value in node.pairs:
-            self.analyze(value)
-
+        
     def analyze_TryCatchStmt(self, node):
         self.analyze(node.try_block)
         self.push_scope()
@@ -2703,16 +2680,54 @@ class SemanticAnalyzer:
         self.analyze(node.catch_block)
         self.pop_scope()
 
-    def analyze_Assign(self, node):
-        self.analyze(node.expr)
-        if getattr(node, 'declare', False):
-            self.declare(node.name)
-        else:
-            self.declare(node.name)
+    def analyze_str(self, node):
+        if not self.is_declared(node):
+            self.errors.append(get_builtin_exception("E0008", {"name": node}))
 
-    def analyze_AugAssign(self, node):
+    def analyze_EnumDecl(self, node):
         self.declare(node.name)
-        self.analyze(node.expr)
+        self.push_scope()
+        for member in node.body:
+            self.analyze(member)
+        self.pop_scope()
+        
+    def analyze_EnumCaseDecl(self, node):
+        for name in node.names:
+            if self.current_scope().get(name):
+                self.errors.append(YPSHException(
+                    location="LINT", level="E", ecode="0001", name="SemanticError",
+                    desc={"en": f"Duplicate enum case name '{name}'."}
+                ))
+            self.declare(name)
+
+    def analyze_SwitchStmt(self, node):
+        self.analyze(node.expression)
+        for case in node.cases:
+            self.analyze(case)
+        if node.default_block:
+            self.analyze(node.default_block)
+
+    def analyze_CaseStmt(self, node):
+        self.analyze(node.value)
+        self.analyze(node.body)
+
+    analyze_IfStmt = generic_analyze
+    analyze_WhileStmt = generic_analyze
+    analyze_ReturnStmt = generic_analyze
+    analyze_ExpressionStmt = generic_analyze
+    analyze_BinOp = generic_analyze
+    analyze_UnaryOp = generic_analyze
+    analyze_TernaryOp = generic_analyze
+    analyze_KeywordArg = generic_analyze
+    analyze_ListLiteral = generic_analyze
+    analyze_DictLiteral = generic_analyze
+
+    def analyze_Number(self, node): pass
+    def analyze_String(self, node): pass
+    def analyze_BreakStmt(self, node): pass
+    def analyze_ContinueStmt(self, node): pass
+    def analyze_ShellStmt(self, node): pass
+    def analyze_Intent(self, node): pass
 
 def collect_errors(code: str) -> list[Exception]:
     errors = []
@@ -2734,13 +2749,14 @@ def collect_errors(code: str) -> list[Exception]:
         interpreter = Interpreter()
         interpreter.setup_builtins()
 
-        for stmt in ast.statements:
-            if isinstance(stmt, ExpressionStmt) and isinstance(stmt.expr, FuncCall):
-                if stmt.expr.name == "import":
-                    try:
-                        interpreter.evaluate(stmt.expr, interpreter.ypsh_globals)
-                    except Exception as e:
-                        errors.append(e)
+        if isinstance(ast, Block):
+            for stmt in ast.statements:
+                if isinstance(stmt, ExpressionStmt) and isinstance(stmt.expr, FuncCall):
+                    if isinstance(stmt.expr.name, str) and stmt.expr.name == "import":
+                        try:
+                            interpreter.evaluate(stmt.expr, interpreter.ypsh_globals)
+                        except Exception as e:
+                            errors.append(e)
 
         analyzer = SemanticAnalyzer()
         builtin_env = interpreter.ypsh_globals
@@ -3138,7 +3154,48 @@ def run_compiled(filepath):
 
 #!checkpoint!
 
-# -- Entry ------------------------------------------
+# -- Entry (for Python) -----------------------------
+def create_ypsh_interpreter(initial_globals: dict[str, Any] | None = None) -> "Interpreter":
+    interpreter = Interpreter()
+    if initial_globals:
+        for name, value in initial_globals.items():
+            interpreter.ypsh_globals.set(name, value)
+    return interpreter
+
+def run_ypsh_code(code: str, initial_globals: dict[str, Any] | None = None, interpreter: Interpreter | None = None) -> Any:
+    interp = interpreter
+    if interp is None:
+        interp = create_ypsh_interpreter(initial_globals)
+    
+    try:
+        tokens = tokenize(code)
+        parser = Parser(tokens)
+        ast = parser.parse()
+        return interp.interpret(ast)
+    except YPSHException:
+        raise
+    except (BreakException, ContinueException, ReturnException) as e:
+        raise YPSHException(
+            "RUNTIME", "C", "9001", "ControlFlowError", 
+            {"default": f"Unhandled control flow statement: {type(e).__name__}"}
+        ) from e
+    except Exception as e:
+        ypsh_e = YPSHException(
+            "PYTHON", "C", "9999", type(e).__name__, 
+            {"default": str(e)}
+        )
+        raise ypsh_e from e
+
+def run_ypsh_file(filepath: str, initial_globals: dict[str, Any] | None = None, interpreter: Interpreter | None = None) -> Any:
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            code = f.read()
+    except FileNotFoundError:
+        raise
+
+    return run_ypsh_code(code, initial_globals=initial_globals, interpreter=interpreter)
+
+# -- Entry (for CLI) --------------------------------
 if __name__ == '__main__':
     args = sys.argv[1:]
     options = {}
