@@ -195,9 +195,9 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
         return
     if not isinstance(exception, YPSHException):
         if isinstance(exception, Warning):
-            exception = YPSHException(location="PYTHON", level="W", ecode="0000", name=type(exception).__name__, desc={"default": str(exception)})
+            exception = YPSHException(location="PYTHON", level="W", ecode="0000", name="Python"+str(type(exception).__name__), desc={"default": str(exception)})
         else:
-            exception = YPSHException(location="PYTHON", level="C", ecode="0000", name=type(exception).__name__, desc={"default": str(exception)})
+            exception = YPSHException(location="PYTHON", level="C", ecode="0000", name="Python"+str(type(exception).__name__), desc={"default": str(exception)})
     final_level = "W"
     if isinstance(exception, YPSHException):
         final_level = exception.level[0].upper()
@@ -973,7 +973,12 @@ class Parser:
             tok = self.current()
             if tok and tok.type == 'DOT':
                 self.eat('DOT')
-                attr_name = self.eat('ID').value
+                attr_token = self.current()
+                if attr_token and attr_token.type in ('ID', 'NUMBER'):
+                    self.eat(attr_token.type)
+                    attr_name = attr_token.value
+                else:
+                    exception_handler(get_builtin_exception("E0006", {"token": attr_token}))
                 node = Attribute(node, attr_name)
 
             elif tok and tok.type == 'LPAREN':
@@ -1063,9 +1068,11 @@ class Parser:
                 break
             if tok.type == 'DOT':
                 self.eat('DOT')
-                if not (self.current() and self.current().type == 'ID'):
+                attr_token = self.current()
+                if not (attr_token and attr_token.type in ('ID', 'NUMBER')):
                     return None
-                attr_name = self.eat('ID').value
+                self.eat(attr_token.type)
+                attr_name = attr_token.value
                 node = Attribute(node, attr_name)
             elif tok.type == 'LBRACKET':
                 self.eat('LBRACKET')
@@ -1195,6 +1202,12 @@ class Environment:
                 return env
             env = env.parent
         return None
+
+    def is_const(self, name: str) -> bool:
+        holder = self._find_holder(name)
+        if holder:
+            return holder._meta.get(name, {}).get('const', False)
+        return False
 
     def _root(self):
         env = self
@@ -1393,6 +1406,19 @@ class Interpreter:
                 exception_handler(get_builtin_exception("E0013", {"e": e}))
         return self._interp_pat.sub(repl, raw)
 
+    def _get_lvalue_base_name(self, node: ASTNode) -> str | None:
+        current = node
+        while isinstance(current, (Attribute, BinOp)):
+            if isinstance(current, Attribute):
+                current = current.obj
+            elif isinstance(current, BinOp) and current.op == '[]':
+                current = current.left
+            else:
+                return None
+        if isinstance(current, str):
+            return current
+        return None
+
     def _apply_aug_op(self, op, cur, val):
         if op == 'PLUSEQ':
             return cur + val
@@ -1408,6 +1434,19 @@ class Interpreter:
     def _read_from_target(self, target: ASTNode, env: Environment):
         if isinstance(target, Attribute):
             base = self.evaluate(target.obj, env)
+            if isinstance(base, (dict, list)):
+                key_or_index = target.name
+                if isinstance(base, list):
+                    try:
+                        key_or_index = int(key_or_index)
+                    except ValueError:
+                        exception_handler(get_builtin_exception("E0021", {"index": target.name, "collection": type(base).__name__}))
+
+                try:
+                    return base[key_or_index]
+                except (KeyError, IndexError):
+                    exception_handler(get_builtin_exception("E0021", {"index": key_or_index, "collection": type(base).__name__}))
+
             try:
                 return getattr(base, target.name)
             except AttributeError:
@@ -1425,8 +1464,26 @@ class Interpreter:
             exception_handler(get_builtin_exception("E0025", {"node": target}))
 
     def _assign_to_target(self, target: ASTNode, value, env: Environment):
+        base_name = self._get_lvalue_base_name(target)
+        if base_name and env.is_const(base_name):
+            exception_handler(get_builtin_exception("E0027", {"name": base_name}))
+
         if isinstance(target, Attribute):
             base = self.evaluate(target.obj, env)
+            if isinstance(base, (dict, list)):
+                key_or_index = target.name
+                if isinstance(base, list):
+                    try:
+                        key_or_index = int(key_or_index)
+                    except ValueError:
+                        exception_handler(get_builtin_exception("E0021", {"index": target.name, "collection": type(base).__name__}))
+                
+                try:
+                    base[key_or_index] = value
+                    return
+                except (KeyError, IndexError):
+                    exception_handler(get_builtin_exception("E0021", {"index": key_or_index, "collection": type(base).__name__}))
+
             try:
                 setattr(base, target.name, value)
                 return
@@ -1448,7 +1505,7 @@ class Interpreter:
 
         exception_handler(get_builtin_exception("E0025", {"node": target}))
 
-    def append_global_env_var_list(self, id, content):
+    def append_global_env_var_list(self, id: str, content: str):
         if id not in self.modules:
             self.modules.append(id)
         current_conv = self.ypsh_globals.get(id)
@@ -1510,7 +1567,7 @@ class Interpreter:
 
         self.color_print(returnValue, end)
 
-    def ypsh_def(self, module, id, content, desc=None):
+    def ypsh_def(self, module: str, id: str, content, desc: str = None):
         if module in ["@", "root"]:
             if self.ypsh_globals._find_holder("root") is None:
                 self.ypsh_globals.set("root", [])
@@ -1533,7 +1590,7 @@ class Interpreter:
             self.ypsh_globals.set(f"{module}.{id}", content)
             self.docs[f"{module}.{id}"] = desc
 
-    def ypsh_undef(self, module, id=None):
+    def ypsh_undef(self, module: str, id: str | None = None):
         if module in ["@", "root"]:
             self.ypsh_globals.unset(f"root.{id}")
             self.ypsh_globals.unset(f"@.{id}")
@@ -1569,7 +1626,7 @@ class Interpreter:
             self.ypsh_globals.unset(f"{module}.{id}")
             self.docs.pop(f"{module}.{id}", None)
 
-    def get_doc(self, key):
+    def get_doc(self, key: str):
         try:
             result = self.docs[key]
         except KeyError:
@@ -1577,7 +1634,7 @@ class Interpreter:
 
         return result
 
-    def set_doc(self, key, content):
+    def set_doc(self, key: str, content: str):
         self.docs[key] = content
 
     def module_enable(self, id: str):
@@ -1622,7 +1679,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "Error", YPSHException, desc="The Exception Object.")
             self.ypsh_def("@", "Exception", YPSHException, desc="The Exception Object.")
 
-            def exit_now(code=0):
+            def exit_now(code: int = 0):
                 raise SystemExit(code)
             self.ypsh_def("@", "exit", exit_now, desc="Exit YPSH's main Process.")
 
@@ -1630,13 +1687,13 @@ Those who use them wisely, without abuse, are the true users of computers.
                 exception_handler(exception)
             self.ypsh_def("@", "raise", raise_error, desc="Raise a Exception with Exception Object.")
 
-            def error_lang_set(lang="en"):
+            def error_lang_set(lang: str = "en"):
                 global ypsh_options
                 ypsh_options.runtime_default_language = lang
             self.ypsh_def("@", "Error.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
             self.ypsh_def("@", "Exception.lang.set", error_lang_set, desc="Set a Language ID for Localized Exception Message.")
 
-            def error_level_set(level="W"):
+            def error_level_set(level: str = "W"):
                 global ExceptionPrintingLevel
                 ExceptionPrintingLevel = level
             self.ypsh_def("@", "Error.level.set", error_level_set, desc="Set a Exception Level for Exception Printing.")
@@ -1664,6 +1721,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 env = self._current_env or self.ypsh_globals
                 return dict(env.vars)
             self.ypsh_def("ypsh", "locals", _ypsh_locals, desc="YPSH Local Scope")
+
             def _ypsh_globals():
                 root = self.ypsh_globals._root()
                 return dict(root.vars)
@@ -1679,17 +1737,6 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("ypsh", "version.text", ypsh_options.product_release_version_text, desc="Return YPSH's Version as Text")
             self.ypsh_def("ypsh", "version.build", ypsh_options.product_build, desc="Return YPSH's Build ID")
 
-            def count_func(input):
-                return len(input)
-            self.ypsh_def("@", "count", count_func)
-
-            def ypsh_exec(code_string) -> Any | None:
-                tokens = tokenize(code_string)
-                parser = Parser(tokens)
-                ast = parser.parse()
-                return self.interpret(ast)
-            self.ypsh_def("@", "exec", ypsh_exec)
-
             def ypsh_reset():
                 self.ypsh_globals = Environment()
                 self.module_enable("default")
@@ -1700,7 +1747,19 @@ Those who use them wisely, without abuse, are the true users of computers.
                 self.module_enable("system_core")
             self.ypsh_def("ypsh", "minimalize", ypsh_minimalize, desc="Reset all Variables(and Functions), and Enable 'system_core' Module")
 
-            def ypsh_range(start=1, end=None):
+            def ypsh_exec(code: str) -> Any | None:
+                tokens = tokenize(code)
+                parser = Parser(tokens)
+                ast = parser.parse()
+                return self.interpret(ast)
+            self.ypsh_def("ypsh", "exec", ypsh_exec)
+            self.ypsh_def("python", "exec", exec)
+
+            def count_func(input):
+                return len(input)
+            self.ypsh_def("@", "count", count_func)
+
+            def ypsh_range(start: int = 1, end: int | None = None):
                 if end == None:
                     return range(1, start+1)
                 else:
@@ -1720,15 +1779,15 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("memory", "alloc", mem.alloc, desc="Allocate a bytearray of size n.")
             self.ypsh_def("memory", "free", mem.free, desc="Free an allocated object by dropping references.")
 
-            def _auto_gc_set(flag=True):
+            def _auto_gc_set(flag: bool = True):
                 global ypsh_options
-                ypsh_options.runtime_auto_gc = bool(flag)
+                ypsh_options.runtime_auto_gc = flag
                 return ypsh_options.runtime_auto_gc
             self.ypsh_def("memory", "gc.auto", _auto_gc_set, desc="Enable/disable automatic GC after block exit.")
 
-            def _collect_after_toplevel(flag=False):
+            def _collect_after_toplevel(flag: bool = False):
                 global ypsh_options
-                ypsh_options.runtime_collect_after_toplevel = bool(flag)
+                ypsh_options.runtime_collect_after_toplevel = flag
                 return ypsh_options.runtime_collect_after_toplevel
             self.ypsh_def("memory", "gc.after_toplevel", _collect_after_toplevel, desc="Run GC after each top-level statement (may be slow).")
 
@@ -2020,25 +2079,25 @@ Those who use them wisely, without abuse, are the true users of computers.
 
         elif normalized_id in ["types", "pytypes"]:
             self.enabled_builtin_modules.append("pytypes")
-            self.ypsh_def("pytypes", "type", type)
-            self.ypsh_def("pytypes", "int", int)
-            self.ypsh_def("pytypes", "float", float)
-            self.ypsh_def("pytypes", "complex", complex)
-            self.ypsh_def("pytypes", "bool", bool)
-            self.ypsh_def("pytypes", "iter", iter)
-            self.ypsh_def("pytypes", "next", next)
-            self.ypsh_def("pytypes", "type", type)
-            self.ypsh_def("pytypes", "list", list)
-            self.ypsh_def("pytypes", "tuple", tuple)
-            self.ypsh_def("pytypes", "range", range)
-            self.ypsh_def("pytypes", "str", str)
-            self.ypsh_def("pytypes", "bytes", bytes)
-            self.ypsh_def("pytypes", "bytearray", bytearray)
-            self.ypsh_def("pytypes", "memoryview", memoryview)
-            self.ypsh_def("pytypes", "set", set)
-            self.ypsh_def("pytypes", "frozenset", frozenset)
-            self.ypsh_def("pytypes", "dict", dict)
-            self.ypsh_def("pytypes", "none", None)
+            self.ypsh_def("@", "type", type)
+            self.ypsh_def("@", "int", int)
+            self.ypsh_def("@", "float", float)
+            self.ypsh_def("@", "complex", complex)
+            self.ypsh_def("@", "bool", bool)
+            self.ypsh_def("@", "iter", iter)
+            self.ypsh_def("@", "next", next)
+            self.ypsh_def("@", "type", type)
+            self.ypsh_def("@", "list", list)
+            self.ypsh_def("@", "tuple", tuple)
+            self.ypsh_def("@", "range", range)
+            self.ypsh_def("@", "str", str)
+            self.ypsh_def("@", "bytes", bytes)
+            self.ypsh_def("@", "bytearray", bytearray)
+            self.ypsh_def("@", "memoryview", memoryview)
+            self.ypsh_def("@", "set", set)
+            self.ypsh_def("@", "frozenset", frozenset)
+            self.ypsh_def("@", "dict", dict)
+            self.ypsh_def("@", "none", None)
 
         elif normalized_id in ["dgce", "dgc_epoch"]:
             from datetime import datetime, timezone, timedelta
@@ -2326,7 +2385,22 @@ Those who use them wisely, without abuse, are the true users of computers.
                 holder = env._find_holder(full_key)
                 if holder:
                     return holder.vars[full_key]
+
             base = self.evaluate(node.obj, env)
+            
+            if isinstance(base, (dict, list)):
+                key_or_index = node.name
+                if isinstance(base, list):
+                    try:
+                        key_or_index = int(key_or_index)
+                    except ValueError:
+                        exception_handler(get_builtin_exception("E0021", {"index": node.name, "collection": type(base).__name__}))
+                
+                try:
+                    return base[key_or_index]
+                except (KeyError, IndexError):
+                    exception_handler(get_builtin_exception("E0021", {"index": key_or_index, "collection": type(base).__name__}))
+
             base_any: Any = base
             try:
                 return getattr(base_any, node.name)
@@ -3347,6 +3421,6 @@ if __name__ == '__main__':
                 code = f.read()
             run_text(code)
 
-        else:    
+        else:
             print(ypsh_options.product_release_version_text + " [REPL]")
             repl()

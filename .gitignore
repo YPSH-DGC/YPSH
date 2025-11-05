@@ -27,3 +27,6 @@ built-exec
 # pyinstaller
 build/
 *.spec
+
+# kamui 4d
+.kamui/
