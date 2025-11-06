@@ -28,25 +28,13 @@ YPSH_OPTIONS_DICT = {
 
 #!checkpoint!
 
-from rich.console import Console
-from rich.markup import escape
-from dotenv import load_dotenv
 from typing import Optional, Callable, Any
 import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat, gc, tracemalloc, pickle
 try:
-    from prompt_toolkit import PromptSession
-    from prompt_toolkit.lexers import PygmentsLexer
-    from prompt_toolkit.completion import Completer, Completion
-    from prompt_toolkit.styles.pygments import style_from_pygments_dict
-    from pygments.lexer import RegexLexer, bygroups
-    import pygments.token as PygTok
-    _YPSH_HAS_PTK = True
-except Exception:
-    _YPSH_HAS_PTK = False
-
-load_dotenv()
-console = Console()
-rich_print = console.print
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 class YPSH_OPTIONS:
     def __init__(self, content: dict):
@@ -132,12 +120,6 @@ class YPSHException(Exception):
                 self.desc[lang] = self.desc[lang].replace("{" + key + "}", str(items[key]))
         return self
 
-    def escape(self, flag: bool = False):
-        if flag and isinstance(self.desc, dict):
-            for lang in self.desc.keys():
-                self.desc[lang] = escape(self.desc[lang])
-        return self
-
 ExceptionPrintingLevel = "W"
 
 BUILTIN_EXCEPTION_SPEC = {
@@ -204,16 +186,20 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
     if level:
         final_level = level[0].upper()
     exception.level = final_level
+
+    output_stream = sys.stderr if final_level in ["C", "E", "W"] else sys.stdout
+    message = str(exception)
+
     if final_level == "C" and ExceptionPrintingLevel in ["C", "E", "W", "I", "D"]:
-        rich_print(f"[on red]{str(exception)}[/]")
+        print(message, file=output_stream)
     elif final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
-        rich_print(f"[red]{str(exception)}[/]")
+        print(message, file=output_stream)
     elif final_level == "W" and ExceptionPrintingLevel in ["W", "I", "D"]:
-        rich_print(f"[yellow]{str(exception)}[/]")
+        print(message, file=output_stream)
     elif final_level == "I" and ExceptionPrintingLevel in ["I", "D"]:
-        rich_print(f"[blue]{str(exception)}[/]")
+        print(message, file=output_stream)
     elif final_level == "D" and ExceptionPrintingLevel in ["D"]:
-        rich_print(f"[cyan]{str(exception)}[/]")
+        print(message, file=output_stream)
     if final_level == "C" and check:
         raise exception
 
@@ -1532,7 +1518,7 @@ class Interpreter:
         print(str(content), end=end)
 
     def color_print(self, content="", end: str = "\n"):
-        rich_print(str(content), end=end)
+        print(str(content), end=end)
 
     def ypsh_print(self, content="", end: str = "\n"):
         returnValue = ""
@@ -2062,7 +2048,6 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.enabled_builtin_modules.append("environment")
             global get_system_env
             def get_system_env(id):
-                load_dotenv()
                 return os.environ.get(id, None)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
@@ -2846,138 +2831,6 @@ def collect_errors(code: str) -> list[Exception]:
 
     return errors
 
-if _YPSH_HAS_PTK:
-    BlockKwToken = PygTok.Keyword.Declaration
-
-    class YpshLexer(RegexLexer):
-        name = "YPSH"
-        aliases = ["ypsh"]
-
-        tokens = {
-            "root": [
-                (r'(//[^\n]*|#[^\n]*)', PygTok.Comment),
-                (r'"""', PygTok.String, 'tdqstring'),
-                (r"'''", PygTok.String, 'tsqstring'),
-                (r'"',   PygTok.String, 'dqstring'),
-                (r"'",   PygTok.String, 'sqstring'),
-                (r'\b(func)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
-                 bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Function)),
-                (r'\b(class)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
-                 bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
-                (r'\b(template)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
-                 bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
-                (r'\b(template|if|elif|else|for|while|do|catch|return|break|continue|global|local|var|let|in|enum|switch|case|default)\b',
-                 BlockKwToken),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 PygTok.Name.Function),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name)),
-                (r'\b\d+(\.\d+)?\b', PygTok.Number),
-                (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
-                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}(),.:?;]', PygTok.Punctuation),
-                (r'\s+', PygTok.Text),
-            ],
-            "dqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r'"',    PygTok.String, '#pop'),
-                (r'[^"\\]+', PygTok.String),
-            ],
-            "sqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r"'",    PygTok.String, '#pop'),
-                (r"[^'\\]+", PygTok.String),
-            ],
-            "tdqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r'"""',  PygTok.String, '#pop'),
-                (r'[^\\]+', PygTok.String),
-            ],
-            "tsqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r"'''",  PygTok.String, '#pop'),
-                (r'[^\\]+', PygTok.String),
-            ],
-            "interp": [
-                (r'\)', PygTok.Punctuation, '#pop'),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 PygTok.Name.Function),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name)),
-                (r'\b\d+(\.\d+)?\b', PygTok.Number),
-                (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
-                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}.,:?;]', PygTok.Punctuation),
-                (r'\s+', PygTok.Text),
-            ],
-        }
-
-    class YpshCompleter(Completer):
-        def __init__(self, get_env_keys_callable):
-            self._get_keys = get_env_keys_callable
-
-        def get_completions(self, document, complete_event):
-            word = document.get_word_before_cursor(
-                pattern=re.compile(r"[A-Za-z0-9@_%\.]+")
-            )
-            if word is None:
-                return
-
-            keys = sorted(set(self._get_keys()))
-
-            if "." in word:
-                base, _, after = word.rpartition(".")
-                start_pos = -len(after)
-
-                children = set()
-                base_prefix = base + "."
-                for k in keys:
-                    if not k.startswith(base_prefix):
-                        continue
-                    remainder = k[len(base_prefix):]
-                    if not remainder:
-                        continue
-                    child = remainder.split(".", 1)[0]
-                    if after and not child.startswith(after):
-                        continue
-                    children.add(child)
-
-                for child in sorted(children):
-                    yield Completion(child, start_position=start_pos)
-                return
-
-            for k in keys:
-                if k.startswith(word):
-                    yield Completion(k, start_position=-len(word))
-
-    def _ypsh_ptk_style():
-        return style_from_pygments_dict({
-            BlockKwToken:            "fg:#FF69B4",
-            PygTok.Name.Function:    "fg:#FFD700",
-            PygTok.Name.Class:       "fg:#00B8B8",
-            PygTok.Comment:          "fg:#A0A0A0",
-            PygTok.Text:             "fg:#FFFFFF",
-            PygTok.Punctuation:      "fg:#FFFFFF",
-            PygTok.Name:             "fg:#FFFFFF",
-            PygTok.String:           "fg:#FFA500",
-            PygTok.Number:           "fg:#7FDBFF",
-            PygTok.Keyword:          "fg:#FFFFFF",
-        })
-
 # -- Script Executing -------------------------------
 def is_code_complete(code):
     try:
@@ -3061,27 +2914,29 @@ def repl():
     interpreter = Interpreter()
     accumulated_code = ""
 
-    if _YPSH_HAS_PTK:
-        style = _ypsh_ptk_style()
+    readline.set_history_length(1000)
+    doc = (getattr(readline, "__doc__", "") or "")
+    if "libedit" in doc:
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
 
-        def _all_env_keys():
-            env = interpreter.ypsh_globals
-            keys = []
-            while env:
-                keys.extend(env.vars.keys())
-                env = env.parent
-            return keys
+    def completer(text, state):
+        env = interpreter.ypsh_globals
+        results = []
+        while env:
+            results += [k for k in env.vars.keys() if k.startswith(text)]
+            env = env.parent
+        results = sorted(set(results))
+        return results[state] if state < len(results) else None
 
-        session = PromptSession(
-            lexer=PygmentsLexer(YpshLexer),
-            completer=YpshCompleter(_all_env_keys),
-            style=style
-        )
+    readline.set_completer(completer)
 
-        while True:
+    while True:
+        try:
+            prompt = ">>> " if accumulated_code == "" else "... "
             try:
-                prompt = ">>> " if accumulated_code == "" else "... "
-                line = session.prompt(prompt)
+                line = input(prompt)
                 if line.strip() in ["exit", "quit"]:
                     raise SystemExit(130)
             except KeyboardInterrupt:
@@ -3090,87 +2945,33 @@ def repl():
                 continue
             except EOFError:
                 break
+        except KeyboardInterrupt:
+            print()
+            accumulated_code = ""
+            continue
+        except EOFError:
+            break
 
-            accumulated_code += line + "\n"
+        accumulated_code += line + "\n"
 
-            if not is_code_complete(accumulated_code):
-                continue
+        if not is_code_complete(accumulated_code):
+            continue
 
-            try:
-                tokens = tokenize(accumulated_code)
-                parser = Parser(tokens)
-                ast    = parser.parse()
-                result = interpreter.interpret(ast)
-                if result is not None:
-                    print(result)
-            except KeyboardInterrupt:
-                print()
-            except YPSHException:
-                pass
-            except Exception as e:
-                exception_handler(e, check=False)
-            finally:
-                accumulated_code = ""
-
-    else:
-        readline.set_history_length(1000)
-        doc = (getattr(readline, "__doc__", "") or "")
-        if "libedit" in doc:
-            readline.parse_and_bind("bind ^I rl_complete")
-        else:
-            readline.parse_and_bind("tab: complete")
-
-        def completer(text, state):
-            env = interpreter.ypsh_globals
-            results = []
-            while env:
-                results += [k for k in env.vars.keys() if k.startswith(text)]
-                env = env.parent
-            results = sorted(set(results))
-            return results[state] if state < len(results) else None
-
-        readline.set_completer(completer)
-
-        while True:
-            try:
-                prompt = ">>> " if accumulated_code == "" else "... "
-                try:
-                    line = input(prompt)
-                    if line.strip() in ["exit", "quit"]:
-                        raise SystemExit(130)
-                except KeyboardInterrupt:
-                    print()
-                    accumulated_code = ""
-                    continue
-                except EOFError:
-                    break
-            except KeyboardInterrupt:
-                print()
-                accumulated_code = ""
-                continue
-            except EOFError:
-                break
-
-            accumulated_code += line + "\n"
-
-            if not is_code_complete(accumulated_code):
-                continue
-
-            try:
-                tokens = tokenize(accumulated_code)
-                parser = Parser(tokens)
-                ast    = parser.parse()
-                result = interpreter.interpret(ast)
-                if result is not None:
-                    print(result)
-            except KeyboardInterrupt:
-                print()
-            except YPSHException:
-                pass
-            except Exception as e:
-                exception_handler(e, check=False)
-            finally:
-                accumulated_code = ""
+        try:
+            tokens = tokenize(accumulated_code)
+            parser = Parser(tokens)
+            ast    = parser.parse()
+            result = interpreter.interpret(ast)
+            if result is not None:
+                print(result)
+        except KeyboardInterrupt:
+            print()
+        except YPSHException:
+            pass
+        except Exception as e:
+            exception_handler(e, check=False)
+        finally:
+            accumulated_code = ""
 
 def run_text(code):
     try:
@@ -3180,20 +2981,20 @@ def run_text(code):
         interpreter = Interpreter()
         interpreter.interpret(ast)
     except Exception as e:
-        rich_print(f"[red]{str(e)}[/red]")
+        print(f"{str(e)}", file=sys.stderr)
         raise SystemExit(1)
 
 def run_lint(code):
     errors = collect_errors(code)
 
     if not errors:
-        console.print(f"[green]Lint Passed[/green]")
+        print(f"Lint Passed")
         raise SystemExit(0)
     else:
-        console.print(f"[red]Lint Failed ({len(errors)} exception{'s' if len(errors) != 1 else ''})[/red]")
+        print(f"Lint Failed ({len(errors)} exception{'s' if len(errors) != 1 else ''})", file=sys.stderr)
         counter = 1
         for err in errors:
-            console.print(f"[red]{counter}. {err}[/red]")
+            print(f"{counter}. {err}", file=sys.stderr)
             counter += 1
         raise SystemExit(1)
 
@@ -3211,9 +3012,9 @@ def compile_source(code: str, output_path: str):
         ast = parser.parse()
         with open(output_path, 'wb') as f:
             pickle.dump(ast, f)
-        console.print(f"[green]Successfully compiled to {output_path}[/green]")
+        print(f"Successfully compiled to {output_path}")
     except Exception as e:
-        rich_print(f"[red]Compilation failed: {str(e)}[/red]")
+        print(f"Compilation failed: {str(e)}", file=sys.stderr)
         raise SystemExit(1)
 
 def run_compiled(filepath):
@@ -3223,7 +3024,7 @@ def run_compiled(filepath):
         interpreter = Interpreter()
         interpreter.interpret(ast)
     except Exception as e:
-        rich_print(f"[red]{str(e)}[/red]")
+        print(f"{str(e)}", file=sys.stderr)
         raise SystemExit(1)
 
 #!checkpoint!
@@ -3340,7 +3141,7 @@ if __name__ == '__main__':
                     isCompiled = True
                     options["main"] = arg
                 elif not os.path.isfile(arg):
-                    console.print(f"[red]File not found: {arg}[/red]")
+                    print(f"File not found: {arg}", file=sys.stderr)
                     raise SystemExit(1)
                 else:
                     with open(arg, encoding='utf-8') as f:
@@ -3350,9 +3151,9 @@ if __name__ == '__main__':
                     options["main"] = code
 
     if "version" in options:
-        rich_print(f"[bold][deep_sky_blue1]{ypsh_options.product_release_version_text}[/deep_sky_blue1] Version Information[/]")
-        rich_print(f"{ypsh_options.product_desc}")
-        rich_print(f"[dim][bold]{ypsh_options.product_build}[/bold] {ypsh_options.product_release_type}[/]")
+        print(f"{ypsh_options.product_release_version_text} Version Information")
+        print(f"{ypsh_options.product_desc}")
+        print(f"{ypsh_options.product_build} {ypsh_options.product_release_type}")
 
     if "compile" in options:
         output_file = options.get("output", "compiled.ypshc")
@@ -3402,7 +3203,7 @@ if __name__ == '__main__':
             except YPSHException as e:
                 raise SystemExit(1)
         else:
-            console.print("[red]No Code Received.[/red]")
+            print("No Code Received.", file=sys.stderr)
             raise SystemExit(1)
 
     if "repl" in options:
