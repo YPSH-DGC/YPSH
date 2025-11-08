@@ -140,7 +140,7 @@ BUILTIN_EXCEPTION_SPEC = {
     "E0014": YPSHException("YPSH", "C", "0014", "TypeError", {"en": "Expected '{id}' to be a list.", "ja": "'{id}' の種類はlistではありません。"}),
     "E0015": YPSHException("YPSH", "C", "0015", "ImportError", {"en": "File not found: {file_path}.", "ja": "ファイルが存在しません: {file_path}"}),
     "E0016": YPSHException("YPSH", "C", "0016", "ImportError", {"en": "Cannot find Module(s)/Library(s): {', '.join(not_founds)}", "ja": "次のモジュール/ライブラリを検出できませんでした: {', '.join(not_founds)}"}),
-    "E0017": YPSHException("YPSH", "C", "0017", "TypeError", {"en": "Type mismatch for variable '{node.name}': expected '{expected_type}', got '{type(value).__name__}'", "ja": "変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{type(value).__name__}' でした。"}),
+    "E0017": YPSHException("YPSH", "C", "0017", "TypeError", {"en": "Type mismatch for variable '{node.name}': expected '{expected_type}', got '{actual_type}'", "ja": "変数 '{node.name}' の型が一致しません: 期待された型 '{expected_type}' に対して、実際は '{actual_type}' でした。"}),
     "E0018": YPSHException("YPSH", "C", "0018", "TypeError", {"en": "Base {node.base} is not template", "ja": "基底 {node.base} は template ではありません"}),
     "E0019": YPSHException("YPSH", "C", "0019", "TypeError", {"en": "The expression in for loop is not iterable.", "ja": "渡されたデータはfor文で使用できません。イテラブルである必要があります。"}),
     "E0020": YPSHException("YPSH", "C", "0020", "KeyError", {"en": "Object has no attribute '{node.name}'", "ja": "属性 '{node.name}' は存在しません"}),
@@ -154,7 +154,7 @@ BUILTIN_EXCEPTION_SPEC = {
     "E0028": YPSHException("YPSH", "C", "0028", "SandboxRestriction", {"en": "Following action are restricted because Sandbox mode is Enabled: {action}", "ja": "サンドボックスモードが有効のため次の動作が制限されました: {action}"})
 }
 
-def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_escape: bool = False) -> YPSHException:
+def get_builtin_exception(id: str = "E0000", args: dict | None = None) -> YPSHException:
     tmpl = BUILTIN_EXCEPTION_SPEC.get(id, BUILTIN_EXCEPTION_SPEC["E0000"])
     new_exc = YPSHException(
         location=tmpl.location,
@@ -165,7 +165,7 @@ def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_esca
     )
     if args is None:
         args = {}
-    return new_exc.format(args).escape(need_escape)
+    return new_exc.format(args)
 
 def exception_handler(exception: Exception, level: str = None, check: bool = True, display: bool = True):
     global _YPSH_TRY_CATCH_DEPTH
@@ -457,8 +457,10 @@ class FuncCall(ASTNode):
     def __init__(self, name, args):
         self.name = name
         self.args = args
+        self.trailing_block: Optional[Block] = None
     def __repr__(self):
-        return f'FuncCall({self.name}, {self.args})'
+        trailing_repr = ', trailing_block=...' if self.trailing_block else ''
+        return f'FuncCall({self.name}, {self.args}{trailing_repr})'
 
 class ExpressionStmt(ASTNode):
     def __init__(self, expr):
@@ -558,6 +560,12 @@ class EnumCaseDecl(ASTNode):
         self.names = names
     def __repr__(self):
         return f'EnumCaseDecl({self.names})'
+
+class EnumMemberAccess(ASTNode):
+    def __init__(self, name):
+        self.name = name
+    def __repr__(self):
+        return f'EnumMemberAccess(.{self.name})'
 
 class SwitchStmt(ASTNode):
     def __init__(self, expression, cases, default_block):
@@ -705,16 +713,54 @@ class Parser:
             expr = self.expr()
             return ExpressionStmt(expr)
 
+    def parse_type(self):
+        if self.match('LBRACKET'):
+            self.eat('LBRACKET')
+            key_type = self.parse_type()
+            if self.match('COMMA') or self.match('COLON'):
+                self.eat(self.current().type)
+                value_type = self.parse_type()
+                self.eat('RBRACKET')
+                return f"Dict[{key_type},{value_type}]"
+            else:
+                self.eat('RBRACKET')
+                return f"List[{key_type}]"
+
+        if self.match('LBRACE'):
+            self.eat('LBRACE')
+            key_type = self.parse_type()
+            if not (self.match('COMMA') or self.match('COLON')):
+                exception_handler(YPSHException(desc={"en": "Expected , or : in dictionary type literal"}))
+            self.eat(self.current().type)
+            value_type = self.parse_type()
+            self.eat('RBRACE')
+            return f"Dict[{key_type},{value_type}]"
+        
+        type_name = self.eat('ID').value
+        
+        if self.match('LBRACKET'):
+            self.eat('LBRACKET')
+            p1 = self.parse_type()
+            if self.match('COMMA') or self.match('COLON'):
+                self.eat(self.current().type)
+                p2 = self.parse_type()
+                self.eat('RBRACKET')
+                return f"{type_name}[{p1},{p2}]"
+            else:
+                self.eat('RBRACKET')
+                return f"{type_name}[{p1}]"
+        return type_name
+
     def var_decl(self, is_const: bool=False, force_global: bool=False, force_local: bool=False):
         if self.match('ID', 'var') or self.match('ID', 'let'):
             kw = self.eat('ID').value
             is_const = (kw == 'let') or is_const
 
         name = self.eat('ID').value
-        var_type = "auto"
+        var_type = "infer"
         if self.current() and self.current().type == 'COLON':
             self.eat('COLON')
-            var_type = self.eat('ID').value
+            var_type = self.parse_type()
         self.eat('EQUAL')
         expr = self.expr()
         node = Assign(name, expr, declare=True, force_global=force_global, force_local=force_local, is_const=is_const)
@@ -729,21 +775,25 @@ class Parser:
         tok = self.current()
         if tok and tok.type != 'RPAREN':
             while True:
+                annotations = []
+                while self.current() and self.current().type == 'ID' and self.current().value.startswith('@'):
+                    annotations.append(self.eat('ID').value)
+
                 param_name = self.eat('ID').value
-                param_type = "auto"
+                param_type = "Any"
                 default_expr = None
 
                 tok2 = self.current()
                 if tok2 and tok2.type == 'COLON':
                     self.eat('COLON')
-                    param_type = self.eat('ID').value
+                    param_type = self.parse_type()
                     tok2 = self.current()
 
                 if tok2 and tok2.type == 'EQUAL':
                     self.eat('EQUAL')
                     default_expr = self.expr()
 
-                params.append((param_name, param_type, default_expr))
+                params.append((param_name, param_type, default_expr, annotations))
 
                 tok3 = self.current()
                 if tok3 and tok3.type == 'COMMA':
@@ -751,11 +801,11 @@ class Parser:
                 else:
                     break
         self.eat('RPAREN')
-        return_type = "auto"
+        return_type = "Any"
         tok4 = self.current()
         if tok4 and tok4.type == 'ARROW':
             self.eat('ARROW')
-            return_type = self.eat('ID').value
+            return_type = self.parse_type()
         body = self.block()
         return FuncDecl(name, params, return_type, body.statements)
 
@@ -930,7 +980,12 @@ class Parser:
         if token is None:
             exception_handler(get_builtin_exception("E0002"))
 
-        if token.type == 'NUMBER':
+        if token.type == 'DOT':
+            self.eat('DOT')
+            name = self.eat('ID').value
+            node = EnumMemberAccess(name)
+
+        elif token.type == 'NUMBER':
             self.eat('NUMBER')
             node = Number(token.value)
 
@@ -975,10 +1030,13 @@ class Parser:
                         is_kw = False
                         cur = self.current()
                         nxt = self.tokens[self.pos + 1] if (self.pos + 1) < len(self.tokens) else None
-                        if cur and cur.type == 'ID' and nxt and nxt.type == 'EQUAL':
+                        if cur and cur.type == 'ID' and nxt and (nxt.type == 'EQUAL' or nxt.type == 'COLON'):
                             name = self.eat('ID').value
-                            self.eat('EQUAL')
-                            value = self.expr()
+                            self.eat(nxt.type)
+                            if self.current().type == 'LBRACE':
+                                value = self.block()
+                            else:
+                                value = self.expr()
                             args.append(KeywordArg(name, value))
                             is_kw = True
 
@@ -990,7 +1048,15 @@ class Parser:
                         else:
                             break
                 self.eat('RPAREN')
-                node = FuncCall(node, args)
+
+                trailing_block = None
+                if self.current() and self.current().type == 'LBRACE':
+                    trailing_block = self.block()
+                
+                call_node = FuncCall(node, args)
+                call_node.trailing_block = trailing_block
+                node = call_node
+
 
             elif tok and tok.type == 'LBRACKET':
                 self.eat('LBRACKET')
@@ -1173,6 +1239,15 @@ class YPSHEnumMember:
         return hash((id(self.enum), self.name))
 
 # -- Interpreter ------------------------------------
+YPSH_TYPE_MAP = {
+    "None": type(None), "Any": object,
+    "Int": int, "Int8": int, "Int16": int, "Int32": int, "Int64": int,
+    "UInt": int, "UInt8": int, "UInt16": int, "UInt32": int, "UInt64": int,
+    "Double": float, "Float": float, "Float32": float, "Float64": float, "CGFloat": float,
+    "String": str, "Bool": bool,
+    "Array": list, "List": list,
+    "Dictionary": dict, "Dict": dict,
+}
 class Environment:
     def __init__(self, parent=None):
         self.vars = {}
@@ -1194,6 +1269,12 @@ class Environment:
         if holder:
             return holder._meta.get(name, {}).get('const', False)
         return False
+    
+    def get_type_info(self, name: str) -> Optional[str]:
+        holder = self._find_holder(name)
+        if holder:
+            return holder._meta.get(name, {}).get('type')
+        return None
 
     def _root(self):
         env = self
@@ -1204,24 +1285,24 @@ class Environment:
     def set_intent(self, name, kind: str):
         self._intent[name] = kind
 
-    def _declare_here(self, name, value, *, const=False, record_local=True):
+    def _declare_here(self, name, value, *, const=False, record_local=True, type_info=None):
         self.vars[name] = value
-        self._meta[name] = {'const': const}
+        self._meta[name] = {'const': const, 'type': type_info}
         if record_local and self._block_stack:
             self._block_stack[-1].append(name)
 
-    def declare(self, name, value, *, is_const=False, force_global=False, force_local=False):
+    def declare(self, name, value, *, is_const=False, force_global=False, force_local=False, type_info=None):
         if name == '_':
             return
         if force_global:
-            self._root()._declare_here(name, value, const=is_const, record_local=False)
+            self._root()._declare_here(name, value, const=is_const, record_local=False, type_info=type_info)
             return
         if force_local:
-            self._declare_here(name, value, const=is_const, record_local=True)
+            self._declare_here(name, value, const=is_const, record_local=True, type_info=type_info)
             return
         intent = self.get_intent(name)
         target = self._root() if intent == 'global' else self
-        target._declare_here(name, value, const=is_const, record_local=(target is self))
+        target._declare_here(name, value, const=is_const, record_local=(target is self), type_info=type_info)
 
     def get(self, name: str, check: bool = True):
         if name in self.vars:
@@ -1274,19 +1355,32 @@ class Function:
     def __init__(self, decl, env):
         self.decl = decl
         self.env = env
+        self.block_param_name = None
+        for name, _, _, annotations in self.decl.params:
+            if '@blockcontent' in annotations:
+                self.block_param_name = name
+                break
 
-    def call(self, pos_args, kw_args, interpreter):
+    def call(self, pos_args, kw_args, interpreter, trailing_block=None):
         return_type = self.decl.return_type
-        local_env = Environment(self.env)
 
-        param_names = [p for (p, _, _) in self.decl.params]
+        temp_env = Environment(self.env)
+        
+        if trailing_block and self.block_param_name:
+            if self.block_param_name in kw_args:
+                exception_handler(YPSHException(desc={"en": f"Block content for '{self.block_param_name}' passed as both argument and trailing block."}))
+            block_value = interpreter.execute(trailing_block, temp_env)
+            kw_args[self.block_param_name] = block_value
+
+        local_env = Environment(self.env)
+        param_names = [p for (p, _, _, _) in self.decl.params]
         unknown = set(kw_args.keys()) - set(param_names)
         if unknown:
             exception_handler(get_builtin_exception("E0009"))
 
         j = 0
         used_kw = set()
-        for (param_name, _ptype, default_expr) in self.decl.params:
+        for (param_name, _ptype, default_expr, _) in self.decl.params:
             if j < len(pos_args):
                 value = pos_args[j]
                 j += 1
@@ -1294,7 +1388,7 @@ class Function:
                 value = kw_args[param_name]
                 used_kw.add(param_name)
             elif default_expr is not None:
-                value = interpreter.evaluate(default_expr, local_env)
+                value = interpreter.evaluate(default_expr, temp_env)
             else:
                 exception_handler(get_builtin_exception("E0009"))
 
@@ -1311,7 +1405,7 @@ class Function:
                 result = interpreter.execute(stmt, local_env)
             return result
         except ReturnException as e:
-            if return_type != "auto" and not interpreter._check_type_match(e.value, return_type):
+            if return_type != "Any" and not interpreter._check_type_match(e.value, return_type):
                 exception_handler(get_builtin_exception("E0010", {
                     "self.decl.name": self.decl.name,
                     "return_type": return_type,
@@ -1684,6 +1778,10 @@ Those who use them wisely, without abuse, are the true users of computers.
                 ExceptionPrintingLevel = level
             self.ypsh_def("@", "Error.level.set", error_level_set, desc="Set a Exception Level for Exception Printing.")
             self.ypsh_def("@", "Exception.level.set", error_level_set, desc="Set a Exception Level for Exception Printing.")
+
+            for ypsh_type_name, python_type in YPSH_TYPE_MAP.items():
+                if python_type is not object:
+                    self.ypsh_def("@", ypsh_type_name, python_type)
 
         elif normalized_id in ["extra", "system_extra"]:
             self.enabled_builtin_modules.append("system_extra")
@@ -2119,22 +2217,88 @@ Those who use them wisely, without abuse, are the true users of computers.
     def setup_builtins(self):
         self.module_enable("default")
 
-    def _check_type_match(self, value, expected_type: str) -> bool:
-        type_map = {
-            "int": int,
-            "float": float,
-            "str": str,
-            "bool": bool,
-            "list": list,
-            "dict": dict,
-            "none": type(None),
-            "function": Function,
-        }
+    def _infer_type(self, value):
+        if isinstance(value, int): return "Int"
+        if isinstance(value, float): return "Float"
+        if isinstance(value, str): return "String"
+        if isinstance(value, bool): return "Bool"
+        if isinstance(value, list):
+            if not value:
+                return "List[Any]"
+            element_types = set(self._infer_type(item) for item in value)
+            element_type_str = element_types.pop() if len(element_types) == 1 else "Any"
+            return f"List[{element_type_str}]"
+        if isinstance(value, dict):
+            if not value:
+                return "Dict[Any, Any]"
+            key_types = set(self._infer_type(k) for k in value.keys())
+            value_types = set(self._infer_type(v) for v in value.values())
+            key_type_str = key_types.pop() if len(key_types) == 1 else "Any"
+            value_type_str = value_types.pop() if len(value_types) == 1 else "Any"
+            return f"Dict[{key_type_str}, {value_type_str}]"
+        if value is None: return "None"
+        return "Any"
 
-        if expected_type in type_map:
-            return isinstance(value, type_map[expected_type])
-        else:
+    def _parse_generic_params(self, params_str: str) -> list[str]:
+        params = []
+        current_param_start = 0
+        bracket_level = 0
+        for i, char in enumerate(params_str):
+            if char == '[':
+                bracket_level += 1
+            elif char == ']':
+                bracket_level -= 1
+            elif char == ',' and bracket_level == 0:
+                params.append(params_str[current_param_start:i].strip())
+                current_param_start = i + 1
+        params.append(params_str[current_param_start:].strip())
+        return params
+
+    def _parse_type_str(self, type_str: str) -> tuple[str, list[str]]:
+        first_bracket = type_str.find('[')
+        if first_bracket == -1 or not type_str.endswith(']'):
+            return type_str, []
+
+        base_type = type_str[:first_bracket]
+        params_str = type_str[first_bracket + 1:-1]
+        
+        return base_type, self._parse_generic_params(params_str)
+
+    def _check_type_match(self, value, expected_type_str: str) -> bool:
+        if expected_type_str in ("Any", "auto"):
             return True
+
+        base_type_str, generic_params = self._parse_type_str(expected_type_str)
+
+        py_type = YPSH_TYPE_MAP.get(base_type_str)
+        if not py_type:
+            return True
+        
+        if not isinstance(value, py_type):
+            return False
+
+        if not generic_params:
+            return True
+
+        if base_type_str in ("List", "Array"):
+            if len(generic_params) != 1: return True
+            element_type = generic_params[0]
+            if element_type == "Any": return True
+            for item in value:
+                if not self._check_type_match(item, element_type):
+                    return False
+
+        elif base_type_str in ("Dict", "Dictionary"):
+            if len(generic_params) != 2: return True
+            key_type, value_type = generic_params
+            if key_type == "Any" and value_type == "Any": return True
+            for k, v in value.items():
+                if key_type != "Any" and not self._check_type_match(k, key_type):
+                    return False
+                if value_type != "Any" and not self._check_type_match(v, value_type):
+                    return False
+        
+        return True
 
     def interpret(self, node):
         if isinstance(node, Block):
@@ -2172,45 +2336,51 @@ Those who use them wisely, without abuse, are the true users of computers.
 
         elif isinstance(node, VarDecl):
             value = self.evaluate(node.expr, env)
-            expected_type = node.var_type
-            if expected_type != "auto" and not self._check_type_match(value, expected_type):
-                exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": expected_type, "type(value).__name__": type(value).__name__}))
-            env.declare(node.name, value)
+            env.declare(node.name, value, type_info=node.var_type)
 
         elif isinstance(node, Intent):
             env.set_intent(node.name, node.kind)
             return None
 
         elif isinstance(node, Assign):
-            value = self.evaluate(node.expr, env)
-            var_type = getattr(node, 'var_type', "auto")
-            if node.declare and var_type != "auto":
-                if not self._check_type_match(value, var_type):
-                    exception_handler(get_builtin_exception("E0017", {
-                        "node.name": node.name, "expected_type": var_type,
-                        "type(value).__name__": type(value).__name__
-                    }))
-
-            if node.target is not None:
-                self._assign_to_target(node.target, value, env)
-                return None
+            if isinstance(node.expr, EnumMemberAccess):
+                type_info_str = None
+                if node.declare:
+                    type_info_str = getattr(node, 'var_type', None)
+                elif node.name:
+                    type_info_str = env.get_type_info(node.name)
+                
+                if not type_info_str or not isinstance(type_info_str, str):
+                    exception_handler(YPSHException(desc={"en": f"Cannot infer enum type for '{node.expr}' without a type annotation."}))
+                
+                enum_obj = env.get(type_info_str)
+                if not isinstance(enum_obj, YPSHEnum):
+                    exception_handler(YPSHException(desc={"en": f"Type '{type_info_str}' is not an enum."}))
+                
+                value = getattr(enum_obj, node.expr.name)
+            else:
+                value = self.evaluate(node.expr, env)
 
             if node.declare:
-                intent = env.get_intent(node.name)
-                holder = env._root() if (node.force_global or (not node.force_local and intent == 'global')) else env
-
-                real_holder = holder._find_holder(node.name)
-                if real_holder:
-                    real_holder.unset(node.name)
-
-                env.declare(
-                    node.name, value,
-                    is_const=node.is_const,
-                    force_global=node.force_global or (not node.force_local and intent == 'global'),
-                    force_local=node.force_local or (intent == 'local'),
-                )
+                var_type = getattr(node, 'var_type', 'Any')
+                if var_type == 'infer':
+                    inferred_type = self._infer_type(value)
+                    env.declare(node.name, value, is_const=node.is_const, force_global=node.force_global, force_local=node.force_local, type_info=inferred_type)
+                else:
+                    if not self._check_type_match(value, var_type):
+                         exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": var_type, "actual_type": self._infer_type(value)}))
+                    env.declare(node.name, value, is_const=node.is_const, force_global=node.force_global, force_local=node.force_local, type_info=var_type)
             else:
-                env.set(node.name, value)
+                if node.name:
+                    type_info = env.get_type_info(node.name)
+                    if type_info and type_info not in ("Any", "auto"):
+                        if not self._check_type_match(value, type_info):
+                            exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": type_info, "actual_type": self._infer_type(value)}))
+                
+                if node.target:
+                     self._assign_to_target(node.target, value, env)
+                else:
+                     env.set(node.name, value)
             return None
 
         elif isinstance(node, AugAssign):
@@ -2218,6 +2388,14 @@ Those who use them wisely, without abuse, are the true users of computers.
                 cur = self._read_from_target(node.target, env)
                 val = self.evaluate(node.expr, env)
                 newv = self._apply_aug_op(node.op, cur, val)
+                
+                base_name = self._get_lvalue_base_name(node.target)
+                if base_name:
+                    type_info = env.get_type_info(base_name)
+                    if type_info and type_info not in ("Any", "auto"):
+                         if not self._check_type_match(newv, type_info):
+                            exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": type_info, "actual_type": self._infer_type(newv)}))
+
                 self._assign_to_target(node.target, newv, env)
                 return None
 
@@ -2228,7 +2406,24 @@ Those who use them wisely, without abuse, are the true users of computers.
                 holder = env._find_holder(node.name)
             cur = holder.vars[node.name]
             val = self.evaluate(node.expr, env)
+
+            type_info = env.get_type_info(node.name)
+
+            if node.op == 'PLUSEQ' and isinstance(cur, list) and isinstance(val, list) and type_info:
+                base_type, generic_params = self._parse_type_str(type_info)
+                if base_type in ("List", "Array") and len(generic_params) == 1:
+                    element_type = generic_params[0]
+                    if not self._check_type_match(val, f"List[{element_type}]"):
+                         actual_type = self._infer_type(val)
+                         exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": type_info, "actual_type": actual_type}))
+                         return None
+
             newv = self._apply_aug_op(node.op, cur, val)
+
+            if type_info and type_info not in ("Any", "auto"):
+                if not self._check_type_match(newv, type_info):
+                    exception_handler(get_builtin_exception("E0017", {"node.name": node.name, "expected_type": type_info, "actual_type": self._infer_type(newv)}))
+                    return None
             env.set(node.name, newv)
             return None
 
@@ -2391,6 +2586,8 @@ Those who use them wisely, without abuse, are the true users of computers.
                 return getattr(base_any, node.name)
             except AttributeError:
                 exception_handler(get_builtin_exception("E0020", {"node.name": node.name}))
+        elif isinstance(node, EnumMemberAccess):
+            exception_handler(YPSHException(desc={"en": "Enum member access '.member' can only be used in an assignment or switch-case context."}))
         elif isinstance(node, Number):
             return node.value
         elif isinstance(node, String):
@@ -2456,13 +2653,19 @@ Those who use them wisely, without abuse, are the true users of computers.
             kw_vals = {}
             for a in node.args:
                 if isinstance(a, KeywordArg):
-                    kw_vals[a.name] = self.evaluate(a.value, env)
+                    arg_val = a.value
+                    if isinstance(arg_val, Block):
+                        kw_vals[a.name] = self.execute(arg_val, env)
+                    else:
+                        kw_vals[a.name] = self.evaluate(arg_val, env)
                 else:
                     pos_vals.append(self.evaluate(a, env))
 
             if isinstance(func_obj, Function):
-                return func_obj.call(pos_vals, kw_vals, self)
+                return func_obj.call(pos_vals, kw_vals, self, trailing_block=node.trailing_block)
             elif callable(func_obj):
+                if node.trailing_block:
+                    exception_handler(YPSHException(desc={"en": "Trailing block syntax is only supported for YPSH functions."}))
                 return func_obj(*pos_vals, **kw_vals)
             else:
                 exception_handler(get_builtin_exception("E0024"))
@@ -2692,7 +2895,7 @@ class SemanticAnalyzer:
     def analyze_FuncDecl(self, node):
         self.declare(node.name)
         self.push_scope()
-        for (param_name, _ptype, default_expr) in node.params:
+        for (param_name, _ptype, default_expr, _) in node.params:
             self.declare(param_name)
             if default_expr is not None:
                 self.analyze(default_expr)
@@ -2787,6 +2990,7 @@ class SemanticAnalyzer:
     def analyze_ContinueStmt(self, node): pass
     def analyze_ShellStmt(self, node): pass
     def analyze_Intent(self, node): pass
+    def analyze_EnumMemberAccess(self, node): pass
 
 def collect_errors(code: str) -> list[Exception]:
     errors = []
