@@ -151,22 +151,6 @@ if score == 100 {
 }
 ```
 
-**`switch` statement:**
-Branches processing depending on the value of the expression.
-```ypsh
-switch status_code {
-    case 200: {
-        print("OK")
-    }
-    case 404: {
-        print("Not Found")
-    }
-    default: {
-        print("Unknown status")
-    }
-}
-```
-
 **`for` loop:**
 Iterates over the elements of an iterable object, such as a list.
 ```ypsh
@@ -234,18 +218,6 @@ let user1 = User("Alice")
 user1.say_hello()
 ```
 
-## Enumerations (Enum)
-Defines a group of related values.
-```
-enum Signal {
-    case RED, YELLOW, GREEN
-}
-
-let current_signal = Signal.GREEN
-
-if current_signal == Signal.GREEN {
-    print("Go!")
-}
 ```
 
 ## Exception Handling
