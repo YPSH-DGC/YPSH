@@ -36,14 +36,14 @@ The PyYPSH interpreter offers features that are only possible because it's based
 **Supported Python Versions (Based on PyYPSH Runtime dependencies):**
 |       | Status      | Reason                                                                                           | 
 | ----- | ----------- | ------------------------------------------------------------------------------------------------ | 
-| 3.6   | Unsupported | Union type, rich, and python-dotenv are not supported.                                           | 
-| 3.7   | Unsupported | Union type, rich, and python-dotenv are not supported.                                           | 
-| 3.8   | Unsupported | Union type and python-dotenv are not supported.                                                  | 
-| 3.9   | Unsupported | Union type are not supported.                                                                    | 
-| 3.10  | Supported   | psutil ≥3.6, prompt_toolkit ≥3.6, rich ≥3.8, python‑dotenv ≥3.9 are met and PEP604 is available. | 
+| 3.6   | Not Working | Union type, rich, and python-dotenv are not supported.                                           | 
+| 3.7   | Not Working | Union type, rich, and python-dotenv are not supported.                                           | 
+| 3.8   | Not Working | Union type and python-dotenv are not supported.                                                  | 
+| 3.9   | Not Working | Union type are not supported.                                                                    | 
+| 3.10  | Working     | psutil ≥3.6, prompt_toolkit ≥3.6, rich ≥3.8, python‑dotenv ≥3.9 are met and PEP604 is available. | 
 | 3.11  | Recommended | Same as above                                                                                    | 
 | 3.12  | Recommended | Same as above                                                                                    | 
-| 3.13  | Supported   | Same as above                                                                                    | 
+| 3.13  | Working     | Same as above                                                                                    | 
 | 3.14+ | Maybe       | Some libraries do not report support for this Python version.                                    | 
 
 ## About Windows 11
