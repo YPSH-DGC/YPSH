@@ -29,22 +29,28 @@ The PyYPSH interpreter offers features that are only possible because it's based
 
 ## Requirements
 - CPython (Behavior on other Python implementations has not been tested)
-- pip/uv, rich, ulid-py, zstandard (for PyNABS)
-- psutil, prompt_toolkit, rich, python‑dotenv (for PyYPSH Runtime)
-- pyside6, requests (for PyYPSH Setup)
+- rich, python‑dotenv (for PyYPSH Runtime, Required)
+- psutil, prompt_toolkit (for PyYPSH Runtime, Optional)
+- requests (for PyYPSH Setup, Required)
+- pyside6 (for PyYPSH Setup, Optional)
+- pip/uv, rich, zstandard (for PyNABS, Required)
+- ulid-py (for PyYPSH Configurator, Required)
 
-**Supported Python Versions (Based on PyYPSH Runtime dependencies):**
-|       | Status      | Reason                                                                                           | 
-| ----- | ----------- | ------------------------------------------------------------------------------------------------ | 
-| 3.6   | Not Working | Union type, rich, and python-dotenv are not supported.                                           | 
-| 3.7   | Not Working | Union type, rich, and python-dotenv are not supported.                                           | 
-| 3.8   | Not Working | Union type and python-dotenv are not supported.                                                  | 
-| 3.9   | Not Working | Union type are not supported.                                                                    | 
-| 3.10  | Working     | psutil ≥3.6, prompt_toolkit ≥3.6, rich ≥3.8, python‑dotenv ≥3.9 are met and PEP604 is available. | 
-| 3.11  | Recommended | Same as above                                                                                    | 
-| 3.12  | Recommended | Same as above                                                                                    | 
-| 3.13  | Working     | Same as above                                                                                    | 
-| 3.14+ | Maybe       | Some libraries do not report support for this Python version.                                    | 
+**Supported Python Versions:**
+|       | Status      | Reason                                                                                                    |
+| ----- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| 3.6   | Not Working | `from __future__ import annotations` and `subprocess.run`'s `text` and `capture_output` needs Python 3.7+ |
+| 3.7   | Not Working | `from typing import ... Literal` needs Python 3.8+                                                        |
+| 3.8   | Not Working | `python-dotenv` needs 3.9+                                                                                |
+| 3.9   | Working     | All features are working                                                                                  |
+| 3.10  | Recommended | Same as above                                                                                             |
+| 3.11  | Recommended | Same as above                                                                                             |
+| 3.12  | Recommended | Same as above                                                                                             |
+| 3.13  | Working     | Same as above                                                                                             |
+| 3.14  | Working     | Same as above                                                                                             |
+| 3.15+ | Maybe       | I don't know yet as 3.15 has not been released, but it might work.                                        |
+
+**Note:** This is the result of an investigation into the Python features used internally by the PyYPSH runtime and the main external libraries required for the runtime to function. It does not reflect the support status of some Python integration features or other libraries. The investigation was conducted by AI, so some information may be incorrect.
 
 ## About Windows 11
 Windows 11 has recently caused many issues, and I do not believe that PyYPSH will continue to function properly.
