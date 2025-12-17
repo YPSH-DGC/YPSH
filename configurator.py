@@ -53,13 +53,17 @@ def get_build_id(platform_infos: dict[str,str]) -> str:
 def config_python_script(scripts: dict[str,str], config: dict[str,Any], release_tag: str = "v0.0.0") -> str:
     platform_infos = get_platform_information()
     build_id = get_build_id(platform_infos)
+    tag = release_tag.replace("v","").split("b")[0].split(".")
+    tag_major = tag[0] if len(tag) >= 1 else "0"
+    tag_minor = tag[1] if len(tag) >= 2 else "0"
+    tag_fix = tag[2] if len(tag) >= 3 else "0"
 
     YPSH_OPTIONS_DICT = {
         "product.information": {
             "name": "PyYPSH",
             "desc": "One of the official implementations of the YPSH programming language.",
             "id": "net.diamondgotcat.ypsh.pyypsh",
-            "release": {"version": release_tag.replace("v","").split("b")[0].split("."), "type": "release"},
+            "release": {"version": [tag_major, tag_minor, tag_fix], "type": "release"},
             "build": build_id
         },
         "runtime.platform": {
