@@ -1,5 +1,5 @@
 
-<img width="1920" alt="pyypsh" src="https://github.com/user-attachments/assets/f2525186-0e27-435d-be2e-018870150717" />
+<img width="1920" src="assets/pyypsh.png" />
 
 > [!IMPORTANT]
 > I am developing various projects, and since I manage, maintain, and update all of them myself, there may be times when I can't attend to each project individually.
