@@ -1,8 +1,6 @@
-rich>=13.0.0
-requests>=2.25.0
+rich
 pyreadline3; platform_system == "Windows"
 ulid-py
 python-dotenv
-certifi
-prompt_toolkit
-pygments
+prompt-toolkit
+psutil

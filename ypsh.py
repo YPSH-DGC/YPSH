@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 
-# -- PyYPSH ----------------------------------------------------- #
-# ypsh.py on PyYPSH                                               #
-# Made by DiamondGotCat, Licensed under MIT License               #
-# Copyright (c) 2025 DiamondGotCat                                #
-# ---------------------------------------------- DiamondGotCat -- #
+# ╭──────────────────────────────────────╮
+# │ ypsh.py on PyYPSH                    │
+# │ Nercone <nercone@diamondgotcat.net>  │
+# │ Made by Nercone / MIT License        │
+# │ Copyright (c) 2025 DiamondGotCat     │
+# ╰──────────────────────────────────────╯
+
+from __future__ import annotations
 
 YPSH_OPTIONS_DICT = {
     "product.information": {
         "name": "PyYPSH",
         "desc": "One of the official implementations of the YPSH programming language.",
         "id": "net.diamondgotcat.ypsh.pyypsh",
-        "release": {"version": [0,0,0], "type": "source"},
+        "release": {"version": [0, 0, 0], "type": "source"},
         "build": "PyYPSH-Python3-Source"
     },
     "runtime.platform": {
@@ -20,32 +23,37 @@ YPSH_OPTIONS_DICT = {
     },
     "runtime.options": {
         "default_language": "en_US",
-        "auto_gc": True,
+        "auto_gc": False,
         "collect_after_toplevel": False
-    }
+    },
 }
 
-#!checkpoint!
+#!buildpoint!
 
+import re
+import sys
+import os
+import json
+import warnings
+import subprocess
+import readline
+import tempfile
+import urllib.request
+import shutil
+import stat
+import gc
+import tracemalloc
+import shlex
 from rich.console import Console
 from rich.markup import escape
 from dotenv import load_dotenv
-from typing import Optional, Callable, Any
-import re, sys, os, json, warnings, subprocess, sys, os, readline, tempfile, urllib.request, shutil, stat, gc, tracemalloc
-try:
-    from prompt_toolkit import PromptSession
-    from prompt_toolkit.lexers import PygmentsLexer
-    from prompt_toolkit.completion import Completer, Completion
-    from prompt_toolkit.styles.pygments import style_from_pygments_dict
-    from pygments.lexer import RegexLexer, bygroups
-    import pygments.token as PygTok
-    _YPSH_HAS_PTK = True
-except Exception:
-    _YPSH_HAS_PTK = False
+from typing import Optional, Callable, Any, Literal
+from functools import lru_cache
 
-load_dotenv()
 console = Console()
 rich_print = console.print
+
+_MISSING = object()
 
 class YPSH_OPTIONS:
     def __init__(self, content: dict):
@@ -54,13 +62,15 @@ class YPSH_OPTIONS:
         self.product_id: str = content.get('product.information', {}).get('id', 'net.diamondgotcat.ypsh.pyypsh')
         self.product_release_version: list = content.get('product.information', {}).get('release', {}).get('version', [0,0,0])
         self.product_release_version_text: str = f"{self.product_name} v{'.'.join(map(str, self.product_release_version))}"
-        self.product_release_type: str = content.get('product.information', {}).get('release', {}).get('type', 'source')
-        self.product_build: str = content.get('product.information', {}).get('build', 'PyYPSH-Python3-Source')
-        self.runtime_default_language: str = content.get('runtime.options', {}).get('runtime_default_language', 'en_US')
-        self.runtime_autorun_script: str = content.get('runtime.options', {}).get('autorun_script', None)
-        self.runtime_auto_gc: str = content.get('runtime.options', {}).get('auto_gc', True)
-        self.runtime_collect_after_toplevel: str = content.get('runtime.options', {}).get('collect_after_toplevel', False)
+        self.product_release_type: str = content.get("product.information", {}).get("release", {}).get("type", "source")
+        self.product_build: str = content.get("product.information", {}).get("build", "PyYPSH-Python3-Source")
+        self.runtime_default_language: str = content.get("runtime.options", {}).get("default_language", "en_US")
+        self.runtime_autorun_script: str = content.get("runtime.options", {}).get("autorun_script", None)
+        self.runtime_auto_gc: bool = bool(content.get("runtime.options", {}).get("auto_gc", False))
+        self.runtime_collect_after_toplevel: bool = bool(content.get("runtime.options", {}).get("collect_after_toplevel", False))
+
 ypsh_options = YPSH_OPTIONS(YPSH_OPTIONS_DICT)
+
 SHELL_NAME = f"YPShell-{''.join(map(str, ypsh_options.product_release_version))}".strip()
 SHELL_CWD = os.getcwd()
 YPSH_DIR: str = os.environ.get("YPSH_DIR") or os.path.join(os.path.expanduser("~"), ".ypsh")
@@ -68,21 +78,21 @@ YPSH_LIBS_DIR: str = os.environ.get("YPSH_LIBS_DIR") or os.path.join(YPSH_DIR, "
 
 # -- Helpers ----------------------------------------
 def unescape_string_literal(s: str) -> str:
-     with warnings.catch_warnings():
-         warnings.filterwarnings(
-             "ignore",
-             category=DeprecationWarning,
-             message=r"invalid escape sequence .*",
-         )
-         return bytes(s, "utf-8").decode("unicode_escape")
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=DeprecationWarning,
+            message=r"invalid escape sequence .*",
+        )
+        return bytes(s, "utf-8").decode("unicode_escape")
 
 def find_file_shallowest(root_dir: str, target_filename: str) -> str | None:
     shallowest_path = None
-    shallowest_depth = float('inf')
+    shallowest_depth = float("inf")
 
     for dirpath, _, filenames in os.walk(root_dir):
         if target_filename in filenames:
-            depth = dirpath[len(root_dir):].count(os.sep)
+            depth = dirpath[len(root_dir) :].count(os.sep)
             if depth < shallowest_depth:
                 shallowest_depth = depth
                 shallowest_path = os.path.join(dirpath, target_filename)
@@ -93,64 +103,59 @@ def return_ypsh_exec_folder() -> str:
     if ypsh_options.product_release_type == "source":
         return os.path.dirname(os.path.abspath(__file__))
     else:
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             return os.path.dirname(sys.executable)
         else:
             return os.path.dirname(os.path.abspath(__file__))
 
-def _pygments_token_to_style_str(tok):
-    parts = []
-    t = tok
-    while getattr(t, "parent", None) is not None:
-        if getattr(t, "shortname", None):
-            parts.append(t.shortname)
-        t = t.parent
-    parts.reverse()
-    return "class:pygments." + ".".join(p.lower() for p in parts) if parts else "class:pygments.text"
-
 # -- Shell Execution --------------------------------
-class ShellExecutionResult():
+class ShellExecutionResult:
     def __init__(self, return_code: int = 0, stdout: str = "", stderr: str = ""):
         self.code = return_code
         self.return_code = return_code
         self.zero = return_code == 0
-        self.non_zero = not return_code == 0
+        self.non_zero = return_code != 0
         self.stdout = stdout
         self.stderr = stderr
 
-def shell_exec(command: str, check: bool = True, env: dict = os.environ.copy()) -> ShellExecutionResult:
+def shell_exec(command: str, check: bool = True, env: Optional[dict] = None) -> ShellExecutionResult:
     global SHELL_CWD
-    command_name = command.split(" ")[0]
-    shell_env = env
+    command_name = command.partition(" ")[0]
+    shell_env = (env or os.environ).copy()
     shell_env["SHELL"] = SHELL_NAME
     shell_env["YPSH_VERSION"] = ypsh_options.product_release_version_text
     shell_env["YPSH_BUILDID"] = ypsh_options.product_build
-    return_code = 0
-    stdout = ""
-    stderr = ""
+
     if command_name == "cd":
-        changeto: str = os.path.expanduser(os.path.expandvars(command.split(" ")[1]))
+        parts = shlex.split(command)
+        changeto_raw = parts[1] if len(parts) >= 2 else "~"
+        changeto: str = os.path.expanduser(os.path.expandvars(changeto_raw))
         if changeto.startswith("/"):
-            SHELL_CWD_TMP = changeto
+            shell_cwd_tmp = changeto
         else:
-            SHELL_CWD_TMP = os.path.abspath(os.path.join(SHELL_CWD, changeto))
-        if not os.path.exists(SHELL_CWD_TMP):
+            shell_cwd_tmp = os.path.abspath(os.path.join(SHELL_CWD, changeto))
+        if not os.path.exists(shell_cwd_tmp):
             return ShellExecutionResult(return_code=1, stderr="YPShell: No such file or directory.")
-        SHELL_CWD = SHELL_CWD_TMP
+        SHELL_CWD = shell_cwd_tmp
         return ShellExecutionResult(return_code=0, stdout="YPShell: Successfully Changed CWD.")
-    else:
-        try:
-            result = subprocess.run(os.path.expanduser(os.path.expandvars(command)), shell=True, check=check, text=True, capture_output=True, cwd=SHELL_CWD, env=shell_env)
-            return_code = result.returncode
-            stdout = result.stdout
-            stderr = result.stderr
-        except subprocess.CalledProcessError as e:
-            return_code = e.returncode
-            stdout = e.stdout
-            stderr = e.stderr
-    return ShellExecutionResult(return_code=return_code, stdout=stdout, stderr=stderr)
+
+    try:
+        result = subprocess.run(
+            os.path.expanduser(os.path.expandvars(command)),
+            shell=True,
+            check=check,
+            text=True,
+            capture_output=True,
+            cwd=SHELL_CWD,
+            env=shell_env,
+        )
+        return ShellExecutionResult(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    except subprocess.CalledProcessError as e:
+        return ShellExecutionResult(return_code=e.returncode, stdout=e.stdout or "", stderr=e.stderr or "")
 
 # -- Exceptions -------------------------------------
+YPSHExceptionLevel = Literal["D", "I", "W", "E", "C"]
+
 class YPSHException(Exception):
     def __init__(self, location: str = "APP", level: str = "C", ecode: str = "0000", name: str = "GeneralError", desc = None):
         if desc is None:
@@ -168,8 +173,10 @@ class YPSHException(Exception):
             return "No Description"
         if preferred_lang and preferred_lang in d:
             return d[preferred_lang]
+
         def _primary(tag: str) -> str:
             return str(tag).replace("_", "-").split("-")[0].lower()
+
         if preferred_lang:
             pref_primary = _primary(preferred_lang)
             for k in d.keys():
@@ -182,8 +189,7 @@ class YPSHException(Exception):
         try:
             return next(iter(d.values()))
         except StopIteration:
-            pass
-        return "No Description"
+            return "No Description"
 
     def __str__(self):
         lang = ypsh_options.runtime_default_language
@@ -193,29 +199,29 @@ class YPSHException(Exception):
     def __getitem__(self, key: str):
         if key == "full":
             return str(self)
-        elif key == "location":
+        if key == "location":
             return self.location
-        elif key == "level":
+        if key == "level":
             return self.level
-        elif key in ("ecode", "code"):
+        if key in ("ecode", "code"):
             return self.ecode
-        elif key == "name":
+        if key == "name":
             return self.name
-        elif key == "desc":
+        if key == "desc":
             lang = ypsh_options.runtime_default_language
             return self._pick_desc_text(lang)
-        else:
-            raise KeyError(key)
+        raise KeyError(key)
 
     def format(self, items: dict[str, Any] = {}):
-        for lang in (self.desc.keys() if isinstance(self.desc, dict) else []):
-            for key in items:
-                self.desc[lang] = self.desc[lang].replace("{" + key + "}", str(items[key]))
+        if isinstance(self.desc, dict):
+            for lang in list(self.desc.keys()):
+                for key in items:
+                    self.desc[lang] = self.desc[lang].replace("{" + key + "}", str(items[key]))
         return self
 
     def escape(self, flag: bool = False):
         if flag and isinstance(self.desc, dict):
-            for lang in self.desc.keys():
+            for lang in list(self.desc.keys()):
                 self.desc[lang] = escape(self.desc[lang])
         return self
 
@@ -227,7 +233,7 @@ BUILTIN_EXCEPTION_SPEC = {
     "E0002": YPSHException("YPSH", "C", "0002", "SyntaxError", {"en": "Unexpected end of input.", "ja": "入力の終端に達しました。"}),
     "E0003": YPSHException("YPSH", "C", "0003", "SyntaxError", {"en": "Expected token {token_type} but got {token}.", "ja": "{token_type}トークンが必要ですが、予想外のトークン{token}トークンを受け取りました。"}),
     "E0004": YPSHException("YPSH", "C", "0004", "SyntaxError", {"en": "Expected 'in' in for loop.", "ja": "for文には「in」が必要です"}),
-    "E0005": YPSHException("YPSH", "C", "0005", "SyntaxError", {"en": "Expected 'catch' after 'do' block.","ja": "'do' ブロックの後に 'catch' が必要です。"}),
+    "E0005": YPSHException("YPSH", "C", "0005", "SyntaxError", {"en": "Expected 'catch' after 'do' block.", "ja": "'do' ブロックの後に 'catch' が必要です。"}),
     "E0006": YPSHException("YPSH", "C", "0006", "SyntaxError", {"en": "Unexpected token {token}.", "ja": "予想外のトークン: {token}"}),
     "E0007": YPSHException("YPSH", "C", "0007", "KeyError", {"en": "Invalid dictionary key: {key_token}.", "ja": "辞書のキーが無効です: {key_token}"}),
     "E0008": YPSHException("YPSH", "C", "0008", "ScopeError", {"en": "Cannot find '{name}' in scope.", "ja": "'{name}'がスコープに見つかりません。"}),
@@ -259,13 +265,13 @@ def get_builtin_exception(id: str = "E0000", args: dict | None = None, need_esca
         level=tmpl.level,
         ecode=tmpl.ecode,
         name=tmpl.name,
-        desc=dict(tmpl.desc),
+        desc=dict(tmpl.desc) if isinstance(tmpl.desc, dict) else {}
     )
     if args is None:
         args = {}
     return new_exc.format(args).escape(need_escape)
 
-def exception_handler(exception: Exception, level: str = None, check: bool = True):
+def exception_handler(exception: Exception, level: str = "C", check: bool = True):
     final_level = "W"
     if isinstance(exception, YPSHException):
         final_level = exception.level[0].upper()
@@ -277,7 +283,8 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
             exception.level = "E"
     if final_level == "C" and ExceptionPrintingLevel in ["C", "E", "W", "I", "D"]:
         rich_print(f"[on red]{str(exception)}[/]")
-        if check: raise SystemExit(1)
+        if check:
+            raise SystemExit(1)
     elif final_level == "E" and ExceptionPrintingLevel in ["E", "W", "I", "D"]:
         rich_print(f"[red]{str(exception)}[/]")
     elif final_level == "W" and ExceptionPrintingLevel in ["W", "I", "D"]:
@@ -289,75 +296,92 @@ def exception_handler(exception: Exception, level: str = None, check: bool = Tru
 
 # -- Tokens -----------------------------------------
 TOKEN_SPEC = [
-    ('NEWLINE',  r'\n'),
-    ('SKIP',     r'[ \t]+'),
-    ('COMMENT',  r'(//[^\n]*|#[^\n]*|/\*.*?\*/)'),
-    ('SHELL',    r'\$[^\n]+'),
-    ('ARROW',    r'->'),
-    ('DOT',      r'\.'),
-    ('PLUSEQ',   r'\+='),
-    ('MINUSEQ',  r'-='),
-    ('MULTEQ',   r'\*='),
-    ('DIVEQ',    r'/='),
-    ('NUMBER',   r'\d+(\.\d+)?'),
-    ('MLSTRING', r'("""(\\.|[^"\\])*?"""|\'\'\'(\\.|[^\'\\])*?\'\'\')'),
-    ('STRING',   r'("(\\"|[^"])*?"|\'(\\\'|[^\'])*?\')'),
-    ('LE',       r'<='),
-    ('GE',       r'>='),
-    ('EQ',       r'=='),
-    ('NE',       r'!='),
-    ('AND',      r'&&'),
-    ('OR',       r'\|\|'),
-    ('NOT',      r'!'),
-    ('LT',       r'<'),
-    ('GT',       r'>'),
-    ('OP',       r'\+|-|\*|/'),
-    ('COLON',    r':'),
-    ('EQUAL',    r'='),
-    ('COMMA',    r','),
-    ('QUESTION', r'\?'),
-    ('LPAREN',   r'\('),
-    ('RPAREN',   r'\)'),
-    ('LBRACE',   r'\{'),
-    ('RBRACE',   r'\}'),
-    ('LBRACKET', r'\['),
-    ('RBRACKET', r'\]'),
-    ('SEMI',     r';'),
-    ('ID',       r'[A-Za-z@_%][A-Za-z0-9@_%]*'),
-    ('MISMATCH', r'.'),
+    ("NEWLINE", r"\n"),
+    ("SKIP", r"[ \t]+"),
+    ("COMMENT", r"(//[^\n]*|#[^\n]*|/\*.*?\*/)"),
+    ("SHELL", r"\$[^\n]+"),
+    ("ARROW", r"->"),
+    ("DOT", r"\."),
+    ("PLUSEQ", r"\+="),
+    ("MINUSEQ", r"-="),
+    ("MULTEQ", r"\*="),
+    ("DIVEQ", r"/="),
+    ("NUMBER", r"\d+(\.\d+)?"),
+    ("MLSTRING", r'("""(\\.|[^"\\])*?"""|\'\'\'(\\.|[^\'\\])*?\'\'\')'),
+    ("STRING", r'("(\\"|[^"])*?"|\'(\\\'|[^\'])*?\')'),
+    ("LE", r"<="),
+    ("GE", r">="),
+    ("EQ", r"=="),
+    ("NE", r"!="),
+    ("AND", r"&&"),
+    ("OR", r"\|\|"),
+    ("NOT", r"!"),
+    ("LT", r"<"),
+    ("GT", r">"),
+    ("OP", r"\+|-|\*|/"),
+    ("COLON", r":"),
+    ("EQUAL", r"="),
+    ("COMMA", r","),
+    ("QUESTION", r"\?"),
+    ("LPAREN", r"\("),
+    ("RPAREN", r"\)"),
+    ("LBRACE", r"\{"),
+    ("RBRACE", r"\}"),
+    ("LBRACKET", r"\["),
+    ("RBRACKET", r"\]"),
+    ("SEMI", r";"),
+    ("ID", r"[A-Za-z@_%][A-Za-z0-9@_%]*"),
+    ("MISMATCH", r"."),
 ]
 
-TOKEN_RE = re.compile('|'.join('(?P<%s>%s)' % pair for pair in TOKEN_SPEC), re.DOTALL)
+TOKEN_RE = re.compile("|".join("(?P<%s>%s)" % pair for pair in TOKEN_SPEC), re.DOTALL)
 
 class Token:
+    __slots__ = ("type", "value", "line")
+
     def __init__(self, type_, value, line):
         self.type = type_
         self.value = value
         self.line = line
-    def __repr__(self):
-        return f'Token({self.type}, {self.value}, line={self.line})'
 
-def tokenize(code, collect_errors=False):
-    tokens = []
-    errors = []
+    def __repr__(self):
+        return f"Token({self.type}, {self.value}, line={self.line})"
+
+def tokenize(code: str, collect_errors: bool = False):
+    tokens: list[Token] = []
+    errors: list[Exception] = []
     line_num = 1
-    pos = 0
-    while pos < len(code):
-        mo = TOKEN_RE.match(code, pos)
-        if not mo:
-            break
+
+    append_tok = tokens.append
+    append_err = errors.append
+    Token_ = Token
+    get_exc = get_builtin_exception
+
+    for mo in TOKEN_RE.finditer(code):
         kind = mo.lastgroup
-        value = mo.group()
-        pos = mo.end()
-        if kind == 'NEWLINE':
+        value = mo.group(0)
+        nl = value.count("\n") if "\n" in value else 0
+
+        if kind == "SKIP":
+            line_num += nl
+            continue
+
+        if kind == "NEWLINE":
             line_num += 1
             continue
-        elif kind in ('SKIP', 'COMMENT'):
+
+        if kind == "COMMENT":
+            line_num += nl
             continue
-        elif kind == 'MISMATCH' and collect_errors:
-            errors.append(get_builtin_exception("E0001", {"value!r": f"{value!r}", "line_num": line_num}))
-        else:
-            tokens.append(Token(kind, value, line_num))
+
+        if kind == "MISMATCH" and collect_errors:
+            append_err(get_exc("E0001", {"value!r": f"{value!r}", "line_num": line_num}))
+            line_num += nl
+            continue
+
+        append_tok(Token_(kind, value, line_num))
+        line_num += nl
+
     return (tokens, errors) if collect_errors else tokens
 
 # -- AST --------------------------------------------
@@ -365,70 +389,95 @@ class ASTNode:
     pass
 
 class Number(ASTNode):
+    __slots__ = ("value",)
+
     def __init__(self, value):
-        self.value = float(value) if '.' in value else int(value)
+        self.value = float(value) if "." in value else int(value)
+
     def __repr__(self):
-        return f'Number({self.value})'
+        return f"Number({self.value})"
 
 class String(ASTNode):
+    __slots__ = ("value",)
+
     def __init__(self, value):
         if value.startswith('"""') or value.startswith("'''"):
             raw = value[3:-3]
         else:
             raw = value[1:-1]
         self.value = unescape_string_literal(raw)
+
     def __repr__(self):
-        return f'String({self.value})'
+        return f"String({self.value})"
 
 class ListLiteral(ASTNode):
+    __slots__ = ("elements",)
+
     def __init__(self, elements):
         self.elements = elements
+
     def __repr__(self):
-        return f'ListLiteral({self.elements})'
+        return f"ListLiteral({self.elements})"
 
 class DictLiteral(ASTNode):
+    __slots__ = ("pairs",)
+
     def __init__(self, pairs):
         self.pairs = pairs  # list of (key, value)
+
     def __repr__(self):
-        return f'DictLiteral({self.pairs})'
+        return f"DictLiteral({self.pairs})"
 
 class KeywordArg(ASTNode):
+    __slots__ = ("name", "value")
+
     def __init__(self, name: str, value: ASTNode):
         self.name = name
         self.value = value
+
     def __repr__(self):
-        return f'KeywordArg({self.name}={self.value})'
+        return f"KeywordArg({self.name}={self.value})"
 
 class VarDecl(ASTNode):
     def __init__(self, name, var_type, expr):
         self.name = name
         self.var_type = var_type
         self.expr = expr
+
     def __repr__(self):
-        return f'VarDecl({self.name}, {self.var_type}, {self.expr})'
+        return f"VarDecl({self.name}, {self.var_type}, {self.expr})"
 
 class BinOp(ASTNode):
+    __slots__ = ("left", "op", "right")
+
     def __init__(self, left, op, right):
         self.left = left
         self.op = op
         self.right = right
+
     def __repr__(self):
-        return f'BinOp({self.left}, {self.op}, {self.right})'
+        return f"BinOp({self.left}, {self.op}, {self.right})"
 
 class UnaryOp(ASTNode):
+    __slots__ = ("op", "operand")
+
     def __init__(self, op, operand):
         self.op = op
         self.operand = operand
+
     def __repr__(self):
-        return f'UnaryOp({self.op}, {self.operand})'
+        return f"UnaryOp({self.op}, {self.operand})"
 
 class TernaryOp(ASTNode):
+    __slots__ = ("condition", "if_true", "if_false")
+
     def __init__(self, condition, if_true, if_false):
         self.condition = condition
         self.if_true = if_true
         self.if_false = if_false
+
     def __repr__(self):
-        return f'TernaryOp({self.condition}, {self.if_true}, {self.if_false})'
+        return f"TernaryOp({self.condition}, {self.if_true}, {self.if_false})"
 
 class FuncDecl(ASTNode):
     def __init__(self, name, params, return_type, body):
@@ -436,105 +485,147 @@ class FuncDecl(ASTNode):
         self.params = params
         self.return_type = return_type
         self.body = body
+
     def __repr__(self):
-        return f'FuncDecl({self.name}, {self.params}, {self.return_type}, {self.body})'
+        return f"FuncDecl({self.name}, {self.params}, {self.return_type}, {self.body})"
 
 class TemplateDecl(ASTNode):
     def __init__(self, name: str, body: list[ASTNode]):
         self.name, self.body = name, body
+
     def __repr__(self):
-        return f'TemplateDecl({self.name})'
+        return f"TemplateDecl({self.name})"
 
 class ClassDecl(ASTNode):
     def __init__(self, name: str, base: str | None, body: list[ASTNode]):
         self.name, self.base, self.body = name, base, body
+
     def __repr__(self):
-        return f'ClassDecl({self.name}, base={self.base})'
+        return f"ClassDecl({self.name}, base={self.base})"
 
 class Attribute(ASTNode):
+    __slots__ = ("obj", "name", "full_key")
+
     def __init__(self, obj, name: str):
         self.obj, self.name = obj, name
+        fk = None
+        if isinstance(obj, str):
+            fk = f"{obj}.{name}"
+        elif isinstance(obj, Attribute) and obj.full_key:
+            fk = f"{obj.full_key}.{name}"
+        self.full_key = fk
+
     def __repr__(self):
-        return f'Attribute({self.obj}, {self.name})'
+        return f"Attribute({self.obj}, {self.name})"
 
 class FuncCall(ASTNode):
+    __slots__ = ("name", "args")
+
     def __init__(self, name, args):
         self.name = name
         self.args = args
+
     def __repr__(self):
-        return f'FuncCall({self.name}, {self.args})'
+        return f"FuncCall({self.name}, {self.args})"
 
 class ExpressionStmt(ASTNode):
+    __slots__ = ("expr",)
+
     def __init__(self, expr):
         self.expr = expr
+
     def __repr__(self):
-        return f'ExpressionStmt({self.expr})'
+        return f"ExpressionStmt({self.expr})"
 
 class Block(ASTNode):
+    __slots__ = ("statements",)
+
     def __init__(self, statements):
         self.statements = statements
+
     def __repr__(self):
-        return f'Block({self.statements})'
+        return f"Block({self.statements})"
 
 class IfStmt(ASTNode):
+    __slots__ = ("condition", "then_block", "else_block")
+
     def __init__(self, condition, then_block, else_block=None):
         self.condition = condition
         self.then_block = then_block
         self.else_block = else_block
+
     def __repr__(self):
-        return f'IfStmt({self.condition}, {self.then_block}, {self.else_block})'
+        return f"IfStmt({self.condition}, {self.then_block}, {self.else_block})"
 
 class ForStmt(ASTNode):
+    __slots__ = ("var_name", "iterable", "body")
+
     def __init__(self, var_name, iterable, body):
         self.var_name = var_name
         self.iterable = iterable
         self.body = body
+
     def __repr__(self):
-        return f'ForStmt({self.var_name}, {self.iterable}, {self.body})'
+        return f"ForStmt({self.var_name}, {self.iterable}, {self.body})"
 
 class WhileStmt(ASTNode):
+    __slots__ = ("condition", "body")
+
     def __init__(self, condition, body):
         self.condition = condition
         self.body = body
+
     def __repr__(self):
-        return f'WhileStmt({self.condition}, {self.body})'
+        return f"WhileStmt({self.condition}, {self.body})"
 
 class ReturnStmt(ASTNode):
+    __slots__ = ("value",)
+
     def __init__(self, value):
         self.value = value
+
     def __repr__(self):
-        return f'ReturnStmt({self.value})'
+        return f"ReturnStmt({self.value})"
 
 class BreakStmt(ASTNode):
     def __repr__(self):
-        return 'BreakStmt()'
+        return "BreakStmt()"
 
 class ContinueStmt(ASTNode):
     def __repr__(self):
-        return 'ContinueStmt()'
+        return "ContinueStmt()"
 
 class ShellStmt(ASTNode):
+    __slots__ = ("command",)
+
     def __init__(self, command):
         self.command = command
+
     def __repr__(self):
-        return f'ShellStmt({self.command})'
+        return f"ShellStmt({self.command})"
 
 class TryCatchStmt(ASTNode):
+    __slots__ = ("try_block", "catch_var", "catch_block")
+
     def __init__(self, try_block, catch_var, catch_block):
         self.try_block = try_block
         self.catch_var = catch_var
         self.catch_block = catch_block
+
     def __repr__(self):
-        return f'TryCatchStmt(try, catch {self.catch_var})'
+        return f"TryCatchStmt(try, catch {self.catch_var})"
 
 class Intent(ASTNode):
+    __slots__ = ("kind", "name")
+
     def __init__(self, kind: str, name: str):
         self.kind = kind  # 'global' or 'local'
         self.name = name
 
 class Assign(ASTNode):
-    def __init__(self, name: str | None, expr, declare: bool=False, force_global: bool=False,
-                 force_local: bool=False, is_const: bool=False, target: ASTNode | None = None):
+    __slots__ = ("name", "expr", "declare", "force_global", "force_local", "is_const", "target", "var_type")
+
+    def __init__(self, name: str | None, expr, declare: bool = False, force_global: bool = False, force_local: bool = False, is_const: bool = False, target: ASTNode | None = None):
         self.name = name
         self.expr = expr
         self.declare = declare
@@ -542,8 +633,11 @@ class Assign(ASTNode):
         self.force_local = force_local
         self.is_const = is_const
         self.target = target
+        self.var_type = "auto"
 
 class AugAssign(ASTNode):
+    __slots__ = ("name", "op", "expr", "target")
+
     def __init__(self, name: str | None, op: str, expr, target: ASTNode | None = None):
         self.name = name
         self.op = op
@@ -566,8 +660,8 @@ class Parser:
         return tok
 
     def _consume_semicolons(self):
-        while self.current() and self.current().type == 'SEMI':
-            self.eat('SEMI')
+        while self.current() and self.current().type == "SEMI":
+            self.eat("SEMI")
 
     def match(self, kind: str, value: str | None = None) -> bool:
         tok = self.current()
@@ -578,8 +672,7 @@ class Parser:
         if token and token.type == token_type:
             self.pos += 1
             return token
-        else:
-            exception_handler(get_builtin_exception("E0003", {"token_type": token_type, "token": token}))
+        exception_handler(get_builtin_exception("E0003", {"token_type": token_type, "token": token}))
 
     def parse(self):
         statements = []
@@ -598,46 +691,48 @@ class Parser:
 
         save_pos = self.pos
         lval = self.parse_lvalue()
-        if lval is not None and self.current() and self.current().type in ('EQUAL', 'PLUSEQ', 'MINUSEQ', 'MULTEQ', 'DIVEQ'):
+        if lval is not None and self.current() and self.current().type in ("EQUAL", "PLUSEQ", "MINUSEQ", "MULTEQ", "DIVEQ"):
             t = self.eat(self.current().type)
             rhs = self.expr()
-            if t.type == 'EQUAL':
+            if t.type == "EQUAL":
                 if isinstance(lval, str):
                     return Assign(lval, rhs, declare=False, target=None)
-                else:
-                    return Assign(None, rhs, declare=False, target=lval)
+                return Assign(None, rhs, declare=False, target=lval)
             else:
                 if isinstance(lval, str):
                     return AugAssign(lval, t.type, rhs, target=None)
-                else:
-                    return AugAssign(None, t.type, rhs, target=lval)
+                return AugAssign(None, t.type, rhs, target=lval)
         else:
             self.pos = save_pos
 
-        if token and token.type == 'ID' and token.value in ('global', 'local'):
+        if token and token.type == "ID" and token.value in ("global", "local"):
             kind = token.value
-            self.eat('ID')
-            name = self.eat('ID').value
+            self.eat("ID")
+            name = self.eat("ID").value
 
-            if self.current() and self.current().type == 'ID' and self.current().value in ('var', 'let'):
-                kw = self.current().value
-                return self.var_decl(force_global=(kind == 'global'), force_local=(kind == 'local'))
+            if self.current() and self.current().type == "ID" and self.current().value in ("var", "let"):
+                return self.var_decl(force_global=(kind == "global"), force_local=(kind == "local"))
 
             return Intent(kind, name)
 
-        if token and token.type == 'ID' and token.value in ('template', 'class', 'do'):
-            pass
+        if token and token.type == "ID":
+            if token.value == "template":
+                return self.template_decl()
+            if token.value == "class":
+                return self.class_decl()
+            if token.value == "do":
+                return self.try_catch_stmt()
 
-        if token and token.type == 'ID' and token.value in ('var', 'let'):
-            is_let = (token.value == 'let')
+        if token and token.type == "ID" and token.value in ("var", "let"):
+            is_let = token.value == "let"
             return self.var_decl(is_const=is_let)
 
-        if token and token.type == 'ID':
+        if token and token.type == "ID":
             nxt = self.tokens[self.pos + 1] if (self.pos + 1) < len(self.tokens) else None
-            if nxt and nxt.type in ('EQUAL', 'PLUSEQ', 'MINUSEQ', 'MULTEQ', 'DIVEQ'):
-                name = self.eat('ID').value
-                if nxt.type == 'EQUAL':
-                    self.eat('EQUAL')
+            if nxt and nxt.type in ("EQUAL", "PLUSEQ", "MINUSEQ", "MULTEQ", "DIVEQ"):
+                name = self.eat("ID").value
+                if nxt.type == "EQUAL":
+                    self.eat("EQUAL")
                     expr = self.expr()
                     return Assign(name, expr, declare=False)
                 else:
@@ -645,223 +740,221 @@ class Parser:
                     expr = self.expr()
                     return AugAssign(name, op_tok.type, expr)
 
-        if token and token.type == 'SHELL':
-            self.eat('SHELL')
+        if token and token.type == "SHELL":
+            self.eat("SHELL")
             return ShellStmt(token.value[1:].strip())
-        elif token and token.type == 'ID':
-            if token.value == 'func':
+
+        if token and token.type == "ID":
+            if token.value == "func":
                 return self.func_decl()
-            elif token.value == 'if':
+            if token.value == "if":
                 return self.if_stmt()
-            elif token.value == 'for':
+            if token.value == "for":
                 return self.for_stmt()
-            elif token.value == 'while':
+            if token.value == "while":
                 return self.while_stmt()
-            elif token.value == 'return':
+            if token.value == "return":
                 return self.return_stmt()
-            elif token.value == 'break':
-                self.eat('ID')
+            if token.value == "break":
+                self.eat("ID")
                 return BreakStmt()
-            elif token.value == 'continue':
-                self.eat('ID')
+            if token.value == "continue":
+                self.eat("ID")
                 return ContinueStmt()
-            else:
-                expr = self.expr()
-                return ExpressionStmt(expr)
-        else:
             expr = self.expr()
             return ExpressionStmt(expr)
 
-    def var_decl(self, is_const: bool=False, force_global: bool=False, force_local: bool=False):
-        if self.match('ID', 'var') or self.match('ID', 'let'):
-            kw = self.eat('ID').value
-            is_const = (kw == 'let') or is_const
+        expr = self.expr()
+        return ExpressionStmt(expr)
 
-        name = self.eat('ID').value
+    def var_decl(self, is_const: bool = False, force_global: bool = False, force_local: bool = False):
+        if self.match("ID", "var") or self.match("ID", "let"):
+            kw = self.eat("ID").value
+            is_const = (kw == "let") or is_const
+
+        name = self.eat("ID").value
         var_type = "auto"
-        if self.current() and self.current().type == 'COLON':
-            self.eat('COLON')
-            var_type = self.eat('ID').value
-        self.eat('EQUAL')
+        if self.current() and self.current().type == "COLON":
+            self.eat("COLON")
+            var_type = self.eat("ID").value
+        self.eat("EQUAL")
         expr = self.expr()
         node = Assign(name, expr, declare=True, force_global=force_global, force_local=force_local, is_const=is_const)
         node.var_type = var_type
         return node
 
     def func_decl(self):
-        self.eat('ID')  # func
-        name = self.eat('ID').value
-        self.eat('LPAREN')
+        self.eat("ID")  # func
+        name = self.eat("ID").value
+        self.eat("LPAREN")
         params = []
         tok = self.current()
-        if tok and tok.type != 'RPAREN':
+        if tok and tok.type != "RPAREN":
             while True:
-                param_name = self.eat('ID').value
+                param_name = self.eat("ID").value
                 param_type = "auto"
                 default_expr = None
 
                 tok2 = self.current()
-                if tok2 and tok2.type == 'COLON':
-                    self.eat('COLON')
-                    param_type = self.eat('ID').value
+                if tok2 and tok2.type == "COLON":
+                    self.eat("COLON")
+                    param_type = self.eat("ID").value
                     tok2 = self.current()
 
-                if tok2 and tok2.type == 'EQUAL':
-                    self.eat('EQUAL')
+                if tok2 and tok2.type == "EQUAL":
+                    self.eat("EQUAL")
                     default_expr = self.expr()
 
                 params.append((param_name, param_type, default_expr))
 
                 tok3 = self.current()
-                if tok3 and tok3.type == 'COMMA':
-                    self.eat('COMMA')
+                if tok3 and tok3.type == "COMMA":
+                    self.eat("COMMA")
                 else:
                     break
-        self.eat('RPAREN')
+        self.eat("RPAREN")
         return_type = "auto"
         tok4 = self.current()
-        if tok4 and tok4.type == 'ARROW':
-            self.eat('ARROW')
-            return_type = self.eat('ID').value
+        if tok4 and tok4.type == "ARROW":
+            self.eat("ARROW")
+            return_type = self.eat("ID").value
         body = self.block()
         return FuncDecl(name, params, return_type, body.statements)
 
     def template_decl(self):
-        self.eat('ID')
-        name = self.eat('ID').value
+        self.eat("ID")
+        name = self.eat("ID").value
         body = self.block().statements
         return TemplateDecl(name, body)
 
     def class_decl(self):
-        self.eat('ID')
-        name = self.eat('ID').value
+        self.eat("ID")
+        name = self.eat("ID").value
         base = None
-        if self.current() and self.current().type == 'COLON':
-            self.eat('COLON')
-            base = self.eat('ID').value
+        if self.current() and self.current().type == "COLON":
+            self.eat("COLON")
+            base = self.eat("ID").value
         body = self.block().statements
         return ClassDecl(name, base, body)
 
     def block(self):
-        self.eat('LBRACE')
+        self.eat("LBRACE")
         statements = []
-        while self.current() and self.current().type != 'RBRACE':
+        while self.current() and self.current().type != "RBRACE":
             self._consume_semicolons()
-            if self.current() and self.current().type == 'RBRACE':
+            if self.current() and self.current().type == "RBRACE":
                 break
             stmt = self.statement()
             if stmt is not None:
                 statements.append(stmt)
             self._consume_semicolons()
-        self.eat('RBRACE')
+        self.eat("RBRACE")
         return Block(statements)
 
     def if_stmt(self):
-        self.eat('ID')  # 'if'
-        if self.current() and self.current().type == 'LPAREN':
-            self.eat('LPAREN')
+        self.eat("ID")  # if
+        if self.current() and self.current().type == "LPAREN":
+            self.eat("LPAREN")
             condition = self.expr()
-            self.eat('RPAREN')
+            self.eat("RPAREN")
         else:
             condition = self.expr()
         then_block = self.block()
 
-        while self.current() and self.current().type == 'SEMI':
-            self.eat('SEMI')
+        while self.current() and self.current().type == "SEMI":
+            self.eat("SEMI")
 
         else_block = None
-        if self.current() and self.current().type == 'ID':
-            if self.current().value == 'else':
-                self.eat('ID')  # 'else'
-                if self.current() and self.current().type == 'ID' and self.current().value == 'if':
-                    # Handle "else if"
+        if self.current() and self.current().type == "ID":
+            if self.current().value == "else":
+                self.eat("ID")
+                if self.current() and self.current().type == "ID" and self.current().value == "if":
                     return IfStmt(condition, then_block, self.if_stmt())
                 else:
                     else_block = self.block()
-            elif self.current().value == 'elif':
-                self.eat('ID')  # 'elif'
+            elif self.current().value == "elif":
+                self.eat("ID")
                 return IfStmt(condition, then_block, self.if_stmt())
 
         return IfStmt(condition, then_block, else_block)
 
     def for_stmt(self):
-        self.eat('ID')
-        var_name = self.eat('ID').value
-        if not (self.current() and self.current().type == 'ID' and self.current().value == 'in'):
+        self.eat("ID")
+        var_name = self.eat("ID").value
+        if not (self.current() and self.current().type == "ID" and self.current().value == "in"):
             exception_handler(get_builtin_exception("E0004"))
-        self.eat('ID')
+        self.eat("ID")
         iterable = self.expr()
         body = self.block()
         return ForStmt(var_name, iterable, body)
 
     def while_stmt(self):
-        self.eat('ID')
-        if self.current() and self.current().type == 'LPAREN':
-            self.eat('LPAREN')
+        self.eat("ID")
+        if self.current() and self.current().type == "LPAREN":
+            self.eat("LPAREN")
             condition = self.expr()
-            self.eat('RPAREN')
+            self.eat("RPAREN")
         else:
             condition = self.expr()
         body = self.block()
         return WhileStmt(condition, body)
 
     def return_stmt(self):
-        self.eat('ID')  # return
+        self.eat("ID")
         value = self.expr()
         return ReturnStmt(value)
 
     def try_catch_stmt(self):
-        self.eat('ID')  # 'do'
+        self.eat("ID")  # do
         try_block = self.block()
 
         tok = self.current()
-        if tok and tok.type == 'ID' and tok.value == 'catch':
-            self.eat('ID')  # 'catch'
-            catch_var = self.eat('ID').value
+        if tok and tok.type == "ID" and tok.value == "catch":
+            self.eat("ID")
+            catch_var = self.eat("ID").value
             catch_block = self.block()
             return TryCatchStmt(try_block, catch_var, catch_block)
-        else:
-            exception_handler(get_builtin_exception("E0005"))
+        exception_handler(get_builtin_exception("E0005"))
 
     def expr(self):
         return self.expr_ternary()
 
     def expr_or(self):
         node = self.expr_and()
-        while self.current() and self.current().type == 'OR':
-            self.eat('OR')
+        while self.current() and self.current().type == "OR":
+            self.eat("OR")
             right = self.expr_and()
-            node = BinOp(node, '||', right)
+            node = BinOp(node, "||", right)
         return node
 
     def expr_ternary(self):
         condition = self.expr_or()
-        if self.current() and self.current().type == 'QUESTION':
-            self.eat('QUESTION')
+        if self.current() and self.current().type == "QUESTION":
+            self.eat("QUESTION")
             if_true = self.expr()
-            self.eat('COLON')
+            self.eat("COLON")
             if_false = self.expr()
             return TernaryOp(condition, if_true, if_false)
         return condition
 
     def expr_and(self):
         node = self.expr_not()
-        while self.current() and self.current().type == 'AND':
-            self.eat('AND')
+        while self.current() and self.current().type == "AND":
+            self.eat("AND")
             right = self.expr_not()
-            node = BinOp(node, '&&', right)
+            node = BinOp(node, "&&", right)
         return node
 
     def expr_not(self):
-        if self.current() and self.current().type == 'NOT':
-            self.eat('NOT')
+        if self.current() and self.current().type == "NOT":
+            self.eat("NOT")
             operand = self.expr_not()
-            return UnaryOp('!', operand)
+            return UnaryOp("!", operand)
         return self.expr_comparison()
 
     def expr_comparison(self):
         node = self.expr_term()
-        while self.current() and self.current().type in ('LT', 'GT', 'LE', 'GE', 'EQ', 'NE'):
+        while self.current() and self.current().type in ("LT", "GT", "LE", "GE", "EQ", "NE"):
             op_token = self.eat(self.current().type)
             op = op_token.value
             right = self.expr_term()
@@ -870,24 +963,24 @@ class Parser:
 
     def expr_term(self):
         node = self.expr_factor()
-        while self.current() and self.current().type == 'OP' and self.current().value in ('+', '-'):
-            op = self.eat('OP').value
+        while self.current() and self.current().type == "OP" and self.current().value in ("+", "-"):
+            op = self.eat("OP").value
             right = self.expr_factor()
             node = BinOp(node, op, right)
         return node
 
     def expr_unary(self):
         tok = self.current()
-        if tok and tok.type == 'OP' and tok.value in ('+', '-'):
-            op = self.eat('OP').value
+        if tok and tok.type == "OP" and tok.value in ("+", "-"):
+            op = self.eat("OP").value
             operand = self.expr_unary()
             return UnaryOp(op, operand)
         return self.expr_atom()
 
     def expr_factor(self):
         node = self.expr_unary()
-        while self.current() and self.current().type == 'OP' and self.current().value in ('*', '/'):
-            op = self.eat('OP').value
+        while self.current() and self.current().type == "OP" and self.current().value in ("*", "/"):
+            op = self.eat("OP").value
             right = self.expr_unary()
             node = BinOp(node, op, right)
         return node
@@ -897,49 +990,43 @@ class Parser:
         if token is None:
             exception_handler(get_builtin_exception("E0002"))
 
-        if token.type == 'NUMBER':
-            self.eat('NUMBER')
+        if token.type == "NUMBER":
+            self.eat("NUMBER")
             node = Number(token.value)
-
-        elif token.type in ('STRING', 'MLSTRING'):
+        elif token.type in ("STRING", "MLSTRING"):
             self.eat(token.type)
             node = String(token.value)
-
-        elif token.type == 'LBRACKET':
+        elif token.type == "LBRACKET":
             node = self.list_literal()
-
-        elif token.type == 'LBRACE':
+        elif token.type == "LBRACE":
             node = self.dict_literal()
-
-        elif token.type == 'ID':
-            node = self.eat('ID').value
-
-        elif token.type == 'LPAREN':
-            self.eat('LPAREN')
+        elif token.type == "ID":
+            node = self.eat("ID").value
+        elif token.type == "LPAREN":
+            self.eat("LPAREN")
             node = self.expr()
-            self.eat('RPAREN')
-
+            self.eat("RPAREN")
         else:
             exception_handler(get_builtin_exception("E0006", {"token": token}))
 
         while True:
             tok = self.current()
-            if tok and tok.type == 'DOT':
-                self.eat('DOT')
-                attr_name = self.eat('ID').value
+            if tok and tok.type == "DOT":
+                self.eat("DOT")
+                attr_name = self.eat("ID").value
                 node = Attribute(node, attr_name)
 
-            elif tok and tok.type == 'LPAREN':
-                self.eat('LPAREN')
+            elif tok and tok.type == "LPAREN":
+                self.eat("LPAREN")
                 args = []
-                if self.current() and self.current().type != 'RPAREN':
+                if self.current() and self.current().type != "RPAREN":
                     while True:
                         is_kw = False
                         cur = self.current()
                         nxt = self.tokens[self.pos + 1] if (self.pos + 1) < len(self.tokens) else None
-                        if cur and cur.type == 'ID' and nxt and nxt.type == 'EQUAL':
-                            name = self.eat('ID').value
-                            self.eat('EQUAL')
+                        if cur and cur.type == "ID" and nxt and nxt.type == "EQUAL":
+                            name = self.eat("ID").value
+                            self.eat("EQUAL")
                             value = self.expr()
                             args.append(KeywordArg(name, value))
                             is_kw = True
@@ -947,18 +1034,18 @@ class Parser:
                         if not is_kw:
                             args.append(self.expr())
 
-                        if self.current() and self.current().type == 'COMMA':
-                            self.eat('COMMA')
+                        if self.current() and self.current().type == "COMMA":
+                            self.eat("COMMA")
                         else:
                             break
-                self.eat('RPAREN')
+                self.eat("RPAREN")
                 node = FuncCall(node, args)
 
-            elif tok and tok.type == 'LBRACKET':
-                self.eat('LBRACKET')
+            elif tok and tok.type == "LBRACKET":
+                self.eat("LBRACKET")
                 index_expr = self.expr()
-                self.eat('RBRACKET')
-                node = BinOp(node, '[]', index_expr)
+                self.eat("RBRACKET")
+                node = BinOp(node, "[]", index_expr)
 
             else:
                 break
@@ -966,66 +1053,66 @@ class Parser:
         return node
 
     def list_literal(self):
-        self.eat('LBRACKET')
+        self.eat("LBRACKET")
         elements = []
-        if self.current() and self.current().type != 'RBRACKET':
+        if self.current() and self.current().type != "RBRACKET":
             while True:
                 elem = self.expr()
                 elements.append(elem)
-                if self.current() and self.current().type == 'COMMA':
-                    self.eat('COMMA')
+                if self.current() and self.current().type == "COMMA":
+                    self.eat("COMMA")
                 else:
                     break
-        self.eat('RBRACKET')
+        self.eat("RBRACKET")
         return ListLiteral(elements)
 
     def dict_literal(self):
-        self.eat('LBRACE')
+        self.eat("LBRACE")
         pairs = []
-        if self.current() and self.current().type != 'RBRACE':
+        if self.current() and self.current().type != "RBRACE":
             while True:
                 key_token = self.current()
-                if key_token.type in ('STRING', 'MLSTRING'):
+                if key_token.type in ("STRING", "MLSTRING"):
                     key = self.eat(key_token.type).value
                     key = unescape_string_literal(key[1:-1])
-                elif key_token.type == 'ID':
-                    key = self.eat('ID').value
+                elif key_token.type == "ID":
+                    key = self.eat("ID").value
                 else:
                     exception_handler(get_builtin_exception("E0007", {"key_token": key_token}))
 
-                self.eat('COLON')
+                self.eat("COLON")
                 value = self.expr()
                 pairs.append((key, value))
-                if self.current() and self.current().type == 'COMMA':
-                    self.eat('COMMA')
+                if self.current() and self.current().type == "COMMA":
+                    self.eat("COMMA")
                 else:
                     break
-        self.eat('RBRACE')
+        self.eat("RBRACE")
         return DictLiteral(pairs)
-    
+
     def parse_lvalue(self) -> ASTNode | None:
         tok = self.current()
-        if not tok or tok.type != 'ID':
+        if not tok or tok.type != "ID":
             return None
 
-        node: ASTNode | str = self.eat('ID').value
+        node: ASTNode | str = self.eat("ID").value
 
         while True:
             tok = self.current()
             if not tok:
                 break
-            if tok.type == 'DOT':
-                self.eat('DOT')
-                if not (self.current() and self.current().type == 'ID'):
+            if tok.type == "DOT":
+                self.eat("DOT")
+                if not (self.current() and self.current().type == "ID"):
                     return None
-                attr_name = self.eat('ID').value
+                attr_name = self.eat("ID").value
                 node = Attribute(node, attr_name)
-            elif tok.type == 'LBRACKET':
-                self.eat('LBRACKET')
+            elif tok.type == "LBRACKET":
+                self.eat("LBRACKET")
                 index_expr = self.expr()
-                self.eat('RBRACKET')
-                node = BinOp(node, '[]', index_expr)
-            elif tok.type == 'LPAREN':
+                self.eat("RBRACKET")
+                node = BinOp(node, "[]", index_expr)
+            elif tok.type == "LPAREN":
                 return None
             else:
                 break
@@ -1053,7 +1140,7 @@ class Environment:
 
     def _find_holder(self, name):
         env = self
-        while env:
+        while env is not None:
             if name in env.vars:
                 return env
             env = env.parent
@@ -1061,7 +1148,7 @@ class Environment:
 
     def _root(self):
         env = self
-        while env.parent:
+        while env.parent is not None:
             env = env.parent
         return env
 
@@ -1070,7 +1157,7 @@ class Environment:
 
     def _declare_here(self, name, value, *, const=False, record_local=True):
         self.vars[name] = value
-        self._meta[name] = {'const': const}
+        self._meta[name] = {"const": const}
         if record_local and self._block_stack:
             self._block_stack[-1].append(name)
 
@@ -1082,19 +1169,28 @@ class Environment:
             self._declare_here(name, value, const=is_const, record_local=True)
             return
         intent = self.get_intent(name)
-        target = self._root() if intent == 'global' else self
+        target = self._root() if intent == "global" else self
         target._declare_here(name, value, const=is_const, record_local=(target is self))
 
+    def try_get(self, name: str):
+        env = self
+        while env is not None:
+            v = env.vars.get(name, _MISSING)
+            if v is not _MISSING:
+                return v
+            env = env.parent
+        return _MISSING
+
     def get(self, name: str, check: bool = True):
-        if name in self.vars:
-            return self.vars[name]
-        if self.parent:
-            return self.parent.get(name, check=True)
+        v = self.try_get(name)
+        if v is not _MISSING:
+            return v
         exception_handler(get_builtin_exception("E0008", {"name": name}), check=check)
+        return None
 
     def get_intent(self, name: str) -> Optional[str]:
         env = self
-        while env:
+        while env is not None:
             if name in env._intent:
                 return env._intent[name]
             env = env.parent
@@ -1103,12 +1199,12 @@ class Environment:
     def set(self, name, value):
         holder = self._find_holder(name)
         if holder:
-            if holder._meta.get(name, {}).get('const', False):
+            if holder._meta.get(name, {}).get("const", False):
                 exception_handler(get_builtin_exception("E0027", {"name": name}))
             holder.vars[name] = value
             return
         intent = self.get_intent(name)
-        target = self._root() if intent == 'global' else self
+        target = self._root() if intent == "global" else self
         target._declare_here(name, value, const=False, record_local=(target is self))
 
     def unset(self, name):
@@ -1172,11 +1268,16 @@ class Function:
             return result
         except ReturnException as e:
             if return_type != "auto" and not interpreter._check_type_match(e.value, return_type):
-                exception_handler(get_builtin_exception("E0010", {
-                    "self.decl.name": self.decl.name,
-                    "return_type": return_type,
-                    "type(e.value).__name__": type(e.value).__name__
-                }))
+                exception_handler(
+                    get_builtin_exception(
+                        "E0010",
+                        {
+                            "self.decl.name": self.decl.name,
+                            "return_type": return_type,
+                            "type(e.value).__name__": type(e.value).__name__,
+                        },
+                    )
+                )
             return e.value
 
 class Template:
@@ -1196,7 +1297,7 @@ class Class:
 
     def __call__(self, *args, **kwargs):
         inst = Instance(self)
-        init_func = self.env.get('__init__')
+        init_func = self.env.get("__init__")
         if isinstance(init_func, Function):
             try:
                 init_func.call([inst, *args], kwargs, self.interpreter)
@@ -1209,8 +1310,8 @@ class Class:
 
 class Instance:
     def __init__(self, cls: Class):
-        self.__dict__['_cls'] = cls
-        self.__dict__['_props'] = dict(cls.env)
+        self.__dict__["_cls"] = cls
+        self.__dict__["_props"] = dict(cls.env)
 
     def __getattr__(self, item: str):
         val = self._props.get(item)
@@ -1224,12 +1325,21 @@ class Instance:
     def __setattr__(self, key: str, value: Any):
         self._props[key] = value
 
+@lru_cache(maxsize=8192)
+def _compile_interp_expr(expr_src: str):
+    tokens = tokenize(expr_src)
+    p = Parser(tokens)
+    expr = p.expr()
+    if p.current() is not None:
+        raise get_builtin_exception("E0012", {"expr_src": expr_src})
+    return expr
+
 class Interpreter:
     modules = []
     docs = {}
     enabled_builtin_modules = []
 
-    _interp_pat = re.compile(r'\\\((.*?)\)')
+    _interp_pat = re.compile(r"\\\((.*?)\)")
 
     def __init__(self):
         self.ypsh_globals = Environment()
@@ -1240,29 +1350,24 @@ class Interpreter:
         def repl(m):
             expr_src = m.group(1).strip()
             try:
-                tokens = tokenize(expr_src)
-                p      = Parser(tokens)
-                expr   = p.expr()
-
-                if p.current() is not None:
-                    exception_handler(get_builtin_exception("E0012", {"expr_src": expr_src}))
+                expr = _compile_interp_expr(expr_src)
                 val = self.evaluate(expr, env)
                 return str(val)
             except Exception as e:
                 exception_handler(get_builtin_exception("E0013", {"e": e}))
+
         return self._interp_pat.sub(repl, raw)
 
     def _apply_aug_op(self, op, cur, val):
-        if op == 'PLUSEQ':
+        if op == "PLUSEQ":
             return cur + val
-        elif op == 'MINUSEQ':
+        if op == "MINUSEQ":
             return cur - val
-        elif op == 'MULTEQ':
+        if op == "MULTEQ":
             return cur * val
-        elif op == 'DIVEQ':
+        if op == "DIVEQ":
             return cur / val
-        else:
-            exception_handler(get_builtin_exception("E0022", {"node.op": op}))
+        exception_handler(get_builtin_exception("E0022", {"node.op": op}))
 
     def _read_from_target(self, target: ASTNode, env: Environment):
         if isinstance(target, Attribute):
@@ -1271,7 +1376,7 @@ class Interpreter:
                 return getattr(base, target.name)
             except AttributeError:
                 exception_handler(get_builtin_exception("E0020", {"node.name": target.name}))
-        elif isinstance(target, BinOp) and target.op == '[]':
+        elif isinstance(target, BinOp) and target.op == "[]":
             coll = self.evaluate(target.left, env)
             index = self.evaluate(target.right, env)
             try:
@@ -1280,8 +1385,7 @@ class Interpreter:
                 exception_handler(get_builtin_exception("E0021", {"index": index, "collection": coll}))
         elif isinstance(target, str):
             return env.get(target)
-        else:
-            exception_handler(get_builtin_exception("E0025", {"node": target}))
+        exception_handler(get_builtin_exception("E0025", {"node": target}))
 
     def _assign_to_target(self, target: ASTNode, value, env: Environment):
         if isinstance(target, Attribute):
@@ -1292,7 +1396,7 @@ class Interpreter:
             except Exception:
                 exception_handler(get_builtin_exception("E0020", {"node.name": target.name}))
 
-        if isinstance(target, BinOp) and target.op == '[]':
+        if isinstance(target, BinOp) and target.op == "[]":
             coll = self.evaluate(target.left, env)
             index = self.evaluate(target.right, env)
             try:
@@ -1335,37 +1439,30 @@ class Interpreter:
         rich_print(str(content), end=end)
 
     def ypsh_print(self, content="", end: str = "\n"):
-        returnValue = ""
-        foundKeys_list = self.get_ids_from_content(content)
-        foundKeys = ", ".join(foundKeys_list)
-        foundKeys_Pipe = f"| {foundKeys} " if foundKeys_list else "| "
-        foundKeys_NoPipe = f"{foundKeys} " if foundKeys_list else ""
+        return_value = ""
+        found_keys_list = self.get_ids_from_content(content)
+        found_keys = ", ".join(found_keys_list)
+        found_keys_pipe = f"| {found_keys} " if found_keys_list else "| "
+        found_keys_no_pipe = f"{found_keys} " if found_keys_list else ""
 
         if isinstance(content, Function) or callable(content):
-            returnValue = f"{foundKeys_NoPipe}(func)"
-
+            return_value = f"{found_keys_no_pipe}(func)"
         elif isinstance(content, str):
-            returnValue = f"{content} {foundKeys_Pipe}(str)"
-
+            return_value = f"{content} {found_keys_pipe}(str)"
         elif isinstance(content, bool):
-            returnValue = f"{foundKeys_NoPipe}(bool)"
-
+            return_value = f"{found_keys_no_pipe}(bool)"
         elif isinstance(content, int):
-            returnValue = f"{content} {foundKeys_Pipe}(int)"
-
+            return_value = f"{content} {found_keys_pipe}(int)"
         elif isinstance(content, float):
-            returnValue = f"{content} {foundKeys_Pipe}(float)"
-
+            return_value = f"{content} {found_keys_pipe}(float)"
         elif isinstance(content, list):
-            returnValue = f"{json.dumps(content)} {foundKeys_Pipe}(list)"
-
+            return_value = f"{json.dumps(content)} {found_keys_pipe}(list)"
         elif isinstance(content, dict):
-            returnValue = f"{json.dumps(content)} {foundKeys_Pipe}(dict)"
-
+            return_value = f"{json.dumps(content)} {found_keys_pipe}(dict)"
         else:
-            returnValue = f"{content} {foundKeys_Pipe}(python)"
+            return_value = f"{content} {found_keys_pipe}(python)"
 
-        self.color_print(returnValue, end)
+        self.color_print(return_value, end)
 
     def ypsh_def(self, module, id, content, desc=None):
         if module in ["@", "root"]:
@@ -1429,7 +1526,6 @@ class Interpreter:
             result = self.docs[key]
         except KeyError:
             return False
-
         return result
 
     def set_doc(self, key, content):
@@ -1437,12 +1533,12 @@ class Interpreter:
 
     def module_enable(self, id: str):
         if id.strip().lower().replace("-", "_").replace(" ", "_") in ["min", "minimal"]:
-            self.module_enable("system")
+            self.module_enable("system_core")
 
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["", "default"]:
             self.module_enable("minimal")
             self.module_enable("system_extra")
-            self.module_enable("import")
+            self.module_enable("system_import")
             self.module_enable("docs")
 
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["egg", "knowledge"]:
@@ -1455,7 +1551,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 - 2025 DiamondGotCat
                   """.strip())
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["sys", "system"]:
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["core", "system_core"]:
             self.enabled_builtin_modules.append("system")
 
             self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
@@ -1504,10 +1600,10 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("@", "mod", lambda a, b: a % b)
 
             self.ypsh_def("@", "stdin", sys.stdin, desc="Standard Input")
-            self.ypsh_def("@", "stdout", sys.stdin, desc="Standard Output")
+            self.ypsh_def("@", "stdout", sys.stdout, desc="Standard Output")
             self.ypsh_def("@", "stderr", sys.stderr, desc="Standard Error Output")
             self.ypsh_def("standard", "input", sys.stdin, desc="Standard Input")
-            self.ypsh_def("standard", "output", sys.stdin, desc="Standard Output")
+            self.ypsh_def("standard", "output", sys.stdout, desc="Standard Output")
             self.ypsh_def("standard", "error", sys.stderr, desc="Standard Error Output")
 
             self.ypsh_def("ypsh", "def", self.ypsh_def, desc="Define Anything")
@@ -1517,6 +1613,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 env = self._current_env or self.ypsh_globals
                 return dict(env.vars)
             self.ypsh_def("ypsh", "locals", _ypsh_locals, desc="YPSH Local Scope")
+
             def _ypsh_globals():
                 root = self.ypsh_globals._root()
                 return dict(root.vars)
@@ -1532,15 +1629,15 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("ypsh", "version.text", ypsh_options.product_release_version_text, desc="Return YPSH's Version as Text")
             self.ypsh_def("ypsh", "version.build", ypsh_options.product_build, desc="Return YPSH's Build ID")
 
-            def count_func(input):
-                return len(input)
+            def count_func(input_):
+                return len(input_)
             self.ypsh_def("@", "count", count_func)
 
             def ypsh_exec(code_string):
-                tokens = tokenize(code_string)
-                parser = Parser(tokens)
-                ast = parser.parse()
-                self.interpret(ast)
+                tokens_ = tokenize(code_string)
+                parser_ = Parser(tokens_)
+                ast_ = parser_.parse()
+                self.interpret(ast_)
             self.ypsh_def("@", "exec", ypsh_exec)
 
             def ypsh_reset():
@@ -1554,39 +1651,12 @@ Those who use them wisely, without abuse, are the true users of computers.
             self.ypsh_def("ypsh", "minimalize", ypsh_minimalize, desc="Reset all Variables(and Functions), and Enable 'minimal' Module")
 
             def ypsh_range(start=1, end=None):
-                if end == None:
-                    return range(1, start+1)
-                else:
-                    return range(start, end+1)
+                if end is None:
+                    return range(1, start + 1)
+                return range(start, end + 1)
             self.ypsh_def("@", "range", ypsh_range)
 
-        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["memory"]:
-            self.enabled_builtin_modules.append("memory")
-            mem = MemoryManager(self)
-
-            self.ypsh_def("memory", "info", mem.info, desc="Return RAM/VRAM/process memory usage.")
-            self.ypsh_def("memory", "gc", mem.gc, desc="Force Python GC (and CUDA cache if available).")
-            self.ypsh_def("memory", "deep_size", mem.deep_size, desc="Approximate deep size of an object.")
-            self.ypsh_def("memory", "vars.usage", mem.vars_usage, desc="List variable sizes across environments.")
-            self.ypsh_def("memory", "clear", mem.clear, desc="Delete variables and run GC. ('all' or [names])")
-            self.ypsh_def("memory", "limit.set", mem.set_limit, desc="Set soft limit (bytes or percent).")
-            self.ypsh_def("memory", "alloc", mem.alloc, desc="Allocate a bytearray of size n.")
-            self.ypsh_def("memory", "free", mem.free, desc="Free an allocated object by dropping references.")
-
-            def _auto_gc_set(flag=True):
-                global ypsh_options
-                ypsh_options.runtime_auto_gc = bool(flag)
-                return ypsh_options.runtime_auto_gc
-            self.ypsh_def("memory", "auto_gc.set", _auto_gc_set, desc="Enable/disable automatic GC after block exit.")
-
-            def _collect_after_toplevel(flag=False):
-                global ypsh_options
-                ypsh_options.runtime_collect_after_toplevel = bool(flag)
-                return ypsh_options.runtime_collect_after_toplevel
-            self.ypsh_def("memory", "collect.after_toplevel", _collect_after_toplevel,
-                          desc="Run GC after each top-level statement (may be slow).")
-
-        elif id == "import":
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["system_import"]:
             import importlib
             self.module_enable("env")
             self.enabled_builtin_modules.append("import")
@@ -1653,9 +1723,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                         return ("ypsh_pkg", init_ypsh)
                     if os.path.isfile(import_ypsh):
                         return ("ypsh_pkg", import_ypsh)
-                    if os.path.isfile(init_py):
-                        return ("py_pkg", base_dir)
-                    if os.path.isfile(import_py):
+                    if os.path.isfile(init_py) or os.path.isfile(import_py):
                         return ("py_pkg", base_dir)
 
                 return None
@@ -1667,14 +1735,15 @@ Those who use them wisely, without abuse, are the true users of computers.
                         return hit
                 return None
 
+            @lru_cache(maxsize=2048)
             def _find_file_shallowest_under_libs(filename: str) -> str | None:
                 if not YPSH_LIBS_DIR or not os.path.isdir(YPSH_LIBS_DIR):
                     return None
                 shallowest_path = None
-                shallowest_depth = float('inf')
+                shallowest_depth = float("inf")
                 for dirpath, _, filenames in os.walk(YPSH_LIBS_DIR):
                     if filename in filenames:
-                        depth = dirpath[len(YPSH_LIBS_DIR):].count(os.sep)
+                        depth = dirpath[len(YPSH_LIBS_DIR) :].count(os.sep)
                         if depth < shallowest_depth:
                             shallowest_depth = depth
                             shallowest_path = os.path.join(dirpath, filename)
@@ -1689,12 +1758,12 @@ Those who use them wisely, without abuse, are the true users of computers.
             def _raw_import_ypsh(file_path: str):
                 if not os.path.isfile(file_path):
                     exception_handler(get_builtin_exception("E0015", {"file_path": file_path}))
-                with open(file_path, encoding='utf-8') as f:
+                with open(file_path, encoding="utf-8") as f:
                     code = f.read()
-                tokens = tokenize(code)
-                parser = Parser(tokens)
-                ast = parser.parse()
-                self.interpret(ast)
+                tokens_ = tokenize(code)
+                parser_ = Parser(tokens_)
+                ast_ = parser_.parse()
+                self.interpret(ast_)
 
             def _import_ypsh_with_opts(file_path: str, alias: str | None, only: list[str] | None):
                 before = _snap_keys()
@@ -1717,7 +1786,6 @@ Those who use them wisely, without abuse, are the true users of computers.
                         sys.path.insert(0, p)
 
                 mod = importlib.import_module(mod_name)
-
                 target_ns = alias or (None if only else mod_name)
 
                 names = [n for n in dir(mod) if not n.startswith("_")]
@@ -1736,7 +1804,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                     exception_handler(get_builtin_exception("E0015", {"file_path": py_path}))
                 before = _snap_keys()
                 local_dict = {}
-                with open(py_path, encoding='utf-8') as f:
+                with open(py_path, encoding="utf-8") as f:
                     code = f.read()
                 exec(code, local_dict)
                 for key, value in local_dict.items():
@@ -1749,16 +1817,15 @@ Those who use them wisely, without abuse, are the true users of computers.
                     if not lib or not isinstance(lib, str):
                         raise ValueError("import spec dict must have 'lib' (str)")
                     alias = x.get("as")
-                    only  = x.get("in")
-                    py    = bool(x.get("py") or x.get("python"))
+                    only = x.get("in")
+                    py = bool(x.get("py") or x.get("python"))
                     paths = x.get("paths") or x.get("py_paths")
                     if paths is not None and not isinstance(paths, list):
                         paths = [paths]
                     return lib, alias, (only if isinstance(only, list) else None), py, (paths or None)
-                elif isinstance(x, str):
+                if isinstance(x, str):
                     return x, None, None, False, None
-                else:
-                    raise TypeError("import accepts string or dict spec")
+                raise TypeError("import accepts string or dict spec")
 
             def import_path_add(path: str):
                 p = os.path.expanduser(os.path.expandvars(path))
@@ -1775,7 +1842,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                 if not os.path.isfile(file_path):
                     exception_handler(get_builtin_exception("E0015", {"file_path": file_path}))
                 local_dict = {}
-                with open(file_path, encoding='utf-8') as f:
+                with open(file_path, encoding="utf-8") as f:
                     code = f.read()
                 exec(code, local_dict)
                 for key, value in local_dict.items():
@@ -1785,15 +1852,12 @@ Those who use them wisely, without abuse, are the true users of computers.
             def import_main(*specs):
                 not_founds = []
                 for spec in specs:
-                    lib, alias, only, is_py_hint, paths = _normalize_spec(spec)
+                    lib, alias, only, _is_py_hint, paths = _normalize_spec(spec)
 
                     resolved = _resolve_pythonic_first(lib)
                     if resolved:
                         kind, data = resolved
-                        if kind == "ypsh_file":
-                            _import_ypsh_with_opts(data, alias, only)
-                            continue
-                        if kind == "ypsh_pkg":
+                        if kind in ("ypsh_file", "ypsh_pkg"):
                             _import_ypsh_with_opts(data, alias, only)
                             continue
                         if kind == "py_file":
@@ -1828,6 +1892,31 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             self.ypsh_def("@", "import", import_main)
 
+        elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["memory"]:
+            self.enabled_builtin_modules.append("memory")
+            mem = MemoryManager(self)
+
+            self.ypsh_def("memory", "info", mem.info, desc="Return RAM/VRAM/process memory usage.")
+            self.ypsh_def("memory", "gc", mem.gc, desc="Force Python GC (and CUDA cache if available).")
+            self.ypsh_def("memory", "deep_size", mem.deep_size, desc="Approximate deep size of an object.")
+            self.ypsh_def("memory", "vars.usage", mem.vars_usage, desc="List variable sizes across environments.")
+            self.ypsh_def("memory", "clear", mem.clear, desc="Delete variables and run GC. ('all' or [names])")
+            self.ypsh_def("memory", "limit.set", mem.set_limit, desc="Set soft limit (bytes or percent).")
+            self.ypsh_def("memory", "alloc", mem.alloc, desc="Allocate a bytearray of size n.")
+            self.ypsh_def("memory", "free", mem.free, desc="Free an allocated object by dropping references.")
+
+            def _auto_gc_set(flag=True):
+                global ypsh_options
+                ypsh_options.runtime_auto_gc = bool(flag)
+                return ypsh_options.runtime_auto_gc
+            self.ypsh_def("memory", "auto_gc.set", _auto_gc_set, desc="Enable/disable automatic GC after block exit.")
+
+            def _collect_after_toplevel(flag=False):
+                global ypsh_options
+                ypsh_options.runtime_collect_after_toplevel = bool(flag)
+                return ypsh_options.runtime_collect_after_toplevel
+            self.ypsh_def("memory", "collect.after_toplevel", _collect_after_toplevel, desc="Run GC after each top-level statement (may be slow).")
+
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["docs"]:
             self.enabled_builtin_modules.append("docs")
             self.ypsh_def("docs", "get", self.get_doc, desc="Get description with key(e.g. 'ypsh.version'), from YPSH's Built-in Documentation")
@@ -1835,10 +1924,10 @@ Those who use them wisely, without abuse, are the true users of computers.
 
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["env"]:
             self.enabled_builtin_modules.append("env")
-            global get_system_env
-            def get_system_env(id):
+
+            def get_system_env(var_id):
                 load_dotenv()
-                return os.environ.get(id, None)
+                return os.environ.get(var_id, None)
             self.ypsh_def("@", "env", get_system_env, desc="Get a content from System environment (e.g. 'PATH')")
 
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["shell"]:
@@ -1870,8 +1959,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                     dt = dt.replace(tzinfo=timezone.utc)
                 delta = dt - DGC_EPOCH_BASE
                 milliseconds = int(delta.total_seconds() * 1000)
-                binary_str = format(milliseconds, '048b')
-                return binary_str
+                return format(milliseconds, "048b")
             self.ypsh_def("conv", "dgce48", datetime_to_dgc_epoch48)
 
             def datetime_to_dgc_epoch64(dt: datetime) -> str:
@@ -1879,8 +1967,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                     dt = dt.replace(tzinfo=timezone.utc)
                 delta = dt - DGC_EPOCH_BASE
                 milliseconds = int(delta.total_seconds() * 1000)
-                binary_str = format(milliseconds, '064b')
-                return binary_str
+                return format(milliseconds, "064b")
             self.ypsh_def("conv", "dgce64", datetime_to_dgc_epoch64)
 
             def dgc_epoch64_to_datetime(dgc_epoch_str: str) -> datetime:
@@ -1891,8 +1978,16 @@ Those who use them wisely, without abuse, are the true users of computers.
         else:
             return False
 
+        return True
+
     def setup_builtins(self):
         self.module_enable("default")
+
+    def _exec_block_statements(self, block: Block, env: Environment):
+        result = None
+        for stmt in block.statements:
+            result = self.execute(stmt, env)
+        return result
 
     def _check_type_match(self, value, expected_type: str) -> bool:
         type_map = {
@@ -1905,11 +2000,10 @@ Those who use them wisely, without abuse, are the true users of computers.
             "none": type(None),
             "function": Function,
         }
-
-        if expected_type in type_map:
-            return isinstance(value, type_map[expected_type])
-        else:
+        t = type_map.get(expected_type)
+        if t is None:
             return True
+        return isinstance(value, t)
 
     def interpret(self, node):
         if isinstance(node, Block):
@@ -1958,7 +2052,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
         elif isinstance(node, Assign):
             value = self.evaluate(node.expr, env)
-            var_type = getattr(node, 'var_type', "auto")
+            var_type = getattr(node, "var_type", "auto")
             if node.declare and var_type != "auto":
                 if not self._check_type_match(value, var_type):
                     exception_handler(get_builtin_exception("E0017", {
@@ -1972,17 +2066,18 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             if node.declare:
                 intent = env.get_intent(node.name)
-                holder = env._root() if (node.force_global or (not node.force_local and intent == 'global')) else env
+                holder = env._root() if (node.force_global or (not node.force_local and intent == "global")) else env
 
                 real_holder = holder._find_holder(node.name)
                 if real_holder:
                     real_holder.unset(node.name)
 
                 env.declare(
-                    node.name, value,
+                    node.name,
+                    value,
                     is_const=node.is_const,
-                    force_global=node.force_global or (not node.force_local and intent == 'global'),
-                    force_local=node.force_local or (intent == 'local'),
+                    force_global=node.force_global or (not node.force_local and intent == "global"),
+                    force_local=node.force_local or (intent == "local"),
                 )
             else:
                 env.set(node.name, value)
@@ -1998,8 +2093,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             holder = env._find_holder(node.name)
             if not holder:
-                base = 0
-                env.set(node.name, base)
+                env.set(node.name, 0)
                 holder = env._find_holder(node.name)
             cur = holder.vars[node.name]
             val = self.evaluate(node.expr, env)
@@ -2022,7 +2116,7 @@ Those who use them wisely, without abuse, are the true users of computers.
 
         elif isinstance(node, ExpressionStmt):
             if isinstance(node.expr, KeywordArg) and isinstance(node.expr.value, String):
-                if node.expr.name in ('global', 'local'):
+                if node.expr.name in ("global", "local"):
                     name = node.expr.value.value
                     env.set_intent(name, node.expr.name)
                     return None
@@ -2044,29 +2138,27 @@ Those who use them wisely, without abuse, are the true users of computers.
             print(shell_exec_result.stderr)
         elif isinstance(node, ForStmt):
             iterable = self.evaluate(node.iterable, env)
-            if not hasattr(iterable, '__iter__'):
+            if not hasattr(iterable, "__iter__"):
                 exception_handler(get_builtin_exception("E0019"))
             for value in iterable:
+                env.push_block()
                 try:
-                    env.push_block()
                     env.declare(node.var_name, value, force_local=True)
-                    self.execute(node.body, env)
+                    self._exec_block_statements(node.body, env)
                 except ContinueException:
                     pass
                 except BreakException:
-                    env.pop_block()
                     break
                 finally:
                     env.pop_block()
         elif isinstance(node, WhileStmt):
             while self.evaluate(node.condition, env):
+                env.push_block()
                 try:
-                    env.push_block()
-                    self.execute(node.body, env)
+                    self._exec_block_statements(node.body, env)
                 except ContinueException:
                     pass
                 except BreakException:
-                    env.pop_block()
                     break
                 finally:
                     env.pop_block()
@@ -2080,50 +2172,31 @@ Those who use them wisely, without abuse, are the true users of computers.
         elif isinstance(node, TryCatchStmt):
             try:
                 env.push_block()
-                return self.execute(node.try_block, env)
+                try:
+                    return self.execute(node.try_block, env)
+                finally:
+                    env.pop_block()
             except Exception as e:
+                if isinstance(e, (ReturnException, BreakException, ContinueException)):
+                    raise
                 try:
                     env.push_block()
                     env.declare(node.catch_var, e, force_local=True)
                     return self.execute(node.catch_block, env)
                 finally:
                     env.pop_block()
-            finally:
-                env.pop_block()
         else:
             return self.evaluate(node, env)
     def evaluate(self, node, env):
         self._current_env = env
         if isinstance(node, Attribute):
-            def build_full_key(attr_node):
-                parts = []
-                cur = attr_node
-                while isinstance(cur, Attribute):
-                    parts.append(cur.name)
-                    cur = cur.obj
-                if isinstance(cur, str):
-                    parts.append(cur)
-                    return ".".join(reversed(parts))
-                return None
-
-            full_key = build_full_key(node)
-            if full_key:
-                try:
-                    return env.get(full_key)
-                except YPSHException:
-                    pass
-
-            if isinstance(node.obj, str):
-                dotted = f"{node.obj}.{node.name}"
-                try:
-                    return env.get(dotted)
-                except YPSHException:
-                    pass
-
+            if node.full_key:
+                v = env.try_get(node.full_key)
+                if v is not _MISSING:
+                    return v
             base = self.evaluate(node.obj, env)
-            base_any: Any = base  # type: ignore[assignment]
             try:
-                return getattr(base_any, node.name)  # type: ignore[attr-defined]
+                return getattr(base, node.name)
             except AttributeError:
                 exception_handler(get_builtin_exception("E0020", {"node.name": node.name}))
         elif isinstance(node, Number):
@@ -2133,54 +2206,53 @@ Those who use them wisely, without abuse, are the true users of computers.
         elif isinstance(node, ListLiteral):
             return [self.evaluate(elem, env) for elem in node.elements]
         elif isinstance(node, BinOp):
+            if node.op == "&&":
+                left = self.evaluate(node.left, env)
+                return left and self.evaluate(node.right, env)
+            if node.op == "||":
+                left = self.evaluate(node.left, env)
+                return left or self.evaluate(node.right, env)
             left = self.evaluate(node.left, env)
             right = self.evaluate(node.right, env)
-            if node.op == '+':
+            if node.op == "+":
                 if isinstance(left, str) or isinstance(right, str):
                     return str(left) + str(right)
-                else:
-                    return left + right
-            elif node.op == '-':
+                return left + right
+            if node.op == "-":
                 return left - right
-            elif node.op == '*':
+            if node.op == "*":
                 return left * right
-            elif node.op == '/':
+            if node.op == "/":
                 return left / right
-            elif node.op == '<':
+            if node.op == "<":
                 return left < right
-            elif node.op == '>':
+            if node.op == ">":
                 return left > right
-            elif node.op == '<=':
+            if node.op == "<=":
                 return left <= right
-            elif node.op == '>=':
+            if node.op == ">=":
                 return left >= right
-            elif node.op == '==':
+            if node.op == "==":
                 return left == right
-            elif node.op == '!=':
+            if node.op == "!=":
                 return left != right
-            elif node.op == '&&':
-                return left and right
-            elif node.op == '||':
-                return left or right
-            elif node.op == '[]':
-                collection: Any = self.evaluate(node.left, env)
+            if node.op == "[]":
+                collection = self.evaluate(node.left, env)
                 index = self.evaluate(node.right, env)
                 try:
                     return collection[index]
                 except Exception:
                     exception_handler(get_builtin_exception("E0021", {"index": index, "collection": collection}))
-            else:
-                exception_handler(get_builtin_exception("E0022", {"node.op": node.op}))
+            exception_handler(get_builtin_exception("E0022", {"node.op": node.op}))
         elif isinstance(node, UnaryOp):
             operand = self.evaluate(node.operand, env)
-            if node.op == '!':
+            if node.op == "!":
                 return not operand
-            elif node.op == '-':
+            if node.op == "-":
                 return -operand
-            elif node.op == '+':
+            if node.op == "+":
                 return +operand
-            else:
-                exception_handler(get_builtin_exception("E0023", {"node.op": node.op}))
+            exception_handler(get_builtin_exception("E0023", {"node.op": node.op}))
         elif isinstance(node, FuncCall):
             if isinstance(node.name, (Attribute, BinOp, UnaryOp, TernaryOp)):
                 func_obj = self.evaluate(node.name, env)
@@ -2197,17 +2269,16 @@ Those who use them wisely, without abuse, are the true users of computers.
 
             if isinstance(func_obj, Function):
                 return func_obj.call(pos_vals, kw_vals, self)
-            elif callable(func_obj):
+            if callable(func_obj):
                 return func_obj(*pos_vals, **kw_vals)
-            else:
-                exception_handler(get_builtin_exception("E0024"))
+            exception_handler(get_builtin_exception("E0024"))
         elif isinstance(node, str):
             value = env.get(node)
-            if value == False:
+            if value is False:
                 return False
-            elif value == True:
+            if value is True:
                 return True
-            elif value == None:
+            if value is None:
                 return None
             return value
         elif isinstance(node, DictLiteral):
@@ -2216,8 +2287,7 @@ Those who use them wisely, without abuse, are the true users of computers.
             condition = self.evaluate(node.condition, env)
             if condition:
                 return self.evaluate(node.if_true, env)
-            else:
-                return self.evaluate(node.if_false, env)
+            return self.evaluate(node.if_false, env)
         else:
             exception_handler(get_builtin_exception("E0025", {"node": node}))
 
@@ -2247,8 +2317,14 @@ class MemoryManager:
                 "proc_vms": proc.vms
             }
         except Exception:
-            info = {"ram_total": None, "ram_available": None, "ram_used": None, "ram_percent": None,
-                    "proc_rss": None, "proc_vms": None}
+            info = {
+                "ram_total": None,
+                "ram_available": None,
+                "ram_used": None,
+                "ram_percent": None,
+                "proc_rss": None,
+                "proc_vms": None
+            }
             try:
                 import resource
                 usage = resource.getrusage(resource.RUSAGE_SELF)
@@ -2269,7 +2345,7 @@ class MemoryManager:
             return {"vram_total": total, "vram_used": used, "vram_free": free}
         except Exception:
             try:
-                import torch
+                import torch # type: ignore
                 if torch.cuda.is_available():
                     i = torch.cuda.current_device()
                     total = torch.cuda.get_device_properties(i).total_memory
@@ -2339,7 +2415,7 @@ class MemoryManager:
     def vars_usage(self):
         usage = []
         root = self.interp.ypsh_globals._root()
-        for holder, name, val in self._env_vars(root):
+        for _holder, name, val in self._env_vars(root):
             usage.append({"name": name, "bytes": self.deep_size(val)})
         usage.sort(key=lambda x: x["bytes"] or 0, reverse=True)
         return usage
@@ -2348,8 +2424,7 @@ class MemoryManager:
         root = self.interp.ypsh_globals._root()
         protected_prefixes = {"@", "root", "ypsh", "docs"}
         if names == "all":
-            targets = [n for n in list(root.vars.keys())
-                       if not any(n == p or n.startswith(p + ".") for p in protected_prefixes)]
+            targets = [n for n in list(root.vars.keys()) if not any(n == p or n.startswith(p + ".") for p in protected_prefixes)]
         elif isinstance(names, list):
             targets = names
         else:
@@ -2415,11 +2490,11 @@ class SemanticAnalyzer:
         return any(name in scope for scope in reversed(self.scopes))
 
     def analyze(self, node):
-        method = f'analyze_{type(node).__name__}'
+        method = f"analyze_{type(node).__name__}"
         return getattr(self, method, self.generic_analyze)(node)
 
     def generic_analyze(self, node):
-        if hasattr(node, '__dict__'):
+        if hasattr(node, "__dict__"):
             for value in vars(node).values():
                 if isinstance(value, list):
                     for item in value:
@@ -2529,10 +2604,7 @@ class SemanticAnalyzer:
 
     def analyze_Assign(self, node):
         self.analyze(node.expr)
-        if getattr(node, 'declare', False):
-            self.declare(node.name)
-        else:
-            self.declare(node.name)
+        self.declare(node.name)
 
     def analyze_AugAssign(self, node):
         self.declare(node.name)
@@ -2580,163 +2652,31 @@ def collect_errors(code: str) -> list[Exception]:
 
     return errors
 
-if _YPSH_HAS_PTK:
-    BlockKwToken = PygTok.Keyword.Declaration
-
-    class YpshLexer(RegexLexer):
-        name = "YPSH"
-        aliases = ["ypsh"]
-
-        tokens = {
-            "root": [
-                (r'(//[^\n]*|#[^\n]*)', PygTok.Comment),
-                (r'"""', PygTok.String, 'tdqstring'),
-                (r"'''", PygTok.String, 'tsqstring'),
-                (r'"',   PygTok.String, 'dqstring'),
-                (r"'",   PygTok.String, 'sqstring'),
-                (r'\b(func)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
-                 bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Function)),
-                (r'\b(class)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
-                 bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
-                (r'\b(template)(\s+)([A-Za-z@_%][A-Za-z0-9@_%]*)',
-                 bygroups(BlockKwToken, PygTok.Text, PygTok.Name.Class)),
-                (r'\b(template|if|elif|else|for|while|do|catch|return|break|continue|var|in)\b',
-                 BlockKwToken),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 PygTok.Name.Function),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name)),
-                (r'\b\d+(\.\d+)?\b', PygTok.Number),
-                (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
-                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}(),.:?;]', PygTok.Punctuation),
-                (r'\s+', PygTok.Text),
-            ],
-            "dqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r'"',    PygTok.String, '#pop'),
-                (r'[^"\\]+', PygTok.String),
-            ],
-            "sqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r"'",    PygTok.String, '#pop'),
-                (r"[^'\\]+", PygTok.String),
-            ],
-            "tdqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r'"""',  PygTok.String, '#pop'),
-                (r'[^\\]+', PygTok.String),
-            ],
-            "tsqstring": [
-                (r'\\\(', PygTok.Punctuation, 'interp'),
-                (r'\\.',  PygTok.String.Escape),
-                (r"'''",  PygTok.String, '#pop'),
-                (r'[^\\]+', PygTok.String),
-            ],
-            "interp": [
-                (r'\)', PygTok.Punctuation, '#pop'),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name.Function)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(?=\s*\()',
-                 PygTok.Name.Function),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)((?:[A-Za-z@_%][A-Za-z0-9@_%]*\.)+)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Text, PygTok.Name)),
-                (r'([A-Za-z@_%][A-Za-z0-9@_%]*)(\.)([A-Za-z@_%][A-Za-z0-9@_%]*)(?!\s*\()',
-                 bygroups(PygTok.Name.Class, PygTok.Punctuation, PygTok.Name)),
-                (r'\b\d+(\.\d+)?\b', PygTok.Number),
-                (r'[A-Za-z@_%][A-Za-z0-9@_%]*', PygTok.Name),
-                (r'->|==|!=|<=|>=|\|\||&&|[+\-*/=<>\[\]{}.,:?;]', PygTok.Punctuation),
-                (r'\s+', PygTok.Text),
-            ],
-        }
-
-    class YpshCompleter(Completer):
-        def __init__(self, get_env_keys_callable):
-            self._get_keys = get_env_keys_callable
-
-        def get_completions(self, document, complete_event):
-            word = document.get_word_before_cursor(
-                pattern=re.compile(r"[A-Za-z0-9@_%\.]+")
-            )
-            if word is None:
-                return
-
-            keys = sorted(set(self._get_keys()))
-
-            if "." in word:
-                base, _, after = word.rpartition(".")
-                start_pos = -len(after)
-
-                children = set()
-                base_prefix = base + "."
-                for k in keys:
-                    if not k.startswith(base_prefix):
-                        continue
-                    remainder = k[len(base_prefix):]
-                    if not remainder:
-                        continue
-                    child = remainder.split(".", 1)[0]
-                    if after and not child.startswith(after):
-                        continue
-                    children.add(child)
-
-                for child in sorted(children):
-                    yield Completion(child, start_position=start_pos)
-                return
-
-            for k in keys:
-                if k.startswith(word):
-                    yield Completion(k, start_position=-len(word))
-
-    def _ypsh_ptk_style():
-        return style_from_pygments_dict({
-            BlockKwToken:            "fg:#FF69B4",
-            PygTok.Name.Function:    "fg:#FFD700",
-            PygTok.Name.Class:       "fg:#00B8B8",
-            PygTok.Comment:          "fg:#A0A0A0",
-            PygTok.Text:             "fg:#FFFFFF",
-            PygTok.Punctuation:      "fg:#FFFFFF",
-            PygTok.Name:             "fg:#FFFFFF",
-            PygTok.String:           "fg:#FFA500",
-            PygTok.Number:           "fg:#7FDBFF",
-            PygTok.Keyword:          "fg:#FFFFFF",
-        })
-
 # -- Script Executing -------------------------------
 def is_code_complete(code):
     try:
-        tokens = tokenize(code)
+        tokens_ = tokenize(code)
     except KeyboardInterrupt:
         raise
     except Exception:
         return False
 
-    brace_count = 0   # {}
-    paren_count = 0   # ()
-    bracket_count = 0 # []
+    brace_count = 0
+    paren_count = 0
+    bracket_count = 0
 
-    for token in tokens:
-        if token.type == 'LBRACE':
+    for token in tokens_:
+        if token.type == "LBRACE":
             brace_count += 1
-        elif token.type == 'RBRACE':
+        elif token.type == "RBRACE":
             brace_count -= 1
-        elif token.type == 'LPAREN':
+        elif token.type == "LPAREN":
             paren_count += 1
-        elif token.type == 'RPAREN':
+        elif token.type == "RPAREN":
             paren_count -= 1
-        elif token.type == 'LBRACKET':
+        elif token.type == "LBRACKET":
             bracket_count += 1
-        elif token.type == 'RBRACKET':
+        elif token.type == "RBRACKET":
             bracket_count -= 1
 
     return brace_count == 0 and paren_count == 0 and bracket_count == 0
@@ -2745,8 +2685,15 @@ def repl():
     interpreter = Interpreter()
     accumulated_code = ""
 
-    if _YPSH_HAS_PTK:
-        style = _ypsh_ptk_style()
+    try:
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.completion import Completer, Completion
+
+        has_ptk = True
+    except Exception:
+        has_ptk = False
+
+    if has_ptk:
 
         def _all_env_keys():
             env = interpreter.ypsh_globals
@@ -2756,11 +2703,40 @@ def repl():
                 env = env.parent
             return keys
 
-        session = PromptSession(
-            lexer=PygmentsLexer(YpshLexer),
-            completer=YpshCompleter(_all_env_keys),
-            style=style
-        )
+        class YpshCompleter(Completer):
+            def get_completions(self, document, complete_event):
+                word = document.get_word_before_cursor(pattern=re.compile(r"[A-Za-z0-9@_%\.]+"))
+                if word is None:
+                    return
+
+                keys = sorted(set(_all_env_keys()))
+
+                if "." in word:
+                    base, _, after = word.rpartition(".")
+                    start_pos = -len(after)
+
+                    children = set()
+                    base_prefix = base + "."
+                    for k in keys:
+                        if not k.startswith(base_prefix):
+                            continue
+                        remainder = k[len(base_prefix) :]
+                        if not remainder:
+                            continue
+                        child = remainder.split(".", 1)[0]
+                        if after and not child.startswith(after):
+                            continue
+                        children.add(child)
+
+                    for child in sorted(children):
+                        yield Completion(child, start_position=start_pos)
+                    return
+
+                for k in keys:
+                    if k.startswith(word):
+                        yield Completion(k, start_position=-len(word))
+
+        session = PromptSession(completer=YpshCompleter())
 
         while True:
             try:
@@ -2781,10 +2757,10 @@ def repl():
                 continue
 
             try:
-                tokens = tokenize(accumulated_code)
-                parser = Parser(tokens)
-                ast    = parser.parse()
-                result = interpreter.interpret(ast)
+                tokens_ = tokenize(accumulated_code)
+                parser_ = Parser(tokens_)
+                ast_ = parser_.parse()
+                result = interpreter.interpret(ast_)
                 if result is not None:
                     print(result)
             except KeyboardInterrupt:
@@ -2839,10 +2815,10 @@ def repl():
                 continue
 
             try:
-                tokens = tokenize(accumulated_code)
-                parser = Parser(tokens)
-                ast    = parser.parse()
-                result = interpreter.interpret(ast)
+                tokens_ = tokenize(accumulated_code)
+                parser_ = Parser(tokens_)
+                ast_ = parser_.parse()
+                result = interpreter.interpret(ast_)
                 if result is not None:
                     print(result)
             except KeyboardInterrupt:
@@ -2854,11 +2830,11 @@ def repl():
 
 def run_text(code):
     try:
-        tokens = tokenize(code)
-        parser = Parser(tokens)
-        ast = parser.parse()
+        tokens_ = tokenize(code)
+        parser_ = Parser(tokens_)
+        ast_ = parser_.parse()
         interpreter = Interpreter()
-        interpreter.interpret(ast)
+        interpreter.interpret(ast_)
     except Exception as e:
         rich_print(f"[red]{str(e)}[/red]")
         raise SystemExit(1)
@@ -2867,7 +2843,7 @@ def run_lint(code):
     errors = collect_errors(code)
 
     if not errors:
-        console.print(f"[green]Lint Passed[/green]")
+        console.print("[green]Lint Passed[/green]")
         raise SystemExit(0)
     else:
         console.print(f"[red]Lint Failed ({len(errors)} exception{'s' if len(errors) != 1 else ''})[/red]")
@@ -2884,7 +2860,7 @@ def check_ypsh_scripts(*path_list, base: str = return_ypsh_exec_folder()) -> str
             return full_path
     return None
 
-#!checkpoint!
+#!buildpoint!
 
 # -- Entry ------------------------------------------
 if __name__ == '__main__':
@@ -2896,7 +2872,7 @@ if __name__ == '__main__':
     isReceivedGoodOption = False
     isReceivedCode = False
 
-    if ypsh_options.runtime_autorun_script != None:
+    if ypsh_options.runtime_autorun_script is not None:
         run_text(ypsh_options.runtime_autorun_script)
         raise SystemExit(0)
 
@@ -2946,7 +2922,7 @@ if __name__ == '__main__':
                     console.print(f"[red]File not found: {arg}[/red]")
                     raise SystemExit(1)
 
-                with open(arg, encoding='utf-8') as f:
+                with open(arg, encoding="utf-8") as f:
                     code = f.read()
 
                 isReceivedGoodOption = True
@@ -2996,7 +2972,7 @@ if __name__ == '__main__':
         if isReceivedCode:
             try:
                 run_lint(options["main"])
-            except YPSHException as e:
+            except YPSHException:
                 raise SystemExit(1)
         else:
             console.print("[red]No Code Received.[/red]")
@@ -3011,10 +2987,9 @@ if __name__ == '__main__':
     elif not isReceivedGoodOption:
         found_ypsh_script = check_ypsh_scripts("__autorun__.ypsh", "autorun.ypsh", "__main__.ypsh", "main.ypsh")
         if found_ypsh_script:
-            with open(found_ypsh_script, encoding='utf-8') as f:
+            with open(found_ypsh_script, encoding="utf-8") as f:
                 code = f.read()
             run_text(code)
-
-        else:    
+        else:
             print(ypsh_options.product_release_version_text + " [REPL]")
             repl()

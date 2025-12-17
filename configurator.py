@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 
-# -- PyYPSH ----------------------------------------------------- #
-# configurator.py on PyYPSH                                       #
-# Made by DiamondGotCat, Licensed under MIT License               #
-# Copyright (c) 2025 DiamondGotCat                                #
-# ---------------------------------------------- DiamondGotCat -- #
+# ╭──────────────────────────────────────╮
+# │ configurator.py on PyYPSH            │
+# │ Nercone <nercone@diamondgotcat.net>  │
+# │ Made by Nercone / MIT License        │
+# │ Copyright (c) 2025 DiamondGotCat     │
+# ╰──────────────────────────────────────╯
 
 import pathlib, argparse, platform, json, ulid
-from datetime import datetime, timezone
+from typing import Any
 from pprint import pformat
+from datetime import datetime, timezone
 
-def get_platform_information() -> dict:
+def get_platform_information() -> dict[str,str]:
     os_tmp = platform.system().strip().lower()
     arch_tmp = platform.machine().strip().lower()
     os = platform.system()[:4].ljust(5, "O").upper()
@@ -45,10 +47,10 @@ def get_platform_information() -> dict:
         arch = "RISCV"
     return {"os": os, "arch": arch}
 
-def get_build_id(platform_infos: dict) -> str:
+def get_build_id(platform_infos: dict[str,str]) -> str:
     return f"YPSH@{platform_infos.get('os','UKNWN')}{platform_infos.get('arch','UKNWN')}#{ulid.from_timestamp(datetime.now(timezone.utc))}"
 
-def config_python_script(scripts: dict, config: dict, release_tag: str = "v0.0.0") -> str:
+def config_python_script(scripts: dict[str,str], config: dict[str,Any], release_tag: str = "v0.0.0") -> str:
     platform_infos = get_platform_information()
     build_id = get_build_id(platform_infos)
 
@@ -75,11 +77,12 @@ def config_python_script(scripts: dict, config: dict, release_tag: str = "v0.0.0
     return f"""
 #!/usr/bin/env python3
 
-# -- PyYPSH ----------------------------------------------------- #
-# PyYPSH [configurated]                                           #
-# Made by DiamondGotCat, Licensed under MIT License               #
-# Copyright (c) 2025 DiamondGotCat                                #
-# ---------------------------------------------- DiamondGotCat -- #
+# ╭──────────────────────────────────────╮
+# │ PyYPSH (Customized)                  │
+# │ Nercone <nercone@diamondgotcat.net>  │
+# │ Made by Nercone / MIT License        │
+# │ Copyright (c) 2025 DiamondGotCat     │
+# ╰──────────────────────────────────────╯
 
 {config_code}
 
@@ -88,9 +91,9 @@ def config_python_script(scripts: dict, config: dict, release_tag: str = "v0.0.0
 {scripts.get('content.cli_processing', '')}
 """.strip()
 
-def get_interpreter_script(content: str) -> dict:
-    content_interpreter = content.split("#!checkpoint!")[1].strip()
-    content_cli_processing = content.split("#!checkpoint!")[2].strip()
+def get_interpreter_script(content: str) -> dict[str,str]:
+    content_interpreter = content.split("#!buildpoint!")[1].strip()
+    content_cli_processing = content.split("#!buildpoint!")[2].strip()
     return {"content": content, "content.interpreter": content_interpreter, "content.cli_processing": content_cli_processing}
 
 def main() -> int:
@@ -112,7 +115,7 @@ def main() -> int:
                 script_content = f.read()
             scripts = get_interpreter_script(script_content)
         else:
-            scripts = ""
+            scripts = {}
 
         if input_config_path.is_file():
             with input_config_path.open("r", encoding='utf-8') as f:
@@ -124,6 +127,7 @@ def main() -> int:
         formatted_python_script = config_python_script(scripts, config, args.tag)
         with output_path.open("w", encoding='utf-8') as f:
             f.write(formatted_python_script)
+        return 0
 
     except KeyboardInterrupt:
         return 130

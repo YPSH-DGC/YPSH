@@ -29,7 +29,7 @@ The PyYPSH interpreter offers features that are only possible because it's based
 
 ## Requirements
 - CPython (Behavior on other Python implementations has not been tested)
-- pip/uv, rich, ulid-py, zstandard (for NABS)
+- pip/uv, rich, ulid-py, zstandard (for PyNABS)
 - psutil, prompt_toolkit, rich, python‑dotenv (for PyYPSH Runtime)
 - pyside6, requests (for PyYPSH Setup)
 
@@ -83,7 +83,8 @@ If you want to run and build NABS locally, follow these steps:
 3. Prepare a configuration file (used by the configurator.py` to configure PyYPSH). If not provided, defaults will be applied.
 4. Install `rich` and `ulid-py` (using pip, uv, or any other package manager that supports PyPI).
 5. Run the `configurator.py`. (You can specify the config file using the `-c` option.)
-6. Run `nabs.py` (with `-m pyinstaller` or `-m nuitka`). (You can set the output filepath using the `-o` option.)
+6. Download `pynabs.py` from `https://raw.githubusercontent.com/DiamondGotCat/NABS/refs/heads/main/pynabs.py`
+7. Run `pynabs.py` (with `-m pyinstaller` or `-m nuitka`). (You can set the output filepath using the `-o` option.)
 
 ### PyInstaller vs Nuitka
 Both PyInstaller and Nuitka are tools for distributing Python scripts as executable files, but they work in completely different ways.
