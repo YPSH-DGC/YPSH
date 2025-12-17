@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-# -- PyYPSH ----------------------------------------------------- #
-# setup.py on PyYPSH                                              #
-# Refactored by LLM (2025-10-17)                                  #
-# Edited by DiamondGotCat, Licensed under MIT License             #
-# Copyright (c) 2025 DiamondGotCat                                #
-# ---------------------------------------------- DiamondGotCat -- #
+# ╭──────────────────────────────────────╮
+# │ setup.py on PyYPSH                   │
+# │ Nercone <nercone@diamondgotcat.net>  │
+# │ Made by Nercone / MIT License        │
+# │ Copyright (c) 2025 DiamondGotCat     │
+# ╰──────────────────────────────────────╯
 
 from __future__ import annotations
 
