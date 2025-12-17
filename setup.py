@@ -23,9 +23,7 @@ from typing import Literal, Dict, Any, Callable, Optional, Tuple
 import requests
 from rich import print
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Constants & Types
-# ─────────────────────────────────────────────────────────────────────────────
+# -- Constants & Types ----------------------------------------
 
 Channel = Literal["stable", "maybe-stable", "beta", "custom"]
 BuildType = Literal["pyinstaller", "nuitka"]
@@ -34,10 +32,7 @@ DEFAULT_DEST = os.path.join(os.path.expanduser("~"), ".ypsh", "bin")
 BASE_CHANNEL_URL = "https://ypsh-dgc.github.io/YPSH/channels/"
 GITHUB_RELEASE_BASE = "https://github.com/YPSH-DGC/YPSH/releases/download"
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Utilities
-# ─────────────────────────────────────────────────────────────────────────────
+# -- Utilities ------------------------------------------------
 
 def passingGatekeeper(path: str) -> None:
     """Remove macOS quarantine flag (ignore errors silently)."""
@@ -126,9 +121,7 @@ def getAutoBuildInformation(tag: str, *, build: BuildType) -> Dict[str, Any]:
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PATH helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# -- PATH helpers ---------------------------------------------
 
 def _add_to_path_posix(path_dir: str) -> list[str]:
     home = os.path.expanduser("~")
@@ -220,10 +213,7 @@ def add_to_user_path(path_dir: str) -> str:
     else:
         return "PATH update not supported on this OS."
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Installer
-# ─────────────────────────────────────────────────────────────────────────────
+# -- Installer ------------------------------------------------
 
 def install(
     *,
@@ -325,10 +315,7 @@ def install(
     except Exception as e:
         return {"status": "error", "desc": f"Unhandled error: {e}"}
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────────────
+# -- CLI ------------------------------------------------------
 
 def run_cli(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
@@ -404,9 +391,7 @@ def run_cli(argv: list[str]) -> None:
         print(f"[red]Failed:[/red] {res.get('desc')}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# GUI (PySide6)
-# ─────────────────────────────────────────────────────────────────────────────
+# -- GUI ------------------------------------------------------
 
 try:
     from PySide6.QtCore import Qt, QThread, Signal, Slot, QObject
@@ -632,7 +617,7 @@ if PYSIDE_AVAILABLE:
                 self.languageChanged.emit()
 
 
-    # ── Workers ────────────────────────────────────────────────────────────
+    # Workers
 
     class LicenseWorker(QThread):
         done = Signal(str, bool, str)
@@ -681,7 +666,7 @@ if PYSIDE_AVAILABLE:
             self.finished.emit(out)
 
 
-    # ── UI Utils & Style ───────────────────────────────────────────────────
+    # UI Utils & Style
 
     def apply_dark_palette(app: QApplication) -> None:
         try:
@@ -754,7 +739,7 @@ if PYSIDE_AVAILABLE:
     QFrame#line { background: #333333; min-height: 1px; max-height: 1px; }
     """
 
-    # ── Common base page ───────────────────────────────────────────────────
+    # Common base page
 
     class StyledPage(QWizardPage):
         def __init__(self, i18n: I18n, title_key: str = ""):
@@ -799,7 +784,7 @@ if PYSIDE_AVAILABLE:
             self.cmb.setItemText(1, self.i18n.t("lang_ja"))
             self.cmb.blockSignals(False)
 
-    # ── Pages ───────────────────────────────────────────────────────────────
+    # Pages
 
     class WelcomePage(StyledPage):
         def __init__(self, i18n: I18n):
@@ -1338,10 +1323,7 @@ else:
         print("[yellow]PySide6 not found; using CLI.[/yellow]")
         run_cli([a for a in sys.argv[1:] if a != "gui"])
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Entry
-# ─────────────────────────────────────────────────────────────────────────────
+# -- Entry ----------------------------------------------------
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
