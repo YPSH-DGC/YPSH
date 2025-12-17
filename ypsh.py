@@ -656,12 +656,16 @@ class Parser:
     def _expect_current(self) -> Token:
         tok = self.current()
         if tok is None:
-            exception_handler(get_builtin_exception("E0002"))
+            exc = get_builtin_exception("E0002")
+            exception_handler(exc)
+            raise exc
         return tok
 
     def _consume_semicolons(self):
-        while self.current() and self.current().type == "SEMI":
+        tok = self.current()
+        while tok and tok.type == "SEMI":
             self.eat("SEMI")
+            tok = self.current()
 
     def match(self, kind: str, value: str | None = None) -> bool:
         tok = self.current()
@@ -691,8 +695,9 @@ class Parser:
 
         save_pos = self.pos
         lval = self.parse_lvalue()
-        if lval is not None and self.current() and self.current().type in ("EQUAL", "PLUSEQ", "MINUSEQ", "MULTEQ", "DIVEQ"):
-            t = self.eat(self.current().type)
+        current_tok = self.current()
+        if lval is not None and current_tok and current_tok.type in ("EQUAL", "PLUSEQ", "MINUSEQ", "MULTEQ", "DIVEQ"):
+            t = self.eat(current_tok.type)
             rhs = self.expr()
             if t.type == "EQUAL":
                 if isinstance(lval, str):
@@ -710,7 +715,8 @@ class Parser:
             self.eat("ID")
             name = self.eat("ID").value
 
-            if self.current() and self.current().type == "ID" and self.current().value in ("var", "let"):
+            tok = self.current()
+            if tok and tok.type == "ID" and tok.value in ("var", "let"):
                 return self.var_decl(force_global=(kind == "global"), force_local=(kind == "local"))
 
             return Intent(kind, name)
@@ -774,7 +780,8 @@ class Parser:
 
         name = self.eat("ID").value
         var_type = "auto"
-        if self.current() and self.current().type == "COLON":
+        tok = self.current()
+        if tok and tok.type == "COLON":
             self.eat("COLON")
             var_type = self.eat("ID").value
         self.eat("EQUAL")
@@ -831,7 +838,8 @@ class Parser:
         self.eat("ID")
         name = self.eat("ID").value
         base = None
-        if self.current() and self.current().type == "COLON":
+        tok = self.current()
+        if tok and tok.type == "COLON":
             self.eat("COLON")
             base = self.eat("ID").value
         body = self.block().statements
@@ -840,20 +848,24 @@ class Parser:
     def block(self):
         self.eat("LBRACE")
         statements = []
-        while self.current() and self.current().type != "RBRACE":
+        tok = self.current()
+        while tok and tok.type != "RBRACE":
             self._consume_semicolons()
-            if self.current() and self.current().type == "RBRACE":
+            tok_after_semi = self.current()
+            if not tok_after_semi or tok_after_semi.type == "RBRACE":
                 break
             stmt = self.statement()
             if stmt is not None:
                 statements.append(stmt)
             self._consume_semicolons()
+            tok = self.current()
         self.eat("RBRACE")
         return Block(statements)
 
     def if_stmt(self):
         self.eat("ID")  # if
-        if self.current() and self.current().type == "LPAREN":
+        tok = self.current()
+        if tok and tok.type == "LPAREN":
             self.eat("LPAREN")
             condition = self.expr()
             self.eat("RPAREN")
@@ -861,18 +873,22 @@ class Parser:
             condition = self.expr()
         then_block = self.block()
 
-        while self.current() and self.current().type == "SEMI":
+        tok = self.current()
+        while tok and tok.type == "SEMI":
             self.eat("SEMI")
+            tok = self.current()
 
         else_block = None
-        if self.current() and self.current().type == "ID":
-            if self.current().value == "else":
+        tok = self.current()
+        if tok and tok.type == "ID":
+            if tok.value == "else":
                 self.eat("ID")
-                if self.current() and self.current().type == "ID" and self.current().value == "if":
+                tok_after_else = self.current()
+                if tok_after_else and tok_after_else.type == "ID" and tok_after_else.value == "if":
                     return IfStmt(condition, then_block, self.if_stmt())
                 else:
                     else_block = self.block()
-            elif self.current().value == "elif":
+            elif tok.value == "elif":
                 self.eat("ID")
                 return IfStmt(condition, then_block, self.if_stmt())
 
@@ -881,7 +897,8 @@ class Parser:
     def for_stmt(self):
         self.eat("ID")
         var_name = self.eat("ID").value
-        if not (self.current() and self.current().type == "ID" and self.current().value == "in"):
+        tok = self.current()
+        if not (tok and tok.type == "ID" and tok.value == "in"):
             exception_handler(get_builtin_exception("E0004"))
         self.eat("ID")
         iterable = self.expr()
@@ -890,7 +907,8 @@ class Parser:
 
     def while_stmt(self):
         self.eat("ID")
-        if self.current() and self.current().type == "LPAREN":
+        tok = self.current()
+        if tok and tok.type == "LPAREN":
             self.eat("LPAREN")
             condition = self.expr()
             self.eat("RPAREN")
@@ -921,15 +939,18 @@ class Parser:
 
     def expr_or(self):
         node = self.expr_and()
-        while self.current() and self.current().type == "OR":
+        tok = self.current()
+        while tok and tok.type == "OR":
             self.eat("OR")
             right = self.expr_and()
             node = BinOp(node, "||", right)
+            tok = self.current()
         return node
 
     def expr_ternary(self):
         condition = self.expr_or()
-        if self.current() and self.current().type == "QUESTION":
+        tok = self.current()
+        if tok and tok.type == "QUESTION":
             self.eat("QUESTION")
             if_true = self.expr()
             self.eat("COLON")
@@ -939,14 +960,17 @@ class Parser:
 
     def expr_and(self):
         node = self.expr_not()
-        while self.current() and self.current().type == "AND":
+        tok = self.current()
+        while tok and tok.type == "AND":
             self.eat("AND")
             right = self.expr_not()
             node = BinOp(node, "&&", right)
+            tok = self.current()
         return node
 
     def expr_not(self):
-        if self.current() and self.current().type == "NOT":
+        tok = self.current()
+        if tok and tok.type == "NOT":
             self.eat("NOT")
             operand = self.expr_not()
             return UnaryOp("!", operand)
@@ -954,19 +978,23 @@ class Parser:
 
     def expr_comparison(self):
         node = self.expr_term()
-        while self.current() and self.current().type in ("LT", "GT", "LE", "GE", "EQ", "NE"):
-            op_token = self.eat(self.current().type)
+        tok = self.current()
+        while tok and tok.type in ("LT", "GT", "LE", "GE", "EQ", "NE"):
+            op_token = self.eat(tok.type)
             op = op_token.value
             right = self.expr_term()
             node = BinOp(node, op, right)
+            tok = self.current()
         return node
 
     def expr_term(self):
         node = self.expr_factor()
-        while self.current() and self.current().type == "OP" and self.current().value in ("+", "-"):
+        tok = self.current()
+        while tok and tok.type == "OP" and tok.value in ("+", "-"):
             op = self.eat("OP").value
             right = self.expr_factor()
             node = BinOp(node, op, right)
+            tok = self.current()
         return node
 
     def expr_unary(self):
@@ -979,16 +1007,16 @@ class Parser:
 
     def expr_factor(self):
         node = self.expr_unary()
-        while self.current() and self.current().type == "OP" and self.current().value in ("*", "/"):
+        tok = self.current()
+        while tok and tok.type == "OP" and tok.value in ("*", "/"):
             op = self.eat("OP").value
             right = self.expr_unary()
             node = BinOp(node, op, right)
+            tok = self.current()
         return node
 
     def expr_atom(self):
-        token = self.current()
-        if token is None:
-            exception_handler(get_builtin_exception("E0002"))
+        token = self._expect_current()
 
         if token.type == "NUMBER":
             self.eat("NUMBER")
@@ -1019,7 +1047,8 @@ class Parser:
             elif tok and tok.type == "LPAREN":
                 self.eat("LPAREN")
                 args = []
-                if self.current() and self.current().type != "RPAREN":
+                tok_in_call = self.current()
+                if tok_in_call and tok_in_call.type != "RPAREN":
                     while True:
                         is_kw = False
                         cur = self.current()
@@ -1034,7 +1063,8 @@ class Parser:
                         if not is_kw:
                             args.append(self.expr())
 
-                        if self.current() and self.current().type == "COMMA":
+                        tok_in_args = self.current()
+                        if tok_in_args and tok_in_args.type == "COMMA":
                             self.eat("COMMA")
                         else:
                             break
@@ -1055,11 +1085,13 @@ class Parser:
     def list_literal(self):
         self.eat("LBRACKET")
         elements = []
-        if self.current() and self.current().type != "RBRACKET":
+        tok = self.current()
+        if tok and tok.type != "RBRACKET":
             while True:
                 elem = self.expr()
                 elements.append(elem)
-                if self.current() and self.current().type == "COMMA":
+                tok_in_list = self.current()
+                if tok_in_list and tok_in_list.type == "COMMA":
                     self.eat("COMMA")
                 else:
                     break
@@ -1069,9 +1101,10 @@ class Parser:
     def dict_literal(self):
         self.eat("LBRACE")
         pairs = []
-        if self.current() and self.current().type != "RBRACE":
+        tok = self.current()
+        if tok and tok.type != "RBRACE":
             while True:
-                key_token = self.current()
+                key_token = self._expect_current()
                 if key_token.type in ("STRING", "MLSTRING"):
                     key = self.eat(key_token.type).value
                     key = unescape_string_literal(key[1:-1])
@@ -1083,7 +1116,8 @@ class Parser:
                 self.eat("COLON")
                 value = self.expr()
                 pairs.append((key, value))
-                if self.current() and self.current().type == "COMMA":
+                tok_in_dict = self.current()
+                if tok_in_dict and tok_in_dict.type == "COMMA":
                     self.eat("COMMA")
                 else:
                     break
@@ -1103,7 +1137,8 @@ class Parser:
                 break
             if tok.type == "DOT":
                 self.eat("DOT")
-                if not (self.current() and self.current().type == "ID"):
+                tok_after_dot = self.current()
+                if not (tok_after_dot and tok_after_dot.type == "ID"):
                     return None
                 attr_name = self.eat("ID").value
                 node = Attribute(node, attr_name)
@@ -1254,7 +1289,8 @@ class Function:
             else:
                 exception_handler(get_builtin_exception("E0009"))
 
-            local_env.set(param_name, value)
+            if param_name != "_":
+                local_env.set(param_name, value)
 
         if j != len(pos_args):
             exception_handler(get_builtin_exception("E0009"))
@@ -2040,6 +2076,9 @@ Those who use them wisely, without abuse, are the true users of computers.
                 env.pop_block()
 
         elif isinstance(node, VarDecl):
+            if node.name == "_":
+                self.evaluate(node.expr, env)
+                return None
             value = self.evaluate(node.expr, env)
             expected_type = node.var_type
             if expected_type != "auto" and not self._check_type_match(value, expected_type):
@@ -2051,6 +2090,10 @@ Those who use them wisely, without abuse, are the true users of computers.
             return None
 
         elif isinstance(node, Assign):
+            if node.name == "_" and not node.target:
+                self.evaluate(node.expr, env)
+                return None
+
             value = self.evaluate(node.expr, env)
             var_type = getattr(node, "var_type", "auto")
             if node.declare and var_type != "auto":
@@ -2084,6 +2127,10 @@ Those who use them wisely, without abuse, are the true users of computers.
             return None
 
         elif isinstance(node, AugAssign):
+            if node.name == "_" and not node.target:
+                self.evaluate(node.expr, env)
+                return None
+
             if node.target is not None:
                 cur = self._read_from_target(node.target, env)
                 val = self.evaluate(node.expr, env)
@@ -2143,7 +2190,8 @@ Those who use them wisely, without abuse, are the true users of computers.
             for value in iterable:
                 env.push_block()
                 try:
-                    env.declare(node.var_name, value, force_local=True)
+                    if node.var_name != "_":
+                        env.declare(node.var_name, value, force_local=True)
                     self._exec_block_statements(node.body, env)
                 except ContinueException:
                     pass
@@ -2483,22 +2531,32 @@ class SemanticAnalyzer:
     def pop_scope(self):
         self.scopes.pop()
 
-    def declare(self, name):
-        self.current_scope()[name] = True
+    def declare(self, name, is_const=False):
+        self.current_scope()[name] = {"const": is_const}
 
     def is_declared(self, name):
         return any(name in scope for scope in reversed(self.scopes))
 
+    def get_declaration(self, name):
+        for scope in reversed(self.scopes):
+            if name in scope:
+                return scope[name]
+        return None
+
     def analyze(self, node):
+        if node is None:
+            return
         method = f"analyze_{type(node).__name__}"
-        return getattr(self, method, self.generic_analyze)(node)
+        analyzer_method = getattr(self, method, self.generic_analyze)
+        return analyzer_method(node)
 
     def generic_analyze(self, node):
         if hasattr(node, "__dict__"):
             for value in vars(node).values():
                 if isinstance(value, list):
                     for item in value:
-                        self.analyze(item)
+                        if isinstance(item, ASTNode):
+                            self.analyze(item)
                 elif isinstance(value, ASTNode):
                     self.analyze(value)
 
@@ -2510,13 +2568,15 @@ class SemanticAnalyzer:
 
     def analyze_VarDecl(self, node):
         self.analyze(node.expr)
-        self.declare(node.name)
+        if node.name != "_":
+            self.declare(node.name)
 
     def analyze_FuncDecl(self, node):
         self.declare(node.name)
         self.push_scope()
         for (param_name, _ptype, default_expr) in node.params:
-            self.declare(param_name)
+            if param_name != "_":
+                self.declare(param_name)
             if default_expr is not None:
                 self.analyze(default_expr)
         for stmt in node.body:
@@ -2546,7 +2606,8 @@ class SemanticAnalyzer:
     def analyze_ForStmt(self, node):
         self.analyze(node.iterable)
         self.push_scope()
-        self.declare(node.var_name)
+        if node.var_name != "_":
+            self.declare(node.var_name)
         self.analyze(node.body)
         self.pop_scope()
 
@@ -2569,16 +2630,14 @@ class SemanticAnalyzer:
         self.analyze(node.if_false)
 
     def analyze_FuncCall(self, node):
-        if isinstance(node.name, Attribute):
-            self.analyze(node.name.obj)
-        else:
+        if isinstance(node.name, str):
             if not self.is_declared(node.name):
                 self.errors.append(get_builtin_exception("E0026", {"name": node.name}))
+        else:
+            self.analyze(node.name)
+
         for arg in node.args:
-            if isinstance(arg, KeywordArg):
-                self.analyze(arg.value)
-            else:
-                self.analyze(arg)
+            self.analyze(arg)
 
     def analyze_KeywordArg(self, node):
         self.analyze(node.value)
@@ -2604,11 +2663,41 @@ class SemanticAnalyzer:
 
     def analyze_Assign(self, node):
         self.analyze(node.expr)
-        self.declare(node.name)
+        if node.target is not None:
+            self.analyze(node.target)
+            return
+
+        name = node.name
+        if not name or name == "_":
+            return
+
+        if node.declare:
+            self.declare(name, is_const=node.is_const)
+        else:
+            decl = self.get_declaration(name)
+            if not decl:
+                self.errors.append(get_builtin_exception("E0008", {"name": name}))
+            elif decl.get("const", False):
+                self.errors.append(get_builtin_exception("E0027", {"name": name}))
 
     def analyze_AugAssign(self, node):
-        self.declare(node.name)
         self.analyze(node.expr)
+        if node.target is not None:
+            self.analyze(node.target)
+            return
+
+        name = node.name
+        if not name or name == "_":
+            return
+
+        decl = self.get_declaration(name)
+        if not decl:
+            self.errors.append(get_builtin_exception("E0008", {"name": name}))
+        elif decl.get("const", False):
+            self.errors.append(get_builtin_exception("E0027", {"name": name}))
+
+    def analyze_Attribute(self, node):
+        self.analyze(node.obj)
 
 def collect_errors(code: str) -> list[Exception]:
     errors = []
@@ -2642,7 +2731,7 @@ def collect_errors(code: str) -> list[Exception]:
         builtin_env = interpreter.ypsh_globals
         while builtin_env:
             for key in builtin_env.vars.keys():
-                analyzer.declare(key)
+                analyzer.declare(key, is_const=False)
             builtin_env = builtin_env.parent
 
         analyzer.analyze(ast)
@@ -2742,8 +2831,8 @@ def repl():
             try:
                 prompt = ">>> " if accumulated_code == "" else "... "
                 line = session.prompt(prompt)
-                if line.strip() in ["exit", "quit"]:
-                    raise SystemExit(130)
+                if line.strip().lower() in ["exit", "quit"]:
+                    break
             except KeyboardInterrupt:
                 print()
                 accumulated_code = ""
@@ -2763,6 +2852,9 @@ def repl():
                 result = interpreter.interpret(ast_)
                 if result is not None:
                     print(result)
+            except SystemExit as e:
+                if e.code != 1:
+                    break
             except KeyboardInterrupt:
                 print()
             except Exception as e:
@@ -2794,8 +2886,8 @@ def repl():
                 prompt = ">>> " if accumulated_code == "" else "... "
                 try:
                     line = input(prompt)
-                    if line.strip() in ["exit", "quit"]:
-                        raise SystemExit(130)
+                    if line.strip().lower() in ["exit", "quit"]:
+                        break
                 except KeyboardInterrupt:
                     print()
                     accumulated_code = ""
@@ -2821,6 +2913,9 @@ def repl():
                 result = interpreter.interpret(ast_)
                 if result is not None:
                     print(result)
+            except SystemExit as e:
+                if e.code != 1:
+                    break
             except KeyboardInterrupt:
                 print()
             except Exception as e:
@@ -2853,11 +2948,13 @@ def run_lint(code):
             counter += 1
         raise SystemExit(1)
 
-def check_ypsh_scripts(*path_list, base: str = return_ypsh_exec_folder()) -> str | None:
-    for path in path_list:
-        full_path = os.path.join(base, path)
-        if os.path.isfile(full_path):
-            return full_path
+def check_ypsh_scripts(*path_list) -> str | None:
+    search_dirs = list(dict.fromkeys([return_ypsh_exec_folder(), os.getcwd()]))
+    for base in search_dirs:
+        for path in path_list:
+            full_path = os.path.join(base, path)
+            if os.path.isfile(full_path):
+                return full_path
     return None
 
 #!buildpoint!
