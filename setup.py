@@ -175,6 +175,8 @@ def _add_to_path_posix(path_dir: str) -> list[str]:
 
 
 def _add_to_path_windows(path_dir: str) -> bool:
+    if sys.platform != "win32":
+        return False
     try:
         import winreg  # type: ignore
         import ctypes
@@ -259,6 +261,9 @@ def install(
         setprog(1)
         log("[bold]Resolving release tag…[/bold]")
         tag = custom_tag if channel == "custom" else getTagFromChannel(channel)
+
+        if not tag:
+            return {"status": "error", "desc": "Could not resolve a release tag for the selected channel."}
 
         info = getAutoBuildInformation(tag, build=build)
         if info.get("status") != "ok":
@@ -685,21 +690,21 @@ if PYSIDE_AVAILABLE:
             pass
 
         palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#000000"))
-        palette.setColor(QPalette.Base, QColor("#000000"))
-        palette.setColor(QPalette.AlternateBase, QColor("#0a0a0a"))
-        palette.setColor(QPalette.ToolTipBase, QColor("#000000"))
-        palette.setColor(QPalette.ToolTipText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Window, QColor("#000000"))
+        palette.setColor(QPalette.ColorRole.Base, QColor("#000000"))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#0a0a0a"))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#000000"))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#ffffff"))
 
-        palette.setColor(QPalette.Text, QColor("#ffffff"))
-        palette.setColor(QPalette.WindowText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Text, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#ffffff"))
 
-        palette.setColor(QPalette.Button, QColor("#111111"))
-        palette.setColor(QPalette.ButtonText, QColor("#ffffff"))
-        palette.setColor(QPalette.Highlight, QColor("#ffffff"))        # 選択背景：白
-        palette.setColor(QPalette.HighlightedText, QColor("#000000"))  # 選択文字：黒
+        palette.setColor(QPalette.ColorRole.Button, QColor("#111111"))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))
 
-        palette.setColor(QPalette.PlaceholderText, QColor("#888888"))
+        palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#888888"))
         app.setPalette(palette)
 
     BASE_QSS = """
@@ -804,17 +809,17 @@ if PYSIDE_AVAILABLE:
 
             brand = QLabel()
             brand.setObjectName("Brand")
-            brand.setAlignment(Qt.AlignCenter)
+            brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.msg = QLabel()
             self.msg.setWordWrap(True)
-            self.msg.setAlignment(Qt.AlignCenter)
+            self.msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             v.addWidget(brand)
             v.addWidget(self.msg)
-            v.addItem(QSpacerItem(0, 8, QSizePolicy.Minimum, QSizePolicy.Fixed))
+            v.addItem(QSpacerItem(0, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
             tips = QListWidget()
-            tips.setFrameShape(QListWidget.NoFrame)
+            tips.setFrameShape(QFrame.Shape.NoFrame)
             tips.setSpacing(4)
             self._tips = tips
             v.addWidget(tips)
@@ -1076,8 +1081,8 @@ if PYSIDE_AVAILABLE:
         def _hline(self) -> QFrame:
             line = QFrame()
             line.setObjectName("line")
-            line.setFrameShape(QFrame.HLine)
-            line.setFrameShadow(QFrame.Sunken)
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
             return line
 
         def validatePage(self) -> bool:
@@ -1147,7 +1152,7 @@ if PYSIDE_AVAILABLE:
 
         def initializePage(self) -> None:
             wiz: InstallerWizard = self.wizard()  # type: ignore
-            for btn in (QWizard.BackButton, QWizard.NextButton):
+            for btn in (QWizard.WizardButton.BackButton, QWizard.WizardButton.NextButton):
                 w = wiz.button(btn)
                 if w:
                     w.setEnabled(False)
@@ -1165,15 +1170,15 @@ if PYSIDE_AVAILABLE:
             self.prg.setValue(100)
             if ok:
                 wiz.setProperty("result", res)
-                nxt = wiz.button(QWizard.NextButton)
+                nxt = wiz.button(QWizard.WizardButton.NextButton)
                 if nxt:
                     nxt.setEnabled(True)
                     nxt.click()
             else:
-                back = wiz.button(QWizard.BackButton)
+                back = wiz.button(QWizard.WizardButton.BackButton)
                 if back:
                     back.setEnabled(True)
-                cancel = wiz.button(QWizard.CancelButton)
+                cancel = wiz.button(QWizard.WizardButton.CancelButton)
                 if cancel:
                     cancel.setEnabled(True)
                     cancel.setVisible(True)
@@ -1259,10 +1264,10 @@ if PYSIDE_AVAILABLE:
             self.state = WizardState()
 
             self.setWindowTitle(self.i18n.t("app_title"))
-            self.setWizardStyle(QWizard.ModernStyle)
+            self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
             self.setMinimumSize(760, 560)
-            self.setPixmap(QWizard.WatermarkPixmap, QPixmap())
-            self.setPixmap(QWizard.LogoPixmap, QPixmap())
+            self.setPixmap(QWizard.WizardPixmap.WatermarkPixmap, QPixmap())
+            self.setPixmap(QWizard.WizardPixmap.LogoPixmap, QPixmap())
             self.setWindowIcon(QIcon())
 
             self.setPage(self.Page_Welcome, WelcomePage(self.i18n))
@@ -1277,11 +1282,11 @@ if PYSIDE_AVAILABLE:
             self.setPage(self.Page_Finish, FinishPage(self.i18n, self.state))
 
             self.setButtonLayout([
-                QWizard.Stretch,
-                QWizard.CancelButton,
-                QWizard.BackButton,
-                QWizard.NextButton,
-                QWizard.FinishButton,
+                QWizard.WizardButton.Stretch,
+                QWizard.WizardButton.CancelButton,
+                QWizard.WizardButton.BackButton,
+                QWizard.WizardButton.NextButton,
+                QWizard.WizardButton.FinishButton,
             ])
 
             self._apply_button_texts()
@@ -1289,10 +1294,10 @@ if PYSIDE_AVAILABLE:
             self.i18n.languageChanged.connect(self._apply_i18n_all)
 
         def _apply_button_texts(self):
-            self.setButtonText(QWizard.NextButton, self.i18n.t("btn_next"))
-            self.setButtonText(QWizard.BackButton, self.i18n.t("btn_back"))
-            self.setButtonText(QWizard.CancelButton, self.i18n.t("btn_cancel"))
-            self.setButtonText(QWizard.FinishButton, self.i18n.t("btn_finish"))
+            self.setButtonText(QWizard.WizardButton.NextButton, self.i18n.t("btn_next"))
+            self.setButtonText(QWizard.WizardButton.BackButton, self.i18n.t("btn_back"))
+            self.setButtonText(QWizard.WizardButton.CancelButton, self.i18n.t("btn_cancel"))
+            self.setButtonText(QWizard.WizardButton.FinishButton, self.i18n.t("btn_finish"))
 
         @Slot()
         def _apply_i18n_all(self):
