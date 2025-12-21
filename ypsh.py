@@ -1588,7 +1588,7 @@ Those who use them wisely, without abuse, are the true users of computers.
                   """.strip())
 
         elif id.strip().lower().replace("-", "_").replace(" ", "_") in ["core", "system_core"]:
-            self.enabled_builtin_modules.append("system")
+            self.enabled_builtin_modules.append("system_core")
 
             self.ypsh_def("@", "print", self.normal_print, desc="Normal Printing (No color, No decoration)")
             self.ypsh_def("@", "cprint", self.color_print, desc="Show content with Decoration(e.g. Coloring) using python's 'rich' library.")
